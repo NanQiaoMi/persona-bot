@@ -164,12 +164,17 @@ ${rawMaterials || '（无）'}
     // ============================
     console.log(`[Pipeline] Stage 3: ex-skill 精准构建 persona.md...`);
 
-    const stage3User = `根据以下分析结果，生成persona.md文件：
+    const stage3User = `根据以下分析结果，生成persona.md文件。
+
+【重要要求】
+1. **绝对不能出现"原材料不足"的占位符** - 必须基于AI生成的完整描述填充所有内容
+2. 每一层都必须有具体内容，不能留空或写"（原材料不足）"
+3. 如果某个维度信息不够，就基于已有信息合理推演
 
 【分析结果】
 ${stage2Result}
 
-【AI生成的人物描述】
+【AI生成的人物描述】（这是最重要的信息来源）
 ${stage1Result}
 
 【用户原始输入】
@@ -177,11 +182,15 @@ ${stage1Result}
 基本背景：${basicInfo || '（未提供）'}
 性格特征：${personalityInfo || '（未提供）'}
 
-请严格按照persona_builder.md的模板生成persona.md，要求：
-1. Layer 0必须包含具体可执行的行为规则，不能只是形容词
-2. Layer 2的表达风格要有真实的例子
-3. 所有"原材料不足"的地方，基于AI描述进行补充
-4. 整体读起来要像这个人在说话`;
+请严格按照persona_builder.md的模板生成persona.md，确保：
+1. Layer 0：包含3-5条具体可执行的行为规则，每条都要有"当...时，她会..."的格式
+2. Layer 1：身份信息完整，MBTI要给出具体行为特征
+3. Layer 2：口头禅至少5个，说话方式要有具体例子，至少6个"你会怎么说"的例子
+4. Layer 3：情感逻辑完整，每个维度都要有具体场景和话术
+5. Layer 4：关系行为完整，每个维度都要有典型场景
+6. Layer 5：边界与雷区完整
+
+整体读起来要像这个人在说话，有真实感。`;
 
     const personaContent = await callLLM(pBuilder, stage3User, 0.4);
 
