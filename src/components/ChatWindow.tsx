@@ -1,15 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import WeChatInput from './ui/WeChatInput';
 import MessageItem from './chat/MessageItem';
 import ChatHeader from './chat/ChatHeader';
 import { GlassCard } from './ui/GlassCard';
-
-interface ModelOption {
-  id: string;
-  name: string;
-}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,33 +22,79 @@ export default function ChatWindow({ slug }: { slug: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [personaInfo, setPersonaInfo] = useState<PersonaInfo>({ name: slug });
   const [intimacy, setIntimacy] = useState(50);
   const [isCorrecting, setIsCorrecting] = useState<number | null>(null);
-  const [models, setModels] = useState<ModelOption[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string>('default');
+  const [emotionState, setEmotionState] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 加载历史记录
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const res = await fetch(`/api/conversations?slug=${slug}&limit=100`, { headers });
+        const data = await res.json();
+
+        if (data.success && data.messages) {
+          setMessages(data.messages);
+          if (data.emotionState) {
+            setEmotionState(data.emotionState);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load history:', error);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [slug]);
+
+  // 保存聊天记录
+  const saveMessages = useCallback(async (msgs: Message[]) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        await fetch('/api/conversations', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            slug,
+            messages: msgs,
+            emotionState
+          })
+        });
+      } catch (error) {
+        console.error('Failed to save conversation:', error);
+      }
+    }, 1000); // 1秒后保存，避免频繁请求
+  }, [slug, emotionState]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
-  useEffect(() => {
-    fetch('/api/models')
-      .then(res => res.json())
-      .then((data: ModelOption[]) => {
-        setModels(data);
-        if (data.length > 0) {
-          setSelectedModelId(prev => {
-            if (data.find(m => m.id === prev)) return prev;
-            return data[0].id;
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const handleCorrection = async (index: number, reason: string) => {
     const msg = messages[index];
@@ -87,18 +128,30 @@ export default function ChatWindow({ slug }: { slug: string }) {
       content: input,
       timestamp: new Date().toISOString()
     };
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setLoading(true);
 
+    // 保存用户消息
+    saveMessages(updatedMessages);
+
     try {
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          messages: [...messages, userMessage],
+          messages: updatedMessages,
           slug,
-          modelId: selectedModelId,
+          emotionState
         })
       });
 
@@ -110,20 +163,41 @@ export default function ChatWindow({ slug }: { slug: string }) {
         const parts = content.split('[BURST]').map((p: string) => p.trim()).filter((p: string) => p);
 
         let delay = 0;
+        const allNewMessages: Message[] = [];
+
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i];
           const partDelay = Math.min(Math.max(800, part.length * 40), 3000) + Math.random() * 500;
           delay += partDelay;
 
           setTimeout(() => {
-            setMessages(prev => [...prev, {
+            const assistantMessage: Message = {
               role: 'assistant',
               content: part,
               timestamp: new Date().toISOString()
-            }]);
+            };
+            allNewMessages.push(assistantMessage);
+
+            setMessages(prev => {
+              const newMsgs = [...prev, assistantMessage];
+              // 保存所有消息
+              if (i === parts.length - 1) {
+                saveMessages(newMsgs);
+              }
+              return newMsgs;
+            });
 
             if (data.mood) {
               setPersonaInfo(prev => ({ ...prev, currentMood: data.mood }));
+            }
+
+            if (data.emotionState) {
+              setEmotionState(data.emotionState);
+            }
+
+            // 更新亲密度
+            if (data.intimacyChange) {
+              setIntimacy(prev => Math.max(0, Math.min(100, prev + data.intimacyChange)));
             }
 
             if (i === parts.length - 1) {
@@ -142,6 +216,17 @@ export default function ChatWindow({ slug }: { slug: string }) {
     }
   };
 
+  if (loadingHistory) {
+    return (
+      <div className="w-full max-w-2xl mx-auto h-[600px] flex flex-col bg-[#EDEDED] rounded-lg overflow-hidden shadow-lg items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-[#07C160]/20 border-t-[#07C160] rounded-full animate-spin" />
+          <p className="text-[#999999] text-sm">加载聊天记录...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-2xl mx-auto h-[600px] flex flex-col bg-[#EDEDED] rounded-lg overflow-hidden shadow-lg">
       {/* 聊天头部 */}
@@ -149,9 +234,6 @@ export default function ChatWindow({ slug }: { slug: string }) {
         personaName={personaInfo.name}
         personaAvatar={personaInfo.avatar}
         currentMood={personaInfo.currentMood}
-        models={models}
-        selectedModelId={selectedModelId}
-        onModelChange={setSelectedModelId}
       />
 
       {/* 亲密度条 */}
