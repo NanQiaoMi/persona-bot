@@ -13,6 +13,7 @@ export interface EmotionVector {
   decayRate: number;
 
   appraisal: Appraisal;
+  lastUpdated?: Date;
 }
 
 export interface Appraisal {
