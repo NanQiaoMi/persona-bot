@@ -1,0 +1,14 @@
+# .dockerignore
+
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env
+.env.local
+.env.*.local
+uploads/*
+exes/*
+backups/*
+mongo_data/
