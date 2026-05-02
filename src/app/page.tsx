@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import ImportModal from "@/components/ImportModal";
+import SkillPanel from "@/components/SkillPanel";
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<Record<string, unknown> | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -78,6 +82,28 @@ export default function Home() {
                 </Link>
               </>
             )}
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex items-center justify-center gap-3 mt-8">
+            <button
+              onClick={() => setShowImport(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white/80 border border-[#E5E5E5] text-sm text-[#576B95] hover:bg-white hover:border-[#576B95]/30 transition-all shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              导入聊天记录
+            </button>
+            <button
+              onClick={() => setShowSkills(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white/80 border border-[#E5E5E5] text-sm text-[#F0A020] hover:bg-white hover:border-[#F0A020]/30 transition-all shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+              </svg>
+              技能管理
+            </button>
           </div>
 
           {/* Stats */}
@@ -193,6 +219,23 @@ export default function Home() {
           © 2024 PersonaBot. 将回忆变成永恒。
         </div>
       </footer>
+
+      {/* Modals */}
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onSuccess={() => {
+          if (user) {
+            window.location.reload();
+          } else {
+            window.location.href = '/register';
+          }
+        }}
+      />
+      <SkillPanel
+        isOpen={showSkills}
+        onClose={() => setShowSkills(false)}
+      />
     </main>
   );
 }
