@@ -64,7 +64,7 @@ export default function IntakeWizard() {
     }, 10000);
 
     try {
-      const res = await fetch('/api/persona/pipeline-v2', {
+      const res = await fetch('/api/persona/pipeline-v3', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
