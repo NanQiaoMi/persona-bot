@@ -57,89 +57,83 @@ export default function RegisterForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
-      {/* Background */}
-      <div className="fixed inset-0 -z-10">
-        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-indigo-500/10 blur-[150px] rounded-full" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-purple-500/10 blur-[150px] rounded-full" />
-      </div>
-
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <span className="text-3xl">💬</span>
-            <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              PersonaBot
-            </span>
+            <div className="w-10 h-10 rounded-xl bg-[#07C160] flex items-center justify-center">
+              <span className="text-white text-xl">💬</span>
+            </div>
+            <span className="text-xl font-bold text-[#353535]">PersonaBot</span>
           </Link>
-          <h1 className="text-3xl font-bold mb-2">创建账号</h1>
-          <p className="text-zinc-400">注册后开始创建你的AI角色</p>
+          <h1 className="text-2xl font-bold text-[#353535] mb-2">创建账号</h1>
+          <p className="text-[#999999]">注册后开始创建你的AI角色</p>
         </div>
 
         {/* Register Form */}
-        <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl p-8 border border-[#E5E5E5] shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <label className="block text-sm font-medium text-[#353535] mb-2">
                 邀请码
               </label>
               <input
                 type="text"
                 value={formData.inviteCode}
                 onChange={(e) => setFormData({ ...formData, inviteCode: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                className="w-full px-4 py-3 rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20 transition-all"
                 placeholder="输入邀请码"
                 required
               />
-              <p className="mt-2 text-xs text-zinc-500">
-                邀请码由管理员提供，用于控制注册人数
+              <p className="mt-2 text-xs text-[#CCCCCC]">
+                邀请码由管理员提供
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <label className="block text-sm font-medium text-[#353535] mb-2">
                 用户名
               </label>
               <input
                 type="text"
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                className="w-full px-4 py-3 rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20 transition-all"
                 placeholder="3-30个字符"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <label className="block text-sm font-medium text-[#353535] mb-2">
                 密码
               </label>
               <input
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                className="w-full px-4 py-3 rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20 transition-all"
                 placeholder="至少8位，包含大小写字母和数字"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">
+              <label className="block text-sm font-medium text-[#353535] mb-2">
                 确认密码
               </label>
               <input
                 type="password"
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                className="w-full px-4 py-3 rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20 transition-all"
                 placeholder="再次输入密码"
                 required
               />
             </div>
 
             {error && (
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+              <div className="p-4 rounded-xl bg-[#FA5151]/10 border border-[#FA5151]/20 text-[#FA5151] text-sm">
                 {error}
               </div>
             )}
@@ -147,7 +141,7 @@ export default function RegisterForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:shadow-lg hover:shadow-indigo-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -160,10 +154,10 @@ export default function RegisterForm() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-white/5 text-center">
-            <p className="text-zinc-400">
+          <div className="mt-6 pt-6 border-t border-[#E5E5E5] text-center">
+            <p className="text-[#999999]">
               已有账号？{' '}
-              <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+              <Link href="/login" className="text-[#576B95] hover:text-[#07C160] font-medium transition-colors">
                 立即登录
               </Link>
             </p>

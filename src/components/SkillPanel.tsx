@@ -23,6 +23,21 @@ export default function SkillPanel({ isOpen, onClose, onSelectSkill }: SkillPane
 
   useEffect(() => {
     if (isOpen) {
+      const loadSkills = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/ex-skill?action=list');
+          const data = await res.json();
+          if (data.success) {
+            setSkills(data.skills || []);
+          }
+        } catch (error) {
+          console.error('Failed to load skills:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
       loadSkills();
     }
   }, [isOpen]);

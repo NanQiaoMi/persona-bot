@@ -56,7 +56,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
         setError(data.error || '解析失败');
         setStep('upload');
       }
-    } catch (e) {
+    } catch {
       setError('上传失败，请重试');
       setStep('upload');
     }
