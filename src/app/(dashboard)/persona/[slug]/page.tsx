@@ -50,26 +50,26 @@ export default function PersonaDetailPage() {
   const [activeTab, setActiveTab] = useState<'aiProfile' | 'persona' | 'memories' | 'emotion'>('aiProfile');
 
   useEffect(() => {
+    const loadPersona = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/personas/${slug}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          setPersona(data.persona);
+        }
+      } catch (error) {
+        console.error('Failed to load persona:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     loadPersona();
   }, [slug]);
-
-  const loadPersona = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personas/${slug}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setPersona(data.persona);
-      }
-    } catch (error) {
-      console.error('Failed to load persona:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDelete = async () => {
     if (!confirm('确定要删除这个角色吗？此操作不可撤销。')) {
@@ -94,8 +94,11 @@ export default function PersonaDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-3 border-[#E5E5E5] border-t-[#07C160] rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-2 border-[#E5E5E5]" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-[#07C160] animate-spin" />
+          </div>
           <p className="text-[#999999] text-sm">加载中...</p>
         </div>
       </div>
@@ -104,35 +107,45 @@ export default function PersonaDetailPage() {
 
   if (!persona) {
     return (
-      <div className="flex flex-col items-center justify-center py-32">
+      <div className="flex flex-col items-center justify-center py-32 animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-[#F7F7F7] flex items-center justify-center mb-4">
+          <span className="text-2xl">😶</span>
+        </div>
         <p className="text-[#999999] mb-4">角色不存在</p>
-        <Link href="/" className="text-[#07C160] text-sm">
+        <Link href="/" className="text-sm text-[#07C160] hover:underline">
           返回首页
         </Link>
       </div>
     );
   }
 
+  const tabs = [
+    { id: 'aiProfile', label: '人物画像', icon: '🤖' },
+    { id: 'persona', label: '性格设定', icon: '🎭' },
+    { id: 'memories', label: '共同记忆', icon: '💭' },
+    { id: 'emotion', label: '情感状态', icon: '💗' },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#EDEDED]">
+    <div className="min-h-screen pb-8">
       {/* Header */}
-      <div className="bg-white border-b border-[#E5E5E5] px-4 py-3 flex items-center justify-between">
-        <Link href="/" className="text-[#576B95]">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      <div className="glass sticky top-14 z-40 px-4 py-3 flex items-center justify-between">
+        <Link href="/" className="w-9 h-9 rounded-lg bg-white/60 backdrop-blur-sm flex items-center justify-center text-[#576B95] hover:text-[#07C160] hover:bg-white/80 transition-all border border-white/40">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
-        <h1 className="text-base font-medium text-[#353535]">{persona.name}</h1>
-        <div className="flex items-center gap-3">
+        <h1 className="text-base font-semibold text-[#353535]">{persona.name}</h1>
+        <div className="flex items-center gap-2">
           <Link
             href={`/chat/${slug}`}
-            className="text-sm text-[#07C160]"
+            className="px-3 py-1.5 rounded-lg bg-[#07C160]/10 text-[#07C160] text-xs font-medium hover:bg-[#07C160]/20 transition-colors"
           >
             对话
           </Link>
           <button
             onClick={handleDelete}
-            className="text-sm text-[#FA5151]"
+            className="px-3 py-1.5 rounded-lg bg-[#FA5151]/10 text-[#FA5151] text-xs font-medium hover:bg-[#FA5151]/20 transition-colors"
           >
             删除
           </button>
@@ -140,95 +153,118 @@ export default function PersonaDetailPage() {
       </div>
 
       {/* Profile Summary */}
-      <div className="bg-white mt-2 p-4">
-        <div className="grid grid-cols-4 gap-3">
-          {persona.profile?.mbti && (
+      <div className="px-4 pt-4 pb-2">
+        <div className="glass-card rounded-xl p-4">
+          <div className="grid grid-cols-4 gap-3">
+            {persona.profile?.mbti && (
+              <div className="text-center">
+                <p className="text-[10px] text-[#999999] mb-1.5 font-medium">MBTI</p>
+                <p className="text-sm font-semibold text-[#07C160]">{persona.profile.mbti}</p>
+              </div>
+            )}
+            {persona.profile?.zodiac && (
+              <div className="text-center">
+                <p className="text-[10px] text-[#999999] mb-1.5 font-medium">星座</p>
+                <p className="text-sm font-semibold text-[#576B95]">{persona.profile.zodiac}</p>
+              </div>
+            )}
+            {persona.profile?.attachment && (
+              <div className="text-center">
+                <p className="text-[10px] text-[#999999] mb-1.5 font-medium">依恋类型</p>
+                <p className="text-sm font-semibold text-[#F0A020]">{persona.profile.attachment}</p>
+              </div>
+            )}
             <div className="text-center">
-              <p className="text-[10px] text-[#999999] mb-1">MBTI</p>
-              <p className="text-sm font-semibold text-[#07C160]">{persona.profile.mbti}</p>
+              <p className="text-[10px] text-[#999999] mb-1.5 font-medium">更新</p>
+              <p className="text-xs text-[#666666]">
+                {new Date(persona.updatedAt).toLocaleDateString('zh-CN')}
+              </p>
             </div>
-          )}
-          {persona.profile?.zodiac && (
-            <div className="text-center">
-              <p className="text-[10px] text-[#999999] mb-1">星座</p>
-              <p className="text-sm font-semibold text-[#576B95]">{persona.profile.zodiac}</p>
-            </div>
-          )}
-          {persona.profile?.attachment && (
-            <div className="text-center">
-              <p className="text-[10px] text-[#999999] mb-1">依恋类型</p>
-              <p className="text-sm font-semibold text-[#F0A020]">{persona.profile.attachment}</p>
-            </div>
-          )}
-          <div className="text-center">
-            <p className="text-[10px] text-[#999999] mb-1">更新</p>
-            <p className="text-xs text-[#666666]">
-              {new Date(persona.updatedAt).toLocaleDateString('zh-CN')}
-            </p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white mt-2 flex border-b border-[#E5E5E5]">
-        {[
-          { id: 'aiProfile', label: '人物画像' },
-          { id: 'persona', label: '性格设定' },
-          { id: 'memories', label: '共同记忆' },
-          { id: 'emotion', label: '情感状态' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as 'aiProfile' | 'persona' | 'memories' | 'emotion')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'text-[#07C160] border-b-2 border-[#07C160]'
-                : 'text-[#999999]'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="px-4 pt-3 pb-2">
+        <div className="glass-card rounded-xl p-1.5 flex">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as 'aiProfile' | 'persona' | 'memories' | 'emotion')}
+                className={`flex-1 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white/80 text-[#07C160] shadow-sm'
+                    : 'text-[#999999] hover:text-[#666666]'
+                }`}
+              >
+                <span className="mr-1">{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tab Content */}
-      <div className="bg-white mt-2 p-4 min-h-[300px]">
-        {activeTab === 'aiProfile' && (
-          <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
-            {persona.aiProfileMd || '暂无人物画像'}
-          </div>
-        )}
+      <div className="px-4 pt-2">
+        <div className="glass-card rounded-xl p-5 min-h-[300px] animate-fade-in">
+          {activeTab === 'aiProfile' && (
+            <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
+              {persona.aiProfileMd || '暂无人物画像'}
+            </div>
+          )}
 
-        {activeTab === 'persona' && (
-          <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
-            {persona.personaMd || '暂无性格设定'}
-          </div>
-        )}
+          {activeTab === 'persona' && (
+            <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
+              {persona.personaMd || '暂无性格设定'}
+            </div>
+          )}
 
-        {activeTab === 'memories' && (
-          <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
-            {persona.memoriesMd || '暂无共同记忆'}
-          </div>
-        )}
+          {activeTab === 'memories' && (
+            <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
+              {persona.memoriesMd || '暂无共同记忆'}
+            </div>
+          )}
 
-        {activeTab === 'emotion' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#F7F7F7] rounded-lg p-3">
-                <p className="text-[10px] text-[#999999] mb-1">当前情绪</p>
-                <p className="text-lg font-semibold text-[#07C160]">
-                  {persona.emotionState?.primaryEmotion || '平静'}
-                </p>
+          {activeTab === 'emotion' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/60 rounded-xl p-4 border border-white/40">
+                  <p className="text-[10px] text-[#999999] mb-2 font-medium">当前情绪</p>
+                  <p className="text-xl font-semibold text-[#07C160]">
+                    {persona.emotionState?.primaryEmotion || '平静'}
+                  </p>
+                </div>
+                <div className="bg-white/60 rounded-xl p-4 border border-white/40">
+                  <p className="text-[10px] text-[#999999] mb-2 font-medium">情绪强度</p>
+                  <div className="flex items-end gap-1">
+                    <p className="text-xl font-semibold text-[#576B95]">
+                      {Math.round((persona.emotionState?.intensity || 0.5) * 100)}
+                    </p>
+                    <span className="text-xs text-[#999999] mb-0.5">%</span>
+                  </div>
+                </div>
               </div>
-              <div className="bg-[#F7F7F7] rounded-lg p-3">
-                <p className="text-[10px] text-[#999999] mb-1">情绪强度</p>
-                <p className="text-lg font-semibold text-[#576B95]">
-                  {Math.round((persona.emotionState?.intensity || 0.5) * 100)}%
-                </p>
+              
+              {/* Emotion Bar */}
+              <div className="bg-white/60 rounded-xl p-4 border border-white/40">
+                <p className="text-[10px] text-[#999999] mb-3 font-medium">情绪倾向</p>
+                <div className="h-2 bg-[#F7F7F7] rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-[#FA5151] via-[#F0A020] to-[#07C160] transition-all duration-1000"
+                    style={{ width: `${Math.round(((persona.emotionState?.valence || 0) + 1) * 50)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1.5">
+                  <span className="text-[10px] text-[#FA5151]">消极</span>
+                  <span className="text-[10px] text-[#07C160]">积极</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

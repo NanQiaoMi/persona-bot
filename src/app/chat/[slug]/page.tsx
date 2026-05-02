@@ -1,5 +1,4 @@
 import ChatWindow from "@/components/ChatWindow";
-import Link from "next/link";
 
 export default async function ChatPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

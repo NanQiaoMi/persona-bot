@@ -103,16 +103,16 @@ export default function IntakeWizard() {
   // --- FORM PHASE ---
   if (phase === 'form') {
     return (
-      <div className="px-4 py-6">
+      <div className="px-4 py-6 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Link href="/" className="text-[#576B95] hover:text-[#07C160] transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <Link href="/" className="w-9 h-9 rounded-lg bg-white/60 backdrop-blur-sm flex items-center justify-center text-[#576B95] hover:text-[#07C160] hover:bg-white/80 transition-all border border-white/40">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <h1 className="text-base font-medium text-[#353535]">创建角色</h1>
-          <div className="w-5" />
+          <h1 className="text-base font-semibold text-[#353535]">创建角色</h1>
+          <div className="w-9" />
         </div>
 
         {/* Progress Bar */}
@@ -120,25 +120,27 @@ export default function IntakeWizard() {
           {[1, 2, 3].map((step) => (
             <div
               key={step}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                step <= formStep ? 'bg-[#07C160]' : 'bg-[#E5E5E5]'
+              className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+                step <= formStep 
+                  ? 'bg-gradient-to-r from-[#07C160] to-[#06AD56] shadow-sm shadow-[#07C160]/30' 
+                  : 'bg-[#E5E5E5]/60'
               }`}
             />
           ))}
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-lg p-5 mb-4">
+        <div className="glass-card rounded-2xl p-6 mb-4">
           {formStep === 1 && (
-            <div className="space-y-4 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <h2 className="text-lg font-medium text-[#353535] mb-1">她叫什么名字？</h2>
+                <h2 className="text-lg font-semibold text-[#353535] mb-1.5">她叫什么名字？</h2>
                 <p className="text-sm text-[#999999]">可以是真名，也可以是你们之间的代号</p>
               </div>
               <input
                 autoFocus
                 type="text"
-                className="w-full bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg px-4 py-3 text-[15px] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:bg-white transition-all"
+                className="w-full glass-input rounded-xl px-4 py-3.5 text-[15px] text-[#353535] placeholder-[#CCCCCC]"
                 placeholder="例如：小美、糖糖、Luna..."
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -148,14 +150,14 @@ export default function IntakeWizard() {
           )}
 
           {formStep === 2 && (
-            <div className="space-y-4 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <h2 className="text-lg font-medium text-[#353535] mb-1">你们的故事</h2>
+                <h2 className="text-lg font-semibold text-[#353535] mb-1.5">你们的故事</h2>
                 <p className="text-sm text-[#999999]">在一起多久、怎么认识的、她做什么的...</p>
               </div>
               <textarea
                 autoFocus
-                className="w-full bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg px-4 py-3 h-32 text-[15px] text-[#353535] placeholder-[#CCCCCC] leading-relaxed focus:outline-none focus:border-[#07C160] focus:bg-white transition-all resize-none"
+                className="w-full glass-input rounded-xl px-4 py-3.5 h-32 text-[15px] text-[#353535] placeholder-[#CCCCCC] leading-relaxed resize-none"
                 placeholder="例如：大学同学，在一起三年，毕业后异地分手一年了，她做设计..."
                 value={formData.basicInfo}
                 onChange={(e) => setFormData({ ...formData, basicInfo: e.target.value })}
@@ -164,20 +166,20 @@ export default function IntakeWizard() {
           )}
 
           {formStep === 3 && (
-            <div className="space-y-4 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
               <div>
-                <h2 className="text-lg font-medium text-[#353535] mb-1">她是什么样的人？</h2>
+                <h2 className="text-lg font-semibold text-[#353535] mb-1.5">她是什么样的人？</h2>
                 <p className="text-sm text-[#999999]">MBTI、依恋类型、恋爱中的样子...</p>
               </div>
               <textarea
                 autoFocus
-                className="w-full bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg px-4 py-3 h-32 text-[15px] text-[#353535] placeholder-[#CCCCCC] leading-relaxed focus:outline-none focus:border-[#07C160] focus:bg-white transition-all resize-none"
+                className="w-full glass-input rounded-xl px-4 py-3.5 h-32 text-[15px] text-[#353535] placeholder-[#CCCCCC] leading-relaxed resize-none"
                 placeholder="例如：ENFP，焦虑型依恋，爱撒娇也爱翻旧账..."
                 value={formData.personalityInfo}
                 onChange={(e) => setFormData({ ...formData, personalityInfo: e.target.value })}
               />
               <div>
-                <p className="text-xs text-[#999999] mb-2">快速标签（点击添加）</p>
+                <p className="text-xs text-[#999999] mb-2.5">快速标签（点击添加）</p>
                 <div className="flex flex-wrap gap-2">
                   {['爱撒娇', '冷暴力', '翻旧账', '黏人', '独立', '细腻敏感', '忽冷忽热', '情绪稳定', '焦虑型', '回避型'].map(tag => (
                     <button
@@ -188,10 +190,10 @@ export default function IntakeWizard() {
                           setFormData({ ...formData, personalityInfo: current ? `${current} ${tag}` : tag });
                         }
                       }}
-                      className={`px-3 py-1.5 text-xs rounded-full transition-all ${
+                      className={`px-3 py-1.5 text-xs rounded-full transition-all duration-200 ${
                         formData.personalityInfo.includes(tag)
-                          ? 'bg-[#07C160] text-white'
-                          : 'bg-[#F7F7F7] text-[#666666] border border-[#E5E5E5]'
+                          ? 'bg-[#07C160] text-white shadow-sm shadow-[#07C160]/30'
+                          : 'bg-white/60 text-[#666666] border border-[#E5E5E5]/60 hover:bg-white/80 hover:border-[#07C160]/30'
                       }`}
                     >
                       {tag}
@@ -204,7 +206,7 @@ export default function IntakeWizard() {
         </div>
 
         {error && (
-          <div className="p-3 mb-4 rounded-lg bg-[#FA5151]/10 text-[#FA5151] text-sm">
+          <div className="p-3.5 mb-4 rounded-xl bg-[#FA5151]/10 backdrop-blur-sm text-[#FA5151] text-sm border border-[#FA5151]/20">
             {error}
           </div>
         )}
@@ -214,7 +216,7 @@ export default function IntakeWizard() {
           {formStep > 1 && (
             <button
               onClick={() => setFormStep(formStep - 1)}
-              className="flex-1 py-3 rounded-lg bg-white text-[#666666] text-sm border border-[#E5E5E5] hover:bg-[#F7F7F7] transition-colors"
+              className="flex-1 py-3 rounded-xl glass text-[#666666] text-sm font-medium hover:bg-white/80 transition-all"
             >
               上一步
             </button>
@@ -224,14 +226,14 @@ export default function IntakeWizard() {
             <button
               onClick={() => setFormStep(formStep + 1)}
               disabled={formStep === 1 && !formData.name.trim()}
-              className="flex-1 py-3 rounded-lg bg-[#07C160] hover:bg-[#06AD56] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#07C160] to-[#06AD56] hover:from-[#06AD56] hover:to-[#059A4F] text-white text-sm font-medium transition-all shadow-sm shadow-[#07C160]/30 hover:shadow-md hover:shadow-[#07C160]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
               {formStep === 2 && !formData.basicInfo.trim() ? '跳过' : '下一步'}
             </button>
           ) : (
             <button
               onClick={startPipeline}
-              className="flex-1 py-3 rounded-lg bg-[#07C160] hover:bg-[#06AD56] text-white text-sm font-medium transition-colors"
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#07C160] to-[#06AD56] hover:from-[#06AD56] hover:to-[#059A4F] text-white text-sm font-medium transition-all shadow-sm shadow-[#07C160]/30 hover:shadow-md hover:shadow-[#07C160]/40"
             >
               开始构建
             </button>
@@ -244,31 +246,36 @@ export default function IntakeWizard() {
   // --- PROCESSING PHASE ---
   if (phase === 'processing') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-6 bg-white">
-        <div className="w-full max-w-sm space-y-8">
+      <div className="flex flex-col items-center justify-center min-h-screen px-6">
+        <div className="w-full max-w-sm space-y-8 animate-scale-in">
           {/* Animation */}
-          <div className="relative w-24 h-24 mx-auto">
-            <div className="absolute inset-0 border-4 border-[#E5E5E5] rounded-full" />
-            <div className="absolute inset-0 border-4 border-t-[#07C160] rounded-full animate-spin" />
+          <div className="relative w-28 h-28 mx-auto">
+            <div className="absolute inset-0 rounded-full bg-[#07C160]/5 animate-pulse-soft" />
+            <div className="absolute inset-2 rounded-full border-2 border-[#E5E5E5]/60" />
+            <div className="absolute inset-2 rounded-full border-2 border-t-[#07C160] animate-spin" />
+            <div className="absolute inset-5 rounded-full border-2 border-[#E5E5E5]/40" />
+            <div className="absolute inset-5 rounded-full border-2 border-t-[#576B95] animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
             <div className="absolute inset-0 flex items-center justify-center text-3xl">
               {PIPELINE_STAGES[pipelineStage]?.icon}
             </div>
           </div>
 
           {/* Stage Info */}
-          <div className="text-center space-y-1">
-            <h2 className="text-lg font-medium text-[#353535]">{PIPELINE_STAGES[pipelineStage]?.label}</h2>
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-semibold text-[#353535]">{PIPELINE_STAGES[pipelineStage]?.label}</h2>
             <p className="text-sm text-[#999999]">{PIPELINE_STAGES[pipelineStage]?.desc}</p>
           </div>
 
           {/* Progress Steps */}
-          <div className="space-y-3">
+          <div className="glass-card rounded-xl p-4 space-y-3">
             {PIPELINE_STAGES.slice(1).map((stage, i) => (
               <div key={stage.id} className="flex items-center gap-3">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 transition-all ${
-                  i + 1 < pipelineStage ? 'bg-[#07C160] text-white' :
-                  i + 1 === pipelineStage ? 'bg-[#07C160]/10 text-[#07C160] animate-pulse' :
-                  'bg-[#F7F7F7] text-[#CCCCCC]'
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0 transition-all duration-500 ${
+                  i + 1 < pipelineStage 
+                    ? 'bg-[#07C160] text-white shadow-sm shadow-[#07C160]/30' :
+                  i + 1 === pipelineStage 
+                    ? 'bg-[#07C160]/10 text-[#07C160] animate-pulse-soft' :
+                    'bg-[#F7F7F7]/60 text-[#CCCCCC]'
                 }`}>
                   {i + 1 < pipelineStage ? '✓' : stage.icon}
                 </div>
@@ -277,6 +284,11 @@ export default function IntakeWizard() {
                 }`}>
                   {stage.label}
                 </span>
+                {i + 1 === pipelineStage && (
+                  <div className="flex-1 h-1 bg-[#E5E5E5]/60 rounded-full overflow-hidden ml-auto">
+                    <div className="h-full bg-gradient-to-r from-[#07C160] to-[#06AD56] rounded-full animate-shimmer" style={{ width: '60%' }} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -291,41 +303,45 @@ export default function IntakeWizard() {
 
   // --- REVIEW PHASE ---
   return (
-    <div className="px-4 py-8 space-y-6">
+    <div className="px-4 py-8 space-y-5 animate-fade-in">
       {/* Success */}
-      <div className="text-center space-y-3 animate-fade-in">
-        <div className="w-16 h-16 mx-auto rounded-full bg-[#07C160]/10 flex items-center justify-center text-3xl">
+      <div className="text-center space-y-3">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#07C160]/20 to-[#576B95]/20 flex items-center justify-center text-3xl backdrop-blur-sm border border-white/40">
           ✨
         </div>
-        <h1 className="text-xl font-semibold text-[#353535]">{result?.summary.name} 已就绪</h1>
-        <p className="text-sm text-[#999999]">AI 已完成人格建模</p>
+        <div>
+          <h1 className="text-xl font-semibold text-[#353535]">{result?.summary.name} 已就绪</h1>
+          <p className="text-sm text-[#999999] mt-1">AI 已完成人格建模</p>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 animate-fade-in">
+      <div className="grid grid-cols-3 gap-3">
         {result?.summary.mbti && (
-          <div className="bg-white rounded-lg p-3 text-center">
-            <p className="text-[10px] text-[#999999] mb-1">MBTI</p>
+          <div className="glass-card rounded-xl p-3.5 text-center">
+            <p className="text-[10px] text-[#999999] mb-1.5 font-medium uppercase tracking-wider">MBTI</p>
             <p className="text-sm font-semibold text-[#07C160]">{result.summary.mbti}</p>
           </div>
         )}
         {result?.summary.attachment && (
-          <div className="bg-white rounded-lg p-3 text-center">
-            <p className="text-[10px] text-[#999999] mb-1">依恋类型</p>
+          <div className="glass-card rounded-xl p-3.5 text-center">
+            <p className="text-[10px] text-[#999999] mb-1.5 font-medium uppercase tracking-wider">依恋类型</p>
             <p className="text-sm font-semibold text-[#576B95]">{result.summary.attachment}</p>
           </div>
         )}
-        <div className="bg-white rounded-lg p-3 text-center">
-          <p className="text-[10px] text-[#999999] mb-1">性格标签</p>
+        <div className="glass-card rounded-xl p-3.5 text-center">
+          <p className="text-[10px] text-[#999999] mb-1.5 font-medium uppercase tracking-wider">性格标签</p>
           <p className="text-xs font-medium text-[#666666]">{result?.summary.tags?.slice(0, 2).join('·') || '—'}</p>
         </div>
       </div>
 
       {/* Preview */}
       {previewContent && (
-        <div className="bg-white rounded-lg p-5 animate-fade-in">
+        <div className="glass-card rounded-xl p-5">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-[#07C160]">🤖</span>
+            <div className="w-6 h-6 rounded-md bg-[#07C160]/10 flex items-center justify-center">
+              <span className="text-xs">🤖</span>
+            </div>
             <span className="text-xs font-medium text-[#353535]">AI 创造的人物形象</span>
           </div>
           <div className="text-sm leading-relaxed text-[#666666] whitespace-pre-line">
@@ -337,7 +353,7 @@ export default function IntakeWizard() {
       {/* Action */}
       <button
         onClick={goToChat}
-        className="w-full py-3.5 rounded-lg bg-[#07C160] hover:bg-[#06AD56] text-white font-medium transition-colors"
+        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#07C160] to-[#06AD56] hover:from-[#06AD56] hover:to-[#059A4F] text-white font-medium transition-all shadow-sm shadow-[#07C160]/30 hover:shadow-md hover:shadow-[#07C160]/40"
       >
         开始对话
       </button>
