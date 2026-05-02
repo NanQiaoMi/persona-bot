@@ -43,7 +43,7 @@ export interface IPersona extends Document {
     correction: string;
     category: string;
   }>;
-  knowledgeSources: string[];
+  knowledgeSources: unknown[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -109,7 +109,7 @@ const PersonaSchema = new Schema<IPersona>(
       correction: String,
       category: String,
     }],
-    knowledgeSources: [String],
+    knowledgeSources: [Schema.Types.Mixed],
   },
   {
     timestamps: true,
