@@ -39,10 +39,10 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-zinc-400">加载中...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#EDEDED]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-[#E5E5E5] border-t-[#07C160] rounded-full animate-spin" />
+          <p className="text-[#999999] text-sm">加载中...</p>
         </div>
       </div>
     );
@@ -53,8 +53,8 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-[#EDEDED]">
+      <div className="max-w-2xl mx-auto">
         {children}
       </div>
     </div>

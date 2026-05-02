@@ -72,7 +72,7 @@ export default function PersonaDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('确定要删除这个Persona吗？此操作不可撤销。')) {
+    if (!confirm('确定要删除这个角色吗？此操作不可撤销。')) {
       return;
     }
 
@@ -93,17 +93,20 @@ export default function PersonaDetailPage() {
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="text-white">加载中...</div>
+      <div className="flex items-center justify-center py-32">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-[#E5E5E5] border-t-[#07C160] rounded-full animate-spin" />
+          <p className="text-[#999999] text-sm">加载中...</p>
+        </div>
       </div>
     );
   }
 
   if (!persona) {
     return (
-      <div className="text-center py-12">
-        <div className="text-white">Persona不存在</div>
-        <Link href="/" className="text-indigo-400 mt-4 inline-block">
+      <div className="flex flex-col items-center justify-center py-32">
+        <p className="text-[#999999] mb-4">角色不存在</p>
+        <Link href="/" className="text-[#07C160] text-sm">
           返回首页
         </Link>
       </div>
@@ -111,63 +114,65 @@ export default function PersonaDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-zinc-400 hover:text-white">
-            ← 返回
-          </Link>
-          <h1 className="text-2xl font-bold">{persona.name}</h1>
-        </div>
-
+    <div className="min-h-screen bg-[#EDEDED]">
+      {/* Header */}
+      <div className="bg-white border-b border-[#E5E5E5] px-4 py-3 flex items-center justify-between">
+        <Link href="/" className="text-[#576B95]">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        <h1 className="text-base font-medium text-[#353535]">{persona.name}</h1>
         <div className="flex items-center gap-3">
           <Link
             href={`/chat/${slug}`}
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm"
+            className="text-sm text-[#07C160]"
           >
-            开始对话
+            对话
           </Link>
           <button
             onClick={handleDelete}
-            className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm"
+            className="text-sm text-[#FA5151]"
           >
             删除
           </button>
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 rounded-xl p-6 border border-zinc-800">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Profile Summary */}
+      <div className="bg-white mt-2 p-4">
+        <div className="grid grid-cols-4 gap-3">
           {persona.profile?.mbti && (
-            <div>
-              <div className="text-xs text-zinc-400">MBTI</div>
-              <div className="text-lg font-bold text-indigo-400">{persona.profile.mbti}</div>
+            <div className="text-center">
+              <p className="text-[10px] text-[#999999] mb-1">MBTI</p>
+              <p className="text-sm font-semibold text-[#07C160]">{persona.profile.mbti}</p>
             </div>
           )}
           {persona.profile?.zodiac && (
-            <div>
-              <div className="text-xs text-zinc-400">星座</div>
-              <div className="text-lg font-bold text-purple-400">{persona.profile.zodiac}</div>
+            <div className="text-center">
+              <p className="text-[10px] text-[#999999] mb-1">星座</p>
+              <p className="text-sm font-semibold text-[#576B95]">{persona.profile.zodiac}</p>
             </div>
           )}
           {persona.profile?.attachment && (
-            <div>
-              <div className="text-xs text-zinc-400">依恋类型</div>
-              <div className="text-lg font-bold text-pink-400">{persona.profile.attachment}</div>
+            <div className="text-center">
+              <p className="text-[10px] text-[#999999] mb-1">依恋类型</p>
+              <p className="text-sm font-semibold text-[#F0A020]">{persona.profile.attachment}</p>
             </div>
           )}
-          <div>
-            <div className="text-xs text-zinc-400">更新时间</div>
-            <div className="text-sm text-zinc-300">
+          <div className="text-center">
+            <p className="text-[10px] text-[#999999] mb-1">更新</p>
+            <p className="text-xs text-[#666666]">
               {new Date(persona.updatedAt).toLocaleDateString('zh-CN')}
-            </div>
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-4 border-b border-zinc-800">
+      {/* Tabs */}
+      <div className="bg-white mt-2 flex border-b border-[#E5E5E5]">
         {[
-          { id: 'aiProfile', label: 'AI 人物画像' },
+          { id: 'aiProfile', label: '人物画像' },
           { id: 'persona', label: '性格设定' },
           { id: 'memories', label: '共同记忆' },
           { id: 'emotion', label: '情感状态' },
@@ -175,10 +180,10 @@ export default function PersonaDetailPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as 'aiProfile' | 'persona' | 'memories' | 'emotion')}
-            className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
               activeTab === tab.id
-                ? 'border-indigo-500 text-white'
-                : 'border-transparent text-zinc-400 hover:text-white'
+                ? 'text-[#07C160] border-b-2 border-[#07C160]'
+                : 'text-[#999999]'
             }`}
           >
             {tab.label}
@@ -186,39 +191,40 @@ export default function PersonaDetailPage() {
         ))}
       </div>
 
-      <div className="bg-zinc-900/50 rounded-xl p-6 border border-zinc-800">
+      {/* Tab Content */}
+      <div className="bg-white mt-2 p-4 min-h-[300px]">
         {activeTab === 'aiProfile' && (
-          <pre className="whitespace-pre-wrap text-sm text-zinc-300">
+          <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
             {persona.aiProfileMd || '暂无人物画像'}
-          </pre>
+          </div>
         )}
 
         {activeTab === 'persona' && (
-          <pre className="whitespace-pre-wrap text-sm text-zinc-300">
+          <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
             {persona.personaMd || '暂无性格设定'}
-          </pre>
+          </div>
         )}
 
         {activeTab === 'memories' && (
-          <pre className="whitespace-pre-wrap text-sm text-zinc-300">
+          <div className="text-sm text-[#666666] leading-relaxed whitespace-pre-wrap">
             {persona.memoriesMd || '暂无共同记忆'}
-          </pre>
+          </div>
         )}
 
         {activeTab === 'emotion' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-zinc-800/50 rounded-lg p-4">
-                <div className="text-xs text-zinc-400">当前情绪</div>
-                <div className="text-xl font-bold text-pink-400">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#F7F7F7] rounded-lg p-3">
+                <p className="text-[10px] text-[#999999] mb-1">当前情绪</p>
+                <p className="text-lg font-semibold text-[#07C160]">
                   {persona.emotionState?.primaryEmotion || '平静'}
-                </div>
+                </p>
               </div>
-              <div className="bg-zinc-800/50 rounded-lg p-4">
-                <div className="text-xs text-zinc-400">情绪强度</div>
-                <div className="text-xl font-bold text-purple-400">
+              <div className="bg-[#F7F7F7] rounded-lg p-3">
+                <p className="text-[10px] text-[#999999] mb-1">情绪强度</p>
+                <p className="text-lg font-semibold text-[#576B95]">
                   {Math.round((persona.emotionState?.intensity || 0.5) * 100)}%
-                </div>
+                </p>
               </div>
             </div>
           </div>

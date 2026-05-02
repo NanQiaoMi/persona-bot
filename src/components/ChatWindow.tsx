@@ -30,12 +30,21 @@ export default function ChatWindow({ slug }: { slug: string }) {
 
   // 加载历史记录
   useEffect(() => {
+    let isMounted = true;
+    
     const loadHistory = async () => {
       try {
-        const res = await fetch(`/api/conversations?slug=${slug}&limit=100`);
+        const res = await fetch(`/api/conversations?slug=${encodeURIComponent(slug)}&limit=100`);
+        
+        if (!res.ok) {
+          console.error('Failed to load history:', res.status);
+          if (isMounted) setLoadingHistory(false);
+          return;
+        }
+        
         const data = await res.json();
 
-        if (data.success && data.messages && data.messages.length > 0) {
+        if (isMounted && data.success && data.messages && data.messages.length > 0) {
           setMessages(data.messages);
           if (data.emotionState) {
             setEmotionState(data.emotionState);
@@ -44,16 +53,15 @@ export default function ChatWindow({ slug }: { slug: string }) {
       } catch (error) {
         console.error('Failed to load history:', error);
       } finally {
-        setLoadingHistory(false);
+        if (isMounted) setLoadingHistory(false);
       }
     };
 
-    // 设置超时，防止永远加载
-    const timeout = setTimeout(() => {
-      setLoadingHistory(false);
-    }, 3000);
-
-    loadHistory().finally(() => clearTimeout(timeout));
+    loadHistory();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [slug]);
 
   // 保存聊天记录
@@ -91,7 +99,10 @@ export default function ChatWindow({ slug }: { slug: string }) {
   // 播放提示音
   const playSound = (type: 'send' | 'receive') => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      
+      const audioContext = new AudioContext();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -229,7 +240,7 @@ export default function ChatWindow({ slug }: { slug: string }) {
             <div className="absolute inset-0 border-4 border-[#07C160]/20 rounded-full" />
             <div className="absolute inset-0 border-4 border-t-[#07C160] rounded-full animate-spin" />
           </div>
-          <p className="text-[#999999] text-sm">加载聊天记录...</p>
+          <p className="text-[#999999] text-sm">加载中...</p>
         </div>
       </div>
     );
@@ -297,26 +308,41 @@ export default function ChatWindow({ slug }: { slug: string }) {
             )}
 
             {/* 消息气泡 */}
-            <div
-              className={`relative max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                msg.role === 'user'
-                  ? 'bg-[#95EC69] text-[#353535] rounded-tr-md'
-                  : 'bg-white text-[#353535] rounded-tl-md'
-              }`}
-              style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
-            >
-              {/* 气泡箭头 */}
+            <div className="relative group max-w-[75%]">
               <div
-                className={`absolute top-3 w-0 h-0 ${
+                className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                   msg.role === 'user'
-                    ? 'right-[-8px] border-l-[8px] border-l-[#95EC69] border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent'
-                    : 'left-[-8px] border-r-[8px] border-r-white border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent'
+                    ? 'bg-[#95EC69] text-[#353535] rounded-tr-md'
+                    : 'bg-white text-[#353535] rounded-tl-md'
                 }`}
-              />
-              <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-              <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-[#5EBD3E] text-right' : 'text-[#B0B0B0]'}`}>
-                {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : ''}
-              </p>
+                style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+              >
+                {/* 气泡箭头 */}
+                <div
+                  className={`absolute top-3 w-0 h-0 ${
+                    msg.role === 'user'
+                      ? 'right-[-8px] border-l-[8px] border-l-[#95EC69] border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent'
+                      : 'left-[-8px] border-r-[8px] border-r-white border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent'
+                  }`}
+                />
+                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-[#5EBD3E] text-right' : 'text-[#B0B0B0]'}`}>
+                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                </p>
+              </div>
+
+              {/* 纠正按钮 */}
+              {msg.role === 'assistant' && (
+                <button
+                  onClick={() => setIsCorrecting(i)}
+                  className="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 text-[#CCCCCC] hover:text-[#07C160] opacity-0 group-hover:opacity-100 transition-all"
+                  title="纠正这条回复"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {/* 用户头像 */}
@@ -327,19 +353,6 @@ export default function ChatWindow({ slug }: { slug: string }) {
             )}
             {msg.role === 'user' && i > 0 && messages[i - 1]?.role === msg.role && (
               <div className="w-10 ml-2 flex-shrink-0" />
-            )}
-
-            {/* 纠正按钮 */}
-            {msg.role === 'assistant' && (
-              <button
-                onClick={() => setIsCorrecting(i)}
-                className="opacity-0 group-hover:opacity-100 absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 text-[#999999] hover:text-[#07C160] transition-all"
-                title="纠正这条回复"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
             )}
           </div>
         ))}
@@ -352,9 +365,9 @@ export default function ChatWindow({ slug }: { slug: string }) {
             </div>
             <div className="bg-white px-5 py-3.5 rounded-2xl rounded-tl-md shadow-sm">
               <div className="flex gap-1.5">
-                <span className="w-2.5 h-2.5 bg-[#07C160] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2.5 h-2.5 bg-[#07C160] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2.5 h-2.5 bg-[#07C160] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-2.5 h-2.5 bg-[#07C160] rounded-full typing-dot" />
+                <span className="w-2.5 h-2.5 bg-[#07C160] rounded-full typing-dot" />
+                <span className="w-2.5 h-2.5 bg-[#07C160] rounded-full typing-dot" />
               </div>
             </div>
           </div>
