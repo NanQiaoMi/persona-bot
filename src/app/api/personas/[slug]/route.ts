@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/auth/middleware';
 import { connectDB } from '@/lib/db/mongodb';
 import Persona from '@/lib/db/models/Persona';
+import fs from 'fs/promises';
+import path from 'path';
 
 export const GET = withAuth(
   async (req: AuthenticatedRequest, context: { params: Promise<{ slug: string }> }) => {
@@ -18,6 +20,14 @@ export const GET = withAuth(
         );
       }
 
+      let aiProfileMd = '';
+      try {
+        const aiProfilePath = path.join(process.cwd(), 'exes', slug, 'ai_profile.md');
+        aiProfileMd = await fs.readFile(aiProfilePath, 'utf-8');
+      } catch {
+        // ai_profile.md may not exist
+      }
+
       return NextResponse.json({
         success: true,
         persona: {
@@ -26,6 +36,7 @@ export const GET = withAuth(
           slug: persona.slug,
           profile: persona.profile,
           personaMd: persona.personaMd,
+          aiProfileMd,
           memoriesMd: persona.memoriesMd,
           emotionState: persona.emotionState,
           corrections: persona.corrections,

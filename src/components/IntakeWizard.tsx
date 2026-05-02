@@ -328,7 +328,7 @@ export default function IntakeWizard() {
             </svg>
             <span className="text-xs font-bold uppercase tracking-wider">AI 创造的人物形象</span>
           </div>
-          <div className="text-sm leading-[1.9] text-zinc-300/90 whitespace-pre-line max-h-[400px] overflow-y-auto">
+          <div className="text-sm leading-[1.9] text-zinc-300/90 whitespace-pre-line">
             {previewContent}
           </div>
         </div>

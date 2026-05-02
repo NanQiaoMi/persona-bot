@@ -20,6 +20,7 @@ interface PersonaDetail {
     impression?: string;
   };
   personaMd: string;
+  aiProfileMd: string;
   memoriesMd: string;
   emotionState: {
     primaryEmotion: string;
@@ -46,7 +47,7 @@ export default function PersonaDetailPage() {
 
   const [persona, setPersona] = useState<PersonaDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'persona' | 'memories' | 'emotion'>('persona');
+  const [activeTab, setActiveTab] = useState<'aiProfile' | 'persona' | 'memories' | 'emotion'>('aiProfile');
 
   useEffect(() => {
     loadPersona();
@@ -166,13 +167,14 @@ export default function PersonaDetailPage() {
 
       <div className="flex gap-4 border-b border-zinc-800">
         {[
+          { id: 'aiProfile', label: 'AI 人物画像' },
           { id: 'persona', label: '性格设定' },
           { id: 'memories', label: '共同记忆' },
           { id: 'emotion', label: '情感状态' },
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as 'persona' | 'memories' | 'emotion')}
+            onClick={() => setActiveTab(tab.id as 'aiProfile' | 'persona' | 'memories' | 'emotion')}
             className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.id
                 ? 'border-indigo-500 text-white'
@@ -185,6 +187,12 @@ export default function PersonaDetailPage() {
       </div>
 
       <div className="bg-zinc-900/50 rounded-xl p-6 border border-zinc-800">
+        {activeTab === 'aiProfile' && (
+          <pre className="whitespace-pre-wrap text-sm text-zinc-300">
+            {persona.aiProfileMd || '暂无人物画像'}
+          </pre>
+        )}
+
         {activeTab === 'persona' && (
           <pre className="whitespace-pre-wrap text-sm text-zinc-300">
             {persona.personaMd || '暂无性格设定'}

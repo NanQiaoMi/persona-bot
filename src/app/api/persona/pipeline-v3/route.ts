@@ -413,7 +413,7 @@ ${stage1Result}
       success: true,
       slug,
       stages: {
-        aiProfile: stage1Result.substring(0, 300) + '...',
+        aiProfile: stage1Result,
         analysis: stage2Result.substring(0, 300) + '...',
         persona: personaContent.substring(0, 300) + '...',
         memories: memoriesContent.substring(0, 300) + '...',
