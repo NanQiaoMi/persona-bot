@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { EmotionEngine, inferPersonalityTraits } from '@/lib/emotion/engine';
+import { getModelById } from '@/lib/models';
 
 const emotionEngines = new Map<string, EmotionEngine>();
 
@@ -20,7 +21,7 @@ function getEmotionEngine(slug: string, personaMd: string, savedState?: Record<s
 
 export async function POST(request: Request) {
   try {
-    const { messages, slug, emotionState } = await request.json();
+    const { messages, slug, emotionState, modelId } = await request.json();
 
     if (!messages || !slug) {
       return NextResponse.json({ error: 'Missing messages or slug' }, { status: 400 });
@@ -54,9 +55,10 @@ export async function POST(request: Request) {
       lastUserMessage
     );
 
-    const apiKey = process.env.LLM_API_KEY;
-    const baseUrl = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
-    const model = process.env.LLM_MODEL || 'gpt-4-turbo';
+    const selectedModel = modelId ? getModelById(modelId) : undefined;
+    const apiKey = selectedModel?.apiKey || process.env.LLM_API_KEY;
+    const baseUrl = selectedModel?.baseUrl || process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
+    const model = selectedModel?.model || process.env.LLM_MODEL || 'gpt-4-turbo';
 
     if (!apiKey) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });

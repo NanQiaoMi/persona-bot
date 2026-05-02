@@ -6,6 +6,11 @@ import MessageItem from './chat/MessageItem';
 import ChatHeader from './chat/ChatHeader';
 import { GlassCard } from './ui/GlassCard';
 
+interface ModelOption {
+  id: string;
+  name: string;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -25,6 +30,8 @@ export default function ChatWindow({ slug }: { slug: string }) {
   const [personaInfo, setPersonaInfo] = useState<PersonaInfo>({ name: slug });
   const [intimacy, setIntimacy] = useState(50);
   const [isCorrecting, setIsCorrecting] = useState<number | null>(null);
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string>('default');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,6 +39,21 @@ export default function ChatWindow({ slug }: { slug: string }) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then(res => res.json())
+      .then((data: ModelOption[]) => {
+        setModels(data);
+        if (data.length > 0) {
+          setSelectedModelId(prev => {
+            if (data.find(m => m.id === prev)) return prev;
+            return data[0].id;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCorrection = async (index: number, reason: string) => {
     const msg = messages[index];
@@ -75,7 +97,8 @@ export default function ChatWindow({ slug }: { slug: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, userMessage],
-          slug
+          slug,
+          modelId: selectedModelId,
         })
       });
 
@@ -126,6 +149,9 @@ export default function ChatWindow({ slug }: { slug: string }) {
         personaName={personaInfo.name}
         personaAvatar={personaInfo.avatar}
         currentMood={personaInfo.currentMood}
+        models={models}
+        selectedModelId={selectedModelId}
+        onModelChange={setSelectedModelId}
       />
 
       {/* 亲密度条 */}
