@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { PersonaRecord } from "@/lib/storage/types";
-import BlobMascot, { getBlobVariantForSlug } from "./BlobMascot";
+import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface RightInspectorProps {
   persona: PersonaRecord | null;
   onSavePersonaPatch: (patch: Partial<PersonaRecord>) => Promise<void>;
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
+  onOpenAvatarPicker: () => void;
   onClose: () => void;
 }
 
@@ -17,6 +18,7 @@ export default function RightInspector({
   onSavePersonaPatch,
   onAddCorrection,
   onTriggerProactive,
+  onOpenAvatarPicker,
   onClose,
 }: RightInspectorProps) {
   const [activeTab, setActiveTab] = useState<
@@ -39,21 +41,34 @@ export default function RightInspector({
   const arousalPct = Math.round(persona.emotionState.arousal * 100);
   const dominancePct = Math.round(persona.emotionState.dominance * 100);
 
+  const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
+
   return (
     <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen animate-fade-in">
       {/* Header */}
       <div className="px-4 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <BlobMascot variant={getBlobVariantForSlug(persona.slug)} size={28} />
+        <button
+          type="button"
+          onClick={onOpenAvatarPicker}
+          className="flex items-center gap-2.5 text-left group"
+          title="点击更换角色形象与颜色"
+        >
+          <BlobMascot
+            shape={mascotCfg.shape}
+            color={mascotCfg.color}
+            image={mascotCfg.image}
+            size={30}
+            trackPointer
+          />
           <div>
-            <h3 className="text-xs font-bold text-[var(--text-primary)]">
-              {persona.name} · 灵魂状态舱
+            <h3 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[#18a999] transition-colors">
+              {persona.name} · 更换造型
             </h3>
             <p className="text-[11px] text-[var(--text-muted)]">
               {persona.profile.mbti || "Persona"} · {persona.version}
             </p>
           </div>
-        </div>
+        </button>
         <button
           type="button"
           onClick={onClose}

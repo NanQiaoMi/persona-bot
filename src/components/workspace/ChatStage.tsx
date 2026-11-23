@@ -8,7 +8,7 @@ import {
   PersonaRecord,
   SearchResultItem,
 } from "@/lib/storage/types";
-import BlobMascot, { getBlobVariantForSlug } from "./BlobMascot";
+import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrokComposer from "./GrokComposer";
 import PageArtifactCard from "./PageArtifactCard";
 import ThoughtSearchTrace from "./ThoughtSearchTrace";
@@ -46,6 +46,7 @@ interface ChatStageProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   onOpenImport: () => void;
+  onOpenAvatarPicker: () => void;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -121,6 +122,7 @@ export default function ChatStage({
   sidebarOpen,
   onToggleSidebar,
   onOpenImport,
+  onOpenAvatarPicker,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [correctingIndex, setCorrectingIndex] = useState<number | null>(null);
@@ -186,16 +188,15 @@ export default function ChatStage({
     return (
       <div className="flex-1 flex items-center justify-center bg-[var(--bg-primary)]">
         <div className="flex flex-col items-center gap-3 text-xs text-[var(--text-muted)]">
-          <BlobMascot variant="bot" size={52} showOnlineDot state="thinking" />
+          <BlobMascot shape="circle" color="#0A0A0C" size={50} showOnlineDot state="thinking" />
           <span>正在连接 PersonaBot...</span>
         </div>
       </div>
     );
   }
 
-  const blobVariant = getBlobVariantForSlug(persona.slug);
+  const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
-  const accentColor = persona.profile.accentColor || "#18a999";
   const firstTimestamp = messages[0]?.timestamp
     ? new Date(messages[0].timestamp).toLocaleTimeString("zh-CN", {
         hour: "2-digit",
@@ -241,8 +242,11 @@ export default function ChatStage({
           title="点击滑出/收起角色灵魂状态舱"
         >
           <BlobMascot
-            variant={blobVariant}
+            shape={mascotCfg.shape}
+            color={mascotCfg.color}
+            image={mascotCfg.image}
             size={24}
+            trackPointer
             state={streaming ? "thinking" : "idle"}
           />
           <span className="text-[13.5px] font-semibold text-[var(--text-primary)]">
@@ -272,17 +276,27 @@ export default function ChatStage({
       >
         <div className="max-w-3xl mx-auto">
           {messages.length === 0 && !streaming ? (
-            /* Tactile Apple-Grade Empty State with Floating Living Mascot */
+            /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
             <div className="pt-10 pb-8 flex flex-col items-center text-center space-y-6 animate-fade-in">
-              <div className="relative flex items-center justify-center">
-                <div
-                  className="absolute w-32 h-32 rounded-full blur-2xl opacity-20 animate-float-gentle"
-                  style={{ background: accentColor }}
-                />
-                <div className="relative animate-float-gentle">
-                  <BlobMascot variant={blobVariant} size={82} />
+              <button
+                type="button"
+                onClick={onOpenAvatarPicker}
+                className="group/hero relative flex flex-col items-center justify-center focus:outline-none"
+                title="点击更换角色形状与颜色"
+              >
+                <div className="animate-float-gentle">
+                  <BlobMascot
+                    shape={mascotCfg.shape}
+                    color={mascotCfg.color}
+                    image={mascotCfg.image}
+                    size={84}
+                    trackPointer
+                  />
                 </div>
-              </div>
+                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
+                  点击定制形状与颜色
+                </span>
+              </button>
 
               <div className="space-y-2 max-w-md">
                 <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
@@ -376,7 +390,14 @@ export default function ChatStage({
                 </div>
                 <div className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-muted)]">
                   <span>已发消息给</span>
-                  <BlobMascot variant="bot" size={16} animated={false} />
+                  <BlobMascot
+                    shape={mascotCfg.shape}
+                    color={mascotCfg.color}
+                    image={mascotCfg.image}
+                    size={16}
+                    animated={false}
+                    trackPointer={false}
+                  />
                   <span className="font-medium text-[var(--text-secondary)]">
                     {persona.name}
                   </span>
@@ -601,8 +622,11 @@ export default function ChatStage({
                   ) : (
                     <div className="rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 text-xs text-[var(--text-secondary)] flex items-center gap-2.5">
                       <BlobMascot
-                        variant={blobVariant}
+                        shape={mascotCfg.shape}
+                        color={mascotCfg.color}
+                        image={mascotCfg.image}
                         size={22}
+                        trackPointer
                         state="thinking"
                       />
                       <span>{persona.name} 正在思考怎么回复你...</span>

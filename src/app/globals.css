@@ -277,10 +277,6 @@ body {
   animation: blob-blink 4.4s ease-in-out infinite;
 }
 
-.animate-blob-look {
-  animation: blob-look 6.5s ease-in-out infinite;
-}
-
 .blob-interactive:hover .blob-body-layer,
 .group:hover .blob-interactive .blob-body-layer {
   transform-box: fill-box;

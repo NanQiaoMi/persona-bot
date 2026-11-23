@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PersonaSummary } from "@/lib/storage/types";
-import BlobMascot, { getBlobVariantForSlug } from "./BlobMascot";
+import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface LeftSidebarProps {
   personas: PersonaSummary[];
@@ -99,9 +99,11 @@ export default function LeftSidebar({
       {/* Centered Living Glossy Black Grok Bot Mascot */}
       <div className="py-4 flex flex-col items-center justify-center">
         <BlobMascot
-          variant="bot"
-          size={64}
+          shape="circle"
+          color="#0A0A0C"
+          size={62}
           showOnlineDot
+          trackPointer
           state={isStreaming ? "thinking" : "idle"}
         />
         <span className="mt-2 text-[12px] font-semibold tracking-tight text-[var(--text-primary)]">
@@ -116,7 +118,7 @@ export default function LeftSidebar({
       <div className="flex-1 overflow-y-auto px-3 space-y-1.5">
         {personas.map((p, index) => {
           const isActive = p.slug === activeSlug;
-          const variant = getBlobVariantForSlug(p.slug, index);
+          const mascotCfg = getMascotConfigForPersona(p.slug, p.profile, index);
           const snippet =
             p.lastMessage ||
             p.profile.bio ||
@@ -135,8 +137,11 @@ export default function LeftSidebar({
               }`}
             >
               <BlobMascot
-                variant={variant}
+                shape={mascotCfg.shape}
+                color={mascotCfg.color}
+                image={mascotCfg.image}
                 size={34}
+                trackPointer
                 blinkDelayMs={index * 750}
                 state={isActive && isStreaming ? "thinking" : "idle"}
               />

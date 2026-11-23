@@ -10,6 +10,9 @@ export interface PersonaProfile {
   occupation?: string;
   personalityTags: string[];
   avatarEmoji?: string;
+  avatarShape?: string;
+  avatarColor?: string;
+  avatarImage?: string;
   accentColor?: string;
   bio?: string;
 }

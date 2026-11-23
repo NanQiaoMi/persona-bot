@@ -10,6 +10,7 @@ import {
   PersonaSummary,
   SearchResultItem,
 } from "@/lib/storage/types";
+import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
 import CommandPalette from "./CommandPalette";
 import LeftSidebar from "./LeftSidebar";
@@ -37,6 +38,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
 
   const [streaming, setStreaming] = useState<{
@@ -442,6 +444,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onOpenImport={() => setShowImport(true)}
+        onOpenAvatarPicker={() => setShowAvatarPicker(true)}
       />
 
       {showInspector && (
@@ -450,9 +453,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           onSavePersonaPatch={handleSavePersonaPatch}
           onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
           onTriggerProactive={handleTriggerProactive}
+          onOpenAvatarPicker={() => setShowAvatarPicker(true)}
           onClose={() => setShowInspector(false)}
         />
       )}
+
+      <AvatarPickerModal
+        key={activePersona?.slug || "picker"}
+        isOpen={showAvatarPicker}
+        persona={activePersona}
+        onClose={() => setShowAvatarPicker(false)}
+        onSave={handleSavePersonaPatch}
+      />
 
       <CommandPalette
         isOpen={showCommandPalette}
