@@ -13,6 +13,7 @@ import {
 import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
 import CommandPalette from "./CommandPalette";
+import CreateBotModal from "./CreateBotModal";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
 
@@ -39,12 +40,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showCreateBot, setShowCreateBot] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
 
   const [streaming, setStreaming] = useState<{
     isSearching: boolean;
     searchQuery?: string;
     searchResults?: SearchResultItem[];
+    statusText?: string;
     thought: string;
     thoughtDurationMs?: number;
     isStreamingThought: boolean;
@@ -105,11 +108,20 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setShowCommandPalette((prev) => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setShowCreateBot(true);
+      } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
+        const idx = Number(e.key) - 1;
+        if (personas[idx]) {
+          e.preventDefault();
+          setActiveSlug(personas[idx].slug);
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [personas]);
 
   const handleToggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -178,7 +190,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
           try {
             const payload = JSON.parse(dataLine.slice(6));
-            if (payload.type === "search") {
+            if (payload.type === "status") {
+              setStreaming((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      statusText: payload.text,
+                    }
+                  : prev
+              );
+            } else if (payload.type === "search") {
               setStreaming((prev) =>
                 prev
                   ? {
@@ -405,6 +426,22 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     );
   };
 
+  const handleRelayToMaster = async (msg: ConversationMessage) => {
+    try {
+      await fetch("/api/chat/relay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSlug: activeSlug,
+          content: msg.content,
+        }),
+      });
+      await loadPersonaList();
+    } catch (err) {
+      console.error("Failed to relay message to master-bot:", err);
+    }
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {sidebarOpen && (
@@ -415,6 +452,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           onSelectPersona={(slug) => setActiveSlug(slug)}
           onOpenSettings={() => setShowSettings(true)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
+          onOpenCreateBot={() => setShowCreateBot(true)}
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onCollapse={() => setSidebarOpen(false)}
@@ -433,6 +471,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onClearHistory={handleClearHistory}
         onQuickCorrect={handleQuickCorrect}
         onRegenerate={handleRegenerate}
+        onRelayToMaster={handleRelayToMaster}
+        onSelectPersona={(slug) => setActiveSlug(slug)}
         thinkMode={thinkMode}
         onToggleThink={() => setThinkMode((v) => !v)}
         deepSearch={deepSearch}
@@ -449,7 +489,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
       {showInspector && (
         <RightInspector
+          key={activePersona?.slug || "inspector"}
           persona={activePersona}
+          isStreaming={Boolean(streaming)}
           onSavePersonaPatch={handleSavePersonaPatch}
           onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
           onTriggerProactive={handleTriggerProactive}
@@ -457,6 +499,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           onClose={() => setShowInspector(false)}
         />
       )}
+
+      <CreateBotModal
+        isOpen={showCreateBot}
+        onClose={() => setShowCreateBot(false)}
+        onCreated={async (created) => {
+          await loadPersonaList();
+          if (created?.slug) {
+            setActiveSlug(created.slug);
+          }
+        }}
+      />
 
       <AvatarPickerModal
         key={activePersona?.slug || "picker"}
@@ -475,6 +528,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onChangeMode={(m) => setActiveMode(m)}
         onToggleTheme={handleToggleTheme}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenCreateBot={() => setShowCreateBot(true)}
       />
 
       <ImportModal

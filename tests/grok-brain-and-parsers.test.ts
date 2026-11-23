@@ -11,6 +11,7 @@ import {
   parseStructuredModelOutput,
   synthesizePersonaAwareFallback,
 } from '@/lib/grok/stream-orchestrator';
+import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
 import { analyzeChatLogCorpus } from '@/lib/persona/distiller';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
 import { PromptAssembler } from '@/lib/prompt-assembler';
@@ -49,7 +50,8 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(getTimePeriodInfo(2).period).toBe('late_night');
     expect(getTimePeriodInfo(9).period).toBe('morning');
 
-    const ella = BUILTIN_PRESETS[0];
+    const ella =
+      BUILTIN_PRESETS.find((p) => p.slug === 'grok-ella') || BUILTIN_PRESETS[0];
     const idleGreeting = generateProactiveGreeting(ella, 12, 23);
     expect(idleGreeting.thought).toContain('12');
     expect(idleGreeting.bursts.length).toBeGreaterThanOrEqual(2);
@@ -72,7 +74,8 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
   });
 
   it('synthesizes persona-aware fallback and assembles full multi-layer system prompt', () => {
-    const linWan = BUILTIN_PRESETS[1];
+    const linWan =
+      BUILTIN_PRESETS.find((p) => p.slug === 'lin-wan') || BUILTIN_PRESETS[1];
     const assembler = new PromptAssembler();
     const prompt = assembler.assembleFromRecord(linWan, {
       mode: 'fun',
@@ -118,5 +121,31 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(stats.targetCount).toBe(2);
     expect(stats.participants).toContain('小美');
     expect(stats.topCatchphrases).toContain('笑死');
+  });
+
+  it('dispatches master-bot commands to sub-bots and aggregates interBotReports', async () => {
+    const events: string[] = [];
+    const result = await executeMasterBotTurn(
+      {
+        slug: 'master-bot',
+        messages: [
+          {
+            role: 'user',
+            content: '请让 艾拉 和 Zero 一起调研下今天 AI 开源动态',
+          },
+        ],
+        mode: 'analytical',
+        thinkMode: true,
+        deepSearch: false,
+      },
+      (ev) => {
+        events.push(ev.type);
+      }
+    );
+
+    expect(events).toContain('status');
+    expect(events).toContain('done');
+    expect(result.interBotReports && result.interBotReports.length).toBeGreaterThanOrEqual(2);
+    expect(result.content).toContain('已交回本轮执行结果');
   });
 });

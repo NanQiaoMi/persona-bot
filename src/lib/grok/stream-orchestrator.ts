@@ -33,6 +33,10 @@ export interface ChatTurnRequest {
 
 export type StreamEvent =
   | {
+      type: 'status';
+      text: string;
+    }
+  | {
       type: 'search';
       status: 'searching' | 'done';
       query: string;

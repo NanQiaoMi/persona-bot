@@ -8,6 +8,7 @@ import {
   PersonaRecord,
   SearchResultItem,
 } from "@/lib/storage/types";
+import { MascotShapeId } from "./mascot-palette";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrokComposer from "./GrokComposer";
 import PageArtifactCard from "./PageArtifactCard";
@@ -17,6 +18,7 @@ interface StreamingState {
   isSearching: boolean;
   searchQuery?: string;
   searchResults?: SearchResultItem[];
+  statusText?: string;
   thought: string;
   thoughtDurationMs?: number;
   isStreamingThought: boolean;
@@ -35,6 +37,8 @@ interface ChatStageProps {
   onClearHistory: () => void;
   onQuickCorrect: (msgIndex: number, reason: string) => Promise<void>;
   onRegenerate: (msgIndex: number, overrideMode?: PersonaMode) => void;
+  onRelayToMaster?: (msg: ConversationMessage) => Promise<void>;
+  onSelectPersona?: (slug: string) => void;
   thinkMode: boolean;
   onToggleThink: () => void;
   deepSearch: boolean;
@@ -111,6 +115,8 @@ export default function ChatStage({
   onClearHistory,
   onQuickCorrect,
   onRegenerate,
+  onRelayToMaster,
+  onSelectPersona,
   thinkMode,
   onToggleThink,
   deepSearch,
@@ -129,6 +135,8 @@ export default function ChatStage({
   const [correctionText, setCorrectionText] = useState("");
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [relayedId, setRelayedId] = useState<string | null>(null);
+  const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
 
   useEffect(() => {
@@ -247,7 +255,7 @@ export default function ChatStage({
             image={mascotCfg.image}
             size={24}
             trackPointer
-            state={streaming ? "thinking" : "idle"}
+            state={streaming ? "working" : "idle"}
           />
           <span className="text-[13.5px] font-semibold text-[var(--text-primary)]">
             {persona.name}
@@ -319,40 +327,82 @@ export default function ChatStage({
 
               {/* 4 One-Click Interactive Starter Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-1">
-                {[
-                  {
-                    icon: "📊",
-                    badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
-                    title: "联网整理今日热搜清单",
-                    sub: "一键触发 DeepSearch + 内嵌「页面」卡片",
-                    text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
-                    enableSearch: true,
-                  },
-                  {
-                    icon: "💭",
-                    badgeBg: "bg-purple-500/12 text-purple-600 dark:text-purple-300",
-                    title: "看看你此刻真实的内心 OS",
-                    sub: "触发 Think 潜台词时间轴推演",
-                    text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
-                    enableSearch: false,
-                  },
-                  {
-                    icon: "📸",
-                    badgeBg: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
-                    title: "发张你那边的随手拍",
-                    sub: "生成角色实时情境镜头卡片",
-                    text: "发张你现在手边的随手拍给我看看呗",
-                    enableSearch: false,
-                  },
-                  {
-                    icon: "🌙",
-                    badgeBg: "bg-rose-500/12 text-rose-600 dark:text-rose-300",
-                    title: "忙完了一天，求安慰",
-                    sub: "体验多段短句连发与情绪共鸣",
-                    text: "今天工作累麻了，快按你的脾气哄我两句",
-                    enableSearch: false,
-                  },
-                ].map((chip) => (
+                {(persona.isMaster || persona.slug === "master-bot"
+                  ? [
+                      {
+                        icon: "🧩",
+                        badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
+                        title: "全军协同调研今日科技动态",
+                        sub: "同时调度 3 个子 Bot 分头查证并汇总报告",
+                        text: "请帮我调度大家分头梳理今天最值得关注的 AI 工具与开源动态，分别汇报关键亮点和待核查项",
+                        enableSearch: true,
+                      },
+                      {
+                        icon: "📋",
+                        badgeBg:
+                          "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+                        title: "让 艾拉 和 Zero 联合分析",
+                        sub: "跨 Bot 观点碰撞 + 汇总执行明细",
+                        text: "让 艾拉 和 Zero 帮我分析一下现在做个人 AI 助手最容易踩的 3 个坑，并给出可执行建议",
+                        enableSearch: false,
+                      },
+                      {
+                        icon: "🔍",
+                        badgeBg:
+                          "bg-purple-500/12 text-purple-600 dark:text-purple-300",
+                        title: "开启联网核查追踪清单",
+                        sub: "触发 DeepSearch 并记录覆盖来源",
+                        text: "帮我联网核查 GitHub 上最近热门的开源 Agent 项目，保留来源并标注未覆盖项",
+                        enableSearch: true,
+                      },
+                      {
+                        icon: "⚡",
+                        badgeBg:
+                          "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+                        title: "检查全部子 Bot 当前状态",
+                        sub: "拉取团队成员最新工作记忆摘要",
+                        text: "向所有助手确认目前各自的专长与工作状态，给我一份简洁的总控状态简报",
+                        enableSearch: false,
+                      },
+                    ]
+                  : [
+                      {
+                        icon: "📊",
+                        badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
+                        title: "联网整理今日热搜清单",
+                        sub: "一键触发 DeepSearch + 内嵌「页面」卡片",
+                        text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
+                        enableSearch: true,
+                      },
+                      {
+                        icon: "💭",
+                        badgeBg:
+                          "bg-purple-500/12 text-purple-600 dark:text-purple-300",
+                        title: "看看你此刻真实的内心 OS",
+                        sub: "触发 Think 潜台词时间轴推演",
+                        text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
+                        enableSearch: false,
+                      },
+                      {
+                        icon: "📸",
+                        badgeBg:
+                          "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+                        title: "发张你那边的随手拍",
+                        sub: "生成角色实时情境镜头卡片",
+                        text: "发张你现在手边的随手拍给我看看呗",
+                        enableSearch: false,
+                      },
+                      {
+                        icon: "🌙",
+                        badgeBg:
+                          "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+                        title: "忙完了一天，求安慰",
+                        sub: "体验多段短句连发与情绪共鸣",
+                        text: "今天工作累麻了，快按你的脾气哄我两句",
+                        enableSearch: false,
+                      },
+                    ]
+                ).map((chip) => (
                   <button
                     key={chip.title}
                     type="button"
@@ -440,12 +490,124 @@ export default function ChatStage({
                   (msg.mode || activeMode) === "fun" ? "companion" : "fun";
                 const altRewriteLabel =
                   altRewriteMode === "fun" ? "⚡ 毒舌重说" : "🌸 温柔重说";
+                const isMasterView =
+                  Boolean(persona.isMaster) || persona.slug === "master-bot";
+                const reports = msg.interBotReports || [];
+                const reportsOpen = expandedReportsId === msg.id;
 
                 return (
                   <div
                     key={msg.id || `${msg.timestamp}-${idx}`}
-                    className="group flex flex-col items-start animate-msg-spring"
+                    className="group flex flex-col items-start animate-msg-spring w-full"
                   >
+                    {/* Inter-Bot "N 条消息往来：" Compact Overlapping Chip Bar */}
+                    {reports.length > 0 && (
+                      <div className="w-full mb-2.5 flex flex-col items-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedReportsId(reportsOpen ? null : msg.id)
+                          }
+                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full hover:bg-[var(--bg-secondary)] text-[12px] text-[var(--text-secondary)] transition-colors cursor-pointer"
+                        >
+                          <span>{reports.length} 条消息往来：</span>
+                          <span className="inline-flex items-center -space-x-1.5">
+                            {reports.slice(0, 4).map((rep) => (
+                              <span
+                                key={rep.slug}
+                                className="inline-flex rounded-full ring-2 ring-[var(--bg-primary)]"
+                              >
+                                <BlobMascot
+                                  shape={
+                                    (rep.shape as MascotShapeId) || "circle"
+                                  }
+                                  color={rep.color || "#1683FF"}
+                                  size={16}
+                                  trackPointer={false}
+                                  animated={false}
+                                />
+                              </span>
+                            ))}
+                          </span>
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {reports.length} 个 Bot
+                          </span>
+                        </button>
+
+                        {reportsOpen && (
+                          <div className="mt-2 w-full max-w-[660px] rounded-[18px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] p-3 space-y-2 animate-fade-in">
+                            {reports.map((rep) => (
+                              <div
+                                key={`${msg.id}-${rep.slug}`}
+                                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] flex items-start gap-2.5 text-xs"
+                              >
+                                <BlobMascot
+                                  shape={
+                                    (rep.shape as MascotShapeId) || "circle"
+                                  }
+                                  color={rep.color || "#1683FF"}
+                                  size={20}
+                                  trackPointer={false}
+                                  animated={false}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-semibold text-[var(--text-primary)]">
+                                      {rep.name}
+                                    </span>
+                                    {onSelectPersona && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          onSelectPersona(rep.slug)
+                                        }
+                                        className="text-[11px] text-[#2563EB] hover:underline cursor-pointer"
+                                      >
+                                        前往频道 →
+                                      </button>
+                                    )}
+                                  </div>
+                                  <p className="text-[var(--text-secondary)] mt-0.5 leading-relaxed">
+                                    {rep.summary}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Incoming Relay Header ("消息来自 [mini mascot] {name}") */}
+                    {msg.fromBot && (
+                      <div className="w-full mb-2.5 flex flex-col items-center gap-2">
+                        <div className="w-full flex items-center gap-3 text-[11px] text-[#2563EB]">
+                          <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+                          <span>新</span>
+                          <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                          <span>消息来自</span>
+                          <BlobMascot
+                            shape={
+                              (msg.fromBot.shape as MascotShapeId) || "circle"
+                            }
+                            color={msg.fromBot.color || "#1683FF"}
+                            size={16}
+                            trackPointer={false}
+                            animated={false}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => onSelectPersona?.(msg.fromBot!.slug)}
+                            className="font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                          >
+                            {msg.fromBot.name}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <ThoughtSearchTrace
                       thought={msg.thought}
                       thoughtDurationMs={msg.thoughtDurationMs}
@@ -560,6 +722,19 @@ export default function ChatStage({
                       >
                         ✎ 纠偏
                       </button>
+                      {!isMasterView && onRelayToMaster && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await onRelayToMaster(msg);
+                            setRelayedId(msg.id);
+                            setTimeout(() => setRelayedId(null), 2000);
+                          }}
+                          className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                        >
+                          {relayedId === msg.id ? "✓ 已汇报给主 Bot" : "↗ 汇报给主 Bot"}
+                        </button>
+                      )}
                     </div>
 
                     {/* Inline Correction Popover */}
@@ -620,16 +795,21 @@ export default function ChatStage({
                       <span className="grok-cursor" />
                     </div>
                   ) : (
-                    <div className="rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 text-xs text-[var(--text-secondary)] flex items-center gap-2.5">
+                    <div className="py-1.5 flex items-center gap-3">
                       <BlobMascot
                         shape={mascotCfg.shape}
                         color={mascotCfg.color}
                         image={mascotCfg.image}
-                        size={22}
+                        size={28}
                         trackPointer
-                        state="thinking"
+                        state="working"
                       />
-                      <span>{persona.name} 正在思考怎么回复你...</span>
+                      <span className="text-[13.5px] font-medium animate-text-shimmer">
+                        {streaming.statusText ||
+                          (streaming.isSearching
+                            ? `正在搜索 ${streaming.searchQuery || "全网信息"}...`
+                            : `${persona.name} 正在思考与整理...`)}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -642,6 +822,7 @@ export default function ChatStage({
       {/* Floating Bottom Capsule Composer */}
       <GrokComposer
         personaName={persona.name}
+        accentColor={mascotCfg.color}
         value={input}
         onChange={onChangeInput}
         onSend={onSend}

@@ -16,6 +16,8 @@ export interface DistillInput {
   targetSpeaker?: string;
   defaultMode?: PersonaMode;
   avatarEmoji?: string;
+  avatarShape?: string;
+  avatarColor?: string;
 }
 
 export interface DistillResult {
@@ -326,7 +328,9 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
       attachment,
       personalityTags,
       avatarEmoji: input.avatarEmoji || '✨',
-      accentColor: '#10B981',
+      accentColor: input.avatarColor || '#10B981',
+      avatarShape: input.avatarShape || undefined,
+      avatarColor: input.avatarColor || undefined,
       bio: (input.basicInfo || input.personalityInfo || `${mbti} 专属蒸馏角色`).slice(0, 100),
     },
     personaMd,

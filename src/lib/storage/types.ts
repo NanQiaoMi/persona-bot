@@ -42,6 +42,7 @@ export interface PersonaRecord {
   name: string;
   version: string;
   isPreset?: boolean;
+  isMaster?: boolean;
   defaultMode: PersonaMode;
   profile: PersonaProfile;
   personaMd: string;
@@ -59,6 +60,7 @@ export interface PersonaSummary {
   name: string;
   version: string;
   isPreset: boolean;
+  isMaster?: boolean;
   defaultMode: PersonaMode;
   profile: PersonaProfile;
   emotionState: PersonaEmotionSnapshot;
@@ -67,6 +69,15 @@ export interface PersonaSummary {
   lastActive: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface InterBotReport {
+  slug: string;
+  name: string;
+  shape?: string;
+  color?: string;
+  summary: string;
+  timestamp: string;
 }
 
 export interface SearchResultItem {
@@ -111,6 +122,14 @@ export interface ConversationMessage {
   searchQuery?: string;
   searchResults?: SearchResultItem[];
   pageCard?: PageArtifactCardData;
+  interBotReports?: InterBotReport[];
+  fromBot?: {
+    slug: string;
+    name: string;
+    shape?: string;
+    color?: string;
+  };
+  workingStatus?: string;
   mode?: PersonaMode;
   mood?: string;
   intimacyChange?: number;

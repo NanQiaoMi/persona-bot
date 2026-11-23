@@ -18,6 +18,7 @@ interface GrokComposerProps {
   onTriggerProactive: () => void;
   onOpenImport: () => void;
   personaName?: string;
+  accentColor?: string;
 }
 
 export default function GrokComposer({
@@ -34,6 +35,7 @@ export default function GrokComposer({
   onTriggerProactive,
   onOpenImport,
   personaName,
+  accentColor = "#18a999",
 }: GrokComposerProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -365,7 +367,7 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          {/* Animated Teal Grok Bot Waveform / Send Button */}
+          {/* Animated Active-Bot Color Waveform / Send Button */}
           <button
             type="button"
             onClick={() => {
@@ -377,7 +379,8 @@ export default function GrokComposer({
             }}
             disabled={disabled}
             aria-label={hasContent ? "发送消息" : "语音/主动破冰"}
-            className="w-9 h-9 rounded-full bg-[#18a999] hover:bg-[#149688] hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md shadow-[#18a999]/30 transition-all shrink-0"
+            className="w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
+            style={{ backgroundColor: accentColor }}
             title={hasContent ? "发送消息 (Enter)" : "让 TA 主动开口破冰"}
           >
             {disabled ? (
