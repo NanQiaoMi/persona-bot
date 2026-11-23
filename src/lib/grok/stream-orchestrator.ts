@@ -183,21 +183,6 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
 }
 
 /**
- * 去除流式中间态里的完整/半截控制标记，并规范化多余空行，避免前端输出闪烁或空行过多
- */
-function stripLiveControlTags(text: string): string {
-  return text
-    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
-    .replace(/<thought>[\s\S]*/gi, '')
-    .replace(/\[EARLY:\s*([^\]]+)\]/gi, '$1\n')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '')
-    .replace(/\[BURST\]/gi, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-/**
  * 将流式或完整文本按 [BURST] / [EARLY] 拆分为干净的多气泡数组，清理内部多余空行
  */
 export function splitLiveBursts(rawText: string): string[] {
@@ -219,6 +204,69 @@ export function splitLiveBursts(rawText: string): string[] {
         .trim()
     )
     .filter(Boolean);
+}
+
+/**
+ * 清理模型可能夹带的底层网关/临时聊天拒答套话，保持角色沉浸感与有效回复
+ */
+export function sanitizeGatewayRefusalLeaks(bursts: string[]): string[] {
+  const refusalPattern =
+    /(?:不过)?(?:你现在是在|当前处于)?临时聊天[^。！？\n]*[。！？]?|切换到普通聊天[^。！？\n]*[。！？]?|(?:无法|不能)(?:直接)?使用图片生成[^。！？\n]*[。！？]?|我没有真实的手机[^。！？\n]*[。！？]?|不能假装这是我的实拍[^。！？\n]*[。！？]?/gi;
+
+  const cleaned = bursts
+    .map((b) =>
+      b
+        .replace(refusalPattern, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    )
+    .filter((b) => b.length > 0 && !/^[🙈😅🤭\s]+$/.test(b));
+
+  return cleaned.length > 0 ? cleaned : ['这就发给你看看呀～'];
+}
+
+/**
+ * 基于用户最新要求与模型回复中的服装/场景细节，提取准确的生图/表情包描述，杜绝空泛占位词
+ */
+export function buildContextualMediaCaption(
+  kind: 'photo' | 'sticker',
+  personaName: string,
+  userText: string,
+  assistantReply: string,
+  mood?: string
+): string {
+  const cleanUser = userText
+    .replace(/^(?:请|帮我|能不能|可以)?(?:给我)?(?:发张|来张|发个|来个|看看|拍张|生成一张|画一张)/g, '')
+    .replace(/(?:的照片|的图片|随手拍|看看呗|吗|呀|呢|！|。|\?)+$/g, '')
+    .trim();
+
+  const replyVisualLine = assistantReply
+    .split(/[\n。！？]/)
+    .map((s) => s.trim())
+    .find(
+      (s) =>
+        s.length >= 6 &&
+        s.length <= 90 &&
+        /穿|裙|靴|衣|帽|发|夜景|台灯|咖啡|书桌|房间|微笑|眨眼|比耶|穿搭|风格/.test(s) &&
+        !/临时聊天|普通聊天|照片发来/.test(s)
+    );
+
+  if (kind === 'sticker') {
+    const moodPart = mood || cleanUser || '俏皮互动';
+    return `${personaName} 表现出「${moodPart.slice(0, 32)}」的可爱贴纸表情包`;
+  }
+
+  const parts = [cleanUser, replyVisualLine].filter(Boolean);
+  const merged = Array.from(new Set(parts)).join('，').slice(0, 110);
+  if (merged.length >= 4) {
+    return `${merged}的清晰真实生活随手拍照片`;
+  }
+  return `${personaName} 温馨自然的日常随手拍照片`;
+}
+
+function sleepForSimulatedStream(ms: number): Promise<void> {
+  if (process.env.VITEST || ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -454,24 +502,15 @@ function buildPageCardIfRelevant(
 }
 
 /**
- * 尝试对兼容 OpenAI/xAI/DeepSeek 的上游接口发起真正的 stream: true SSE 透传
+ * 从兼容 OpenAI/xAI/DeepSeek 的上游接口完整缓冲拉取回复（避免生硬半截跳字，配合后端假流式匀速吐泡）
  */
-async function streamFromUpstreamLLM(
+async function fetchBufferedUpstreamLLM(
   endpoint: string,
   apiKey: string,
   model: string,
   systemPrompt: string,
   messages: ChatTurnRequest['messages'],
-  temperature: number,
-  thinkEnabled: boolean,
-  onDelta: (state: {
-    thoughtDelta?: string;
-    fullThought: string;
-    replyDelta?: string;
-    fullReply: string;
-    liveBursts?: string[];
-    thoughtDurationMs: number;
-  }) => void
+  temperature: number
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -480,6 +519,7 @@ async function streamFromUpstreamLLM(
     headers.Authorization = `Bearer ${apiKey}`;
   }
 
+  const reqStart = Date.now();
   const res = await fetch(endpoint, {
     method: 'POST',
     headers,
@@ -512,30 +552,10 @@ async function streamFromUpstreamLLM(
       typeof messageObj.reasoning_content === 'string'
         ? messageObj.reasoning_content
         : '';
-    const cleanVisible = stripLiveControlTags(rawContent);
-    const liveBursts = splitLiveBursts(rawContent);
-    if (reasoningContent && thinkEnabled) {
-      onDelta({
-        thoughtDelta: reasoningContent,
-        fullThought: reasoningContent,
-        fullReply: '',
-        liveBursts: [],
-        thoughtDurationMs: 600,
-      });
-    }
-    if (cleanVisible) {
-      onDelta({
-        fullThought: reasoningContent,
-        replyDelta: cleanVisible,
-        fullReply: cleanVisible,
-        liveBursts: liveBursts.length > 0 ? liveBursts : [cleanVisible],
-        thoughtDurationMs: 600,
-      });
-    }
     return {
       rawOutput: rawContent,
       reasoningContent,
-      thoughtDurationMs: 600,
+      thoughtDurationMs: Math.max(300, Date.now() - reqStart),
     };
   }
 
@@ -546,8 +566,6 @@ async function streamFromUpstreamLLM(
   let nativeReasoning = '';
   let thoughtStart = Date.now();
   let thoughtEnd = 0;
-  let lastEmittedThought = '';
-  let lastEmittedReply = '';
 
   while (true) {
     const { value, done } = await reader.read();
@@ -571,55 +589,12 @@ async function streamFromUpstreamLLM(
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
           if (!nativeReasoning) thoughtStart = Date.now();
           nativeReasoning += delta.reasoning_content;
-          if (thinkEnabled) {
-            onDelta({
-              thoughtDelta: delta.reasoning_content,
-              fullThought: nativeReasoning,
-              fullReply: lastEmittedReply,
-              thoughtDurationMs: Date.now() - thoughtStart,
-            });
-            lastEmittedThought = nativeReasoning;
-          }
         }
 
         if (typeof delta.content === 'string' && delta.content) {
           rawContent += delta.content;
-
-          const openTagIdx = rawContent.indexOf('<thought>');
-          const closeTagIdx = rawContent.indexOf('</thought>');
-          if (openTagIdx !== -1 && thinkEnabled && !nativeReasoning) {
-            const inner =
-              closeTagIdx !== -1
-                ? rawContent.slice(openTagIdx + 9, closeTagIdx).trim()
-                : rawContent.slice(openTagIdx + 9).trim();
-            if (closeTagIdx !== -1 && !thoughtEnd) {
-              thoughtEnd = Date.now();
-            }
-            if (inner.length > lastEmittedThought.length) {
-              const tDelta = inner.slice(lastEmittedThought.length);
-              lastEmittedThought = inner;
-              onDelta({
-                thoughtDelta: tDelta,
-                fullThought: inner,
-                fullReply: lastEmittedReply,
-                thoughtDurationMs: (thoughtEnd || Date.now()) - thoughtStart,
-              });
-            }
-          }
-
-          const cleanVisible = stripLiveControlTags(rawContent);
-          const liveBursts = splitLiveBursts(rawContent);
-          if (cleanVisible.length > lastEmittedReply.length) {
-            if (!thoughtEnd) thoughtEnd = Date.now();
-            const rDelta = cleanVisible.slice(lastEmittedReply.length);
-            lastEmittedReply = cleanVisible;
-            onDelta({
-              fullThought: lastEmittedThought,
-              replyDelta: rDelta,
-              fullReply: cleanVisible,
-              liveBursts: liveBursts.length > 0 ? liveBursts : [cleanVisible],
-              thoughtDurationMs: Math.max(200, thoughtEnd - thoughtStart),
-            });
+          if (rawContent.includes('</thought>') && !thoughtEnd) {
+            thoughtEnd = Date.now();
           }
         }
       } catch {
@@ -764,9 +739,12 @@ export async function executeGrokChatTurn(
   let nativeReasoning = '';
   let thoughtDurationMs = 950;
   let isDemoMode = false;
-  let alreadyStreamedLive = false;
 
   if (canCallUpstream) {
+    onEvent?.({
+      type: 'status',
+      text: `${persona.name} 正在输入...`,
+    });
     try {
       const endpoint = baseUrl.endsWith('/chat/completions')
         ? baseUrl
@@ -775,43 +753,21 @@ export async function executeGrokChatTurn(
       const temperature =
         activeMode === 'fun' ? 0.9 : activeMode === 'analytical' ? 0.5 : 0.78;
 
-      const streamed = await streamFromUpstreamLLM(
+      const buffered = await fetchBufferedUpstreamLLM(
         endpoint,
         apiKey,
         model,
         systemPrompt,
         req.messages,
-        temperature,
-        thinkEnabled,
-        ({ thoughtDelta, fullThought, replyDelta, fullReply, liveBursts, thoughtDurationMs: dMs }) => {
-          if (thoughtDelta && thinkEnabled) {
-            onEvent?.({
-              type: 'thought',
-              delta: thoughtDelta,
-              fullThought,
-              durationMs: dMs,
-            });
-          }
-          if (replyDelta) {
-            onEvent?.({
-              type: 'reply',
-              delta: replyDelta,
-              fullReply,
-              bursts:
-                liveBursts && liveBursts.length > 0
-                  ? liveBursts
-                  : fullReply.split('\n\n').filter(Boolean),
-              mediaCards: [],
-              isDemoMode: false,
-            });
-          }
-        }
+        temperature
       );
 
-      rawModelOutput = streamed.rawOutput;
-      nativeReasoning = streamed.reasoningContent;
-      thoughtDurationMs = streamed.thoughtDurationMs;
-      alreadyStreamedLive = Boolean(rawModelOutput);
+      rawModelOutput = buffered.rawOutput;
+      nativeReasoning = buffered.reasoningContent;
+      thoughtDurationMs = buffered.thoughtDurationMs;
+      if (!rawModelOutput.trim()) {
+        throw new Error('Empty model response');
+      }
     } catch {
       isDemoMode = true;
       rawModelOutput = synthesizePersonaAwareFallback(
@@ -842,6 +798,9 @@ export async function executeGrokChatTurn(
     nativeReasoning || ''
   );
 
+  parsed.bursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
+  parsed.cleanReply = parsed.bursts.join('\n\n');
+
   if (parsed.mood) {
     updatedEmotion.moodLabel = parsed.mood;
   }
@@ -859,7 +818,13 @@ export async function executeGrokChatTurn(
   ) {
     parsed.mediaCards.unshift({
       type: 'sticker',
-      caption: `${persona.name} 配合当下心情的专属表情包（${parsed.mood || '俏皮互动中'}）`,
+      caption: buildContextualMediaCaption(
+        'sticker',
+        persona.name,
+        lastUserText,
+        parsed.cleanReply,
+        parsed.mood
+      ),
     });
   } else if (
     hasExplicitPhoto &&
@@ -867,7 +832,13 @@ export async function executeGrokChatTurn(
   ) {
     parsed.mediaCards.unshift({
       type: 'photo',
-      caption: `${persona.name} 刚刚顺手拍下的日常画面`,
+      caption: buildContextualMediaCaption(
+        'photo',
+        persona.name,
+        lastUserText,
+        parsed.cleanReply,
+        parsed.mood
+      ),
     });
   }
 
@@ -882,53 +853,53 @@ export async function executeGrokChatTurn(
     return true;
   });
 
-  // Emit smooth streaming chunks when running in Demo Mode / non-live fallback
-  if (!alreadyStreamedLive) {
-    const startTs = Date.now();
-    if (thinkEnabled && parsed.thought) {
-      const stepSize = Math.max(6, Math.ceil(parsed.thought.length / 6));
-      let acc = '';
-      for (let i = 0; i < parsed.thought.length; i += stepSize) {
-        const delta = parsed.thought.slice(i, i + stepSize);
-        acc += delta;
-        onEvent?.({
-          type: 'thought',
-          delta,
-          fullThought: acc,
-          durationMs: Math.max(400, Date.now() - startTs + i * 14),
-        });
-      }
-      thoughtDurationMs = Math.max(700, parsed.thought.length * 18);
+  // Smooth paced simulated streaming ("假流式": buffer complete response first, then type out smoothly bubble by bubble)
+  const startTs = Date.now();
+  if (thinkEnabled && parsed.thought) {
+    const stepSize = Math.max(8, Math.ceil(parsed.thought.length / 5));
+    let acc = '';
+    for (let i = 0; i < parsed.thought.length; i += stepSize) {
+      const delta = parsed.thought.slice(i, i + stepSize);
+      acc += delta;
+      onEvent?.({
+        type: 'thought',
+        delta,
+        fullThought: acc,
+        durationMs: Math.max(400, Date.now() - startTs + i * 12),
+      });
+      await sleepForSimulatedStream(18);
     }
+    thoughtDurationMs = Math.max(500, parsed.thought.length * 16);
+  }
 
-    onEvent?.({
-      type: 'emotion',
-      emotionState: updatedEmotion,
-      intimacy: newIntimacy,
-      intimacyChange: intimacyDelta,
-    });
+  onEvent?.({
+    type: 'emotion',
+    emotionState: updatedEmotion,
+    intimacy: newIntimacy,
+    intimacyChange: intimacyDelta,
+  });
 
-    const replyStep = Math.max(6, Math.ceil(parsed.cleanReply.length / 8));
-    let replyAcc = '';
-    for (let i = 0; i < parsed.cleanReply.length; i += replyStep) {
-      const delta = parsed.cleanReply.slice(i, i + replyStep);
-      replyAcc += delta;
+  const completedBursts: string[] = [];
+  for (let bIdx = 0; bIdx < parsed.bursts.length; bIdx += 1) {
+    const targetBurst = parsed.bursts[bIdx];
+    const step = Math.max(4, Math.ceil(targetBurst.length / 10));
+    for (let pos = step; pos < targetBurst.length + step; pos += step) {
+      const partial = targetBurst.slice(0, pos);
+      const currentBursts = [...completedBursts, partial];
       onEvent?.({
         type: 'reply',
-        delta,
-        fullReply: replyAcc,
-        bursts: parsed.bursts,
+        delta: partial,
+        fullReply: currentBursts.join('\n\n'),
+        bursts: currentBursts,
         mediaCards: parsed.mediaCards,
         isDemoMode,
       });
+      await sleepForSimulatedStream(24);
     }
-  } else {
-    onEvent?.({
-      type: 'emotion',
-      emotionState: updatedEmotion,
-      intimacy: newIntimacy,
-      intimacyChange: intimacyDelta,
-    });
+    completedBursts.push(targetBurst);
+    if (bIdx < parsed.bursts.length - 1) {
+      await sleepForSimulatedStream(160);
+    }
   }
 
   const pageCard = buildPageCardIfRelevant(

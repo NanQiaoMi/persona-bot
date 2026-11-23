@@ -8,7 +8,9 @@ import {
 } from '@/lib/grok/deep-search';
 import { generateProactiveGreeting, getTimePeriodInfo } from '@/lib/grok/proactive-engine';
 import {
+  buildContextualMediaCaption,
   parseStructuredModelOutput,
+  sanitizeGatewayRefusalLeaks,
   splitLiveBursts,
   synthesizePersonaAwareFallback,
 } from '@/lib/grok/stream-orchestrator';
@@ -179,7 +181,7 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
       '凌晨书桌旁的冰美式和机械键盘',
       '艾拉 Ella'
     );
-    expect(photoPrompt).toContain('candid lifestyle smartphone photograph');
+    expect(photoPrompt).toContain('Natural candid lifestyle photograph');
 
     expect(LOCAL_CHAT_MODELS).toContain('gpt-5.6');
     expect(LOCAL_IMAGE_MODELS).toContain('gpt-image-2.6');
@@ -222,7 +224,26 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
       thinkMode: true,
       lastUserMessage: '发张随手拍看看',
     });
-    expect(systemPrompt).toContain('严禁说出“我没有手机”');
+    expect(systemPrompt).toContain('严禁');
     expect(systemPrompt).toContain('[FOLLOWUP:');
+  });
+
+  it('sanitizes gateway temporary-chat refusal leaks and builds contextual media captions', () => {
+    const dirtyBursts = [
+      '哼哼，这就给你安排黑色过膝长靴配短裙和宽松毛衣～',
+      '不过你现在是在临时聊天，切换到普通聊天就能用图片生成功能啦。🙈',
+    ];
+    const cleaned = sanitizeGatewayRefusalLeaks(dirtyBursts);
+    expect(cleaned).toEqual(['哼哼，这就给你安排黑色过膝长靴配短裙和宽松毛衣～']);
+
+    const caption = buildContextualMediaCaption(
+      'photo',
+      'mi mi',
+      '发张你穿黑色过膝长靴的照片看看',
+      '哼哼，这就给你安排黑色过膝长靴，搭配短裙和软乎乎毛衣！',
+      '开心'
+    );
+    expect(caption).toContain('过膝长靴');
+    expect(caption).not.toContain('顺手拍下的日常画面');
   });
 });

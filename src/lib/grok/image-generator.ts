@@ -41,9 +41,9 @@ export function buildMediaGenerationPrompt(
   }
 
   return [
-    `Natural candid lifestyle smartphone photograph taken from "${personaName}"'s daily perspective${styleHint}.`,
-    `Scene description: "${cleanCaption}".`,
-    'Warm authentic natural lighting, realistic lens depth of field, high detail, genuine everyday atmosphere, no watermark, no artificial text overlays.',
+    `Natural candid lifestyle photograph matching this exact description: "${cleanCaption}".`,
+    `Style tone matching "${personaName}"${styleHint}.`,
+    'Realistic photography, natural lighting, authentic lens depth of field, high detail, aesthetic framing, no watermark, no text overlays.',
   ].join(' ');
 }
 
