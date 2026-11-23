@@ -43,20 +43,32 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showCreateBot, setShowCreateBot] = useState(false);
+  const [autoNudgeEnabled, setAutoNudgeEnabled] = useState(true);
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const followupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleNudgeCountRef = useRef<number>(0);
   const activeSlugRef = useRef(activeSlug);
 
   useEffect(() => {
     activeSlugRef.current = activeSlug;
+    idleNudgeCountRef.current = 0;
     if (followupTimerRef.current) {
       clearTimeout(followupTimerRef.current);
       followupTimerRef.current = null;
+    }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
     }
     return () => {
       if (followupTimerRef.current) {
         clearTimeout(followupTimerRef.current);
         followupTimerRef.current = null;
+      }
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
       }
     };
   }, [activeSlug]);
@@ -65,6 +77,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (followupTimerRef.current) {
       clearTimeout(followupTimerRef.current);
       followupTimerRef.current = null;
+    }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
     }
   }, []);
 
@@ -150,6 +166,71 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [personas]);
 
+  useEffect(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    if (!autoNudgeEnabled) return;
+    if (streaming) return;
+    if (followupTimerRef.current) return;
+    if (input.trim().length > 0) return;
+    if (messages.length === 0) return;
+
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.role !== "assistant") return;
+    if (idleNudgeCountRef.current >= 2) return;
+
+    const nextCount = idleNudgeCountRef.current + 1;
+    const delayMs = nextCount === 1 ? 45_000 : 120_000;
+    const targetSlug = activeSlug;
+
+    idleTimerRef.current = setTimeout(() => {
+      idleTimerRef.current = null;
+      if (activeSlugRef.current !== targetSlug) return;
+      idleNudgeCountRef.current = nextCount;
+      void fetch("/api/chat/proactive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug: targetSlug,
+          idleFollowup: true,
+          idleSeconds: Math.round(delayMs / 1000),
+          nudgeCount: nextCount,
+          persist: true,
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (
+            data?.success &&
+            data.message &&
+            activeSlugRef.current === targetSlug
+          ) {
+            setMessages((prev) => [...prev, data.message as ConversationMessage]);
+            void loadPersonaList();
+          }
+        })
+        .catch(() => {
+          // Ignore background idle nudge error
+        });
+    }, delayMs);
+
+    return () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+    };
+  }, [
+    autoNudgeEnabled,
+    activeSlug,
+    messages,
+    streaming,
+    input,
+    loadPersonaList,
+  ]);
+
   const handleToggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -169,6 +250,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   ) => {
     clearScheduledFollowup();
+    idleNudgeCountRef.current = 0;
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
 
     setStreaming({
@@ -648,6 +730,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           key={activePersona?.slug || "inspector"}
           persona={activePersona}
           isStreaming={Boolean(streaming)}
+          autoNudgeEnabled={autoNudgeEnabled}
+          onToggleAutoNudge={() => setAutoNudgeEnabled((v) => !v)}
           onSavePersonaPatch={handleSavePersonaPatch}
           onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
           onTriggerProactive={handleTriggerProactive}

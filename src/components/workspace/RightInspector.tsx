@@ -7,6 +7,8 @@ import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 interface RightInspectorProps {
   persona: PersonaRecord | null;
   isStreaming?: boolean;
+  autoNudgeEnabled?: boolean;
+  onToggleAutoNudge?: () => void;
   onSavePersonaPatch: (patch: Partial<PersonaRecord>) => Promise<void>;
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
@@ -17,6 +19,8 @@ interface RightInspectorProps {
 export default function RightInspector({
   persona,
   isStreaming = false,
+  autoNudgeEnabled = true,
+  onToggleAutoNudge,
   onSavePersonaPatch,
   onAddCorrection,
   onTriggerProactive,
@@ -152,6 +156,41 @@ export default function RightInspector({
                   />
                 </button>
               </div>
+
+              {onToggleAutoNudge && (
+                <div className="mt-2 p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[13px] text-[var(--text-secondary)] shrink-0">
+                      💬
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                        未回复主动追问
+                      </div>
+                      <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                        沉默 45 秒后结合语境轻敲追问
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoNudgeEnabled}
+                    onClick={onToggleAutoNudge}
+                    className={`w-10 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                      autoNudgeEnabled
+                        ? "bg-[#1683FF]"
+                        : "bg-black/15 dark:bg-white/20"
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        autoNudgeEnabled ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 电脑 ("Bot 的电脑") */}
