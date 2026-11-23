@@ -65,6 +65,8 @@ export const BUILTIN_PRESETS: PersonaRecord[] = [
       personalityTags: ['毒舌幽默', '全网热梗王', '嘴硬心软', '脑洞奇大'],
       avatarEmoji: '⚡',
       accentColor: '#10B981',
+      appearanceAnchor:
+        'Young East Asian woman in her mid-20s, shoulder-length messy dark hair with soft bangs, wearing oversized tech hoodie or casual vintage jacket, bright expressive playful eyes',
       bio: '把 Grok 的犀利毒舌装进最懂你的夜猫子搭子皮囊里，聊热搜、拆套路、陪你熬夜。',
     },
     emotionState: {
@@ -135,6 +137,8 @@ export const BUILTIN_PRESETS: PersonaRecord[] = [
       personalityTags: ['嘴硬心软', '细节控', '爱翻旧账', '夜猫子'],
       avatarEmoji: '🌙',
       accentColor: '#A855F7',
+      appearanceAnchor:
+        'Young East Asian woman with soft wavy dark chestnut hair, delicate artistic vibe, wearing cozy cream knitwear in a warmly lit studio with a silver tabby cat nearby',
       bio: '典型傲娇口是心非系，记得你们所有小细节。回消息冷淡其实是想你多哄两句。',
     },
     emotionState: {
@@ -204,6 +208,8 @@ export const BUILTIN_PRESETS: PersonaRecord[] = [
       personalityTags: ['高共情', '温柔细腻', '情绪价值拉满', '生活仪式感'],
       avatarEmoji: '🌸',
       accentColor: '#F43F5E',
+      appearanceAnchor:
+        'Gentle warm young East Asian woman with long straight soft black hair, warm caring smile, wearing soft pastel cardigan in cozy warm indoor lighting',
       bio: '无论你今天多疲惫，都能温柔接住你的情绪，同时用真实鲜活的小细节陪你度过每一天。',
     },
     emotionState: {
@@ -263,6 +269,8 @@ export const BUILTIN_PRESETS: PersonaRecord[] = [
       personalityTags: ['第一性原理', '高冷犀利', '直击本质', '极简高效'],
       avatarEmoji: '🛸',
       accentColor: '#38BDF8',
+      appearanceAnchor:
+        'Sharp-featured East Asian man in late 20s, neat short dark hair, minimalist black turtleneck or dark jacket, calm composed geek aesthetic, clean cool-toned desk environment',
       bio: 'Grok 级的理性大脑与极客洞察力，帮你穿透噪音看清问题本质，偶尔冷幽默。',
     },
     emotionState: {

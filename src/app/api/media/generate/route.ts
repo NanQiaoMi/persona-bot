@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       caption: String(caption || `${persona?.name || slug} 的趣味表达`),
       personaName: persona?.name || slug,
       personaStyle: persona?.profile.personalityTags?.slice(0, 3).join(', '),
+      appearanceAnchor: persona?.profile.appearanceAnchor,
       baseUrl,
       apiKey,
       imageModel,

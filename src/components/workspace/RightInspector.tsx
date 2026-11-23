@@ -38,6 +38,9 @@ export default function RightInspector({
   const [editingMemoriesMd, setEditingMemoriesMd] = useState<string | null>(
     null
   );
+  const [editingAppearance, setEditingAppearance] = useState<string | null>(
+    null
+  );
   const [newCorrection, setNewCorrection] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -426,6 +429,72 @@ export default function RightInspector({
                       </span>
                     ))}
                   </div>
+                </div>
+
+                {/* Consistent Photo Appearance Anchor Editor */}
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      固定外貌与画风锚点
+                    </span>
+                    {editingAppearance === null ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingAppearance(
+                            persona.profile.appearanceAnchor || ""
+                          )
+                        }
+                        className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer"
+                      >
+                        {persona.profile.appearanceAnchor ? "修改" : "设定"}
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setEditingAppearance(null)}
+                          className="text-[var(--text-muted)] cursor-pointer"
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={async () => {
+                            setSaving(true);
+                            await onSavePersonaPatch({
+                              profile: {
+                                ...persona.profile,
+                                appearanceAnchor:
+                                  editingAppearance.trim() || undefined,
+                              },
+                            });
+                            setEditingAppearance(null);
+                            setSaving(false);
+                          }}
+                          className="text-[#18a999] font-semibold cursor-pointer"
+                        >
+                          保存
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {editingAppearance !== null ? (
+                    <textarea
+                      value={editingAppearance}
+                      onChange={(e) => setEditingAppearance(e.target.value)}
+                      rows={3}
+                      placeholder="例如：20出头黑长直甜酷少女，常穿卫衣或短裙配长靴，拍照时保持一致外貌特征..."
+                      className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] focus:outline-none"
+                    />
+                  ) : (
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                      {persona.profile.appearanceAnchor ||
+                        "未设定固定外貌特征；设定后每次自拍/生图都会自动保持同一人物外貌与画风。"}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

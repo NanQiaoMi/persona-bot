@@ -10,6 +10,7 @@ import {
 } from '@/lib/grok/image-generator';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
+import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import {
@@ -958,6 +959,9 @@ export async function executeGrokChatTurn(
     userMessageRecord,
     assistantMessage,
   ]);
+  void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
+    () => {}
+  );
 
   const pendingFollowup: PendingFollowup | undefined = parsed.followup
     ? {

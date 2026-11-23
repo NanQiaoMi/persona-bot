@@ -23,6 +23,8 @@ export default function CreateBotModal({
 }: CreateBotModalProps) {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [personalityHint, setPersonalityHint] = useState("");
+  const [appearanceAnchor, setAppearanceAnchor] = useState("");
   const [shape, setShape] = useState<MascotShapeId>("splat");
   const [color, setColor] = useState<string>("#FA2D48");
   const [saving, setSaving] = useState(false);
@@ -45,8 +47,12 @@ export default function CreateBotModal({
           avatarShape: shape,
           avatarColor: color,
           defaultMode: "fun",
-          basicInfo: `${trimmed} · 专属拟人 AI Bot`,
-          personalityInfo: "敏锐、果断、重细节、不敷衍的个人专属助手",
+          appearanceAnchor: appearanceAnchor.trim() || undefined,
+          basicInfo: personalityHint.trim()
+            ? `${trimmed} · ${personalityHint.trim()}`
+            : `${trimmed} · 专属拟人 AI Bot`,
+          personalityInfo:
+            personalityHint.trim() || "嘴硬心软、有鲜明脾气、说话像熟人一样的私人搭子",
         }),
       });
       const data = await res.json();
@@ -55,6 +61,8 @@ export default function CreateBotModal({
         return;
       }
       setName("");
+      setPersonalityHint("");
+      setAppearanceAnchor("");
       onCreated(data.persona);
       onClose();
     } catch (err) {
@@ -116,6 +124,23 @@ export default function CreateBotModal({
             placeholder="给你的 Bot 起个名字"
             className="w-full rounded-full border border-[var(--border-strong)] bg-[var(--bg-primary)] px-4 py-2.5 text-center text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--border-strong)] transition-all"
           />
+
+          <div className="mt-2.5 w-full space-y-2">
+            <input
+              type="text"
+              value={personalityHint}
+              onChange={(e) => setPersonalityHint(e.target.value)}
+              placeholder="一句话性格（可选，如：嘴硬爱撒娇的深夜搭子）"
+              className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
+            />
+            <input
+              type="text"
+              value={appearanceAnchor}
+              onChange={(e) => setAppearanceAnchor(e.target.value)}
+              placeholder="固定外貌与穿搭锚点（可选，如：黑长直微卷、甜酷穿搭）"
+              className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
+            />
+          </div>
 
           {error && (
             <p className="mt-2 text-[12px] text-rose-500">{error}</p>

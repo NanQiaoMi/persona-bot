@@ -21,6 +21,10 @@ import {
   LOCAL_IMAGE_MODELS,
 } from '@/lib/grok/image-generator';
 import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
+import {
+  extractMemorableFactFromTurn,
+  mergeMemoryIntoMarkdown,
+} from '@/lib/persona/auto-memory';
 import { analyzeChatLogCorpus } from '@/lib/persona/distiller';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
 import { PromptAssembler } from '@/lib/prompt-assembler';
@@ -245,5 +249,31 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     );
     expect(caption).toContain('过膝长靴');
     expect(caption).not.toContain('顺手拍下的日常画面');
+  });
+
+  it('auto-extracts memorable user facts, deduplicates memories.md, and embeds appearanceAnchor in media prompts', () => {
+    expect(extractMemorableFactFromTurn('你好呀')).toBeNull();
+    const prefFact = extractMemorableFactFromTurn('我平时最爱喝冰美式，但不吃香菜');
+    expect(prefFact).toContain('冰美式');
+
+    const planFact = extractMemorableFactFromTurn('我下周二要去北京参加一场重要面试');
+    expect(planFact).toContain('下周二');
+
+    const firstMerge = mergeMemoryIntoMarkdown('# 共同记忆', prefFact!, '2026/11/24');
+    expect(firstMerge.updated).toBe(true);
+    expect(firstMerge.memoriesMd).toContain('对话自动沉淀的长期记忆');
+
+    const dupMerge = mergeMemoryIntoMarkdown(firstMerge.memoriesMd, prefFact!, '2026/11/24');
+    expect(dupMerge.updated).toBe(false);
+
+    const anchoredPrompt = buildMediaGenerationPrompt(
+      'photo',
+      '咖啡厅落地窗边自拍',
+      'mi mi',
+      '甜酷灵动',
+      'Shoulder-length wavy black hair, oversized knit sweater'
+    );
+    expect(anchoredPrompt).toContain('Consistent character appearance anchor');
+    expect(anchoredPrompt).toContain('Shoulder-length wavy black hair');
   });
 });
