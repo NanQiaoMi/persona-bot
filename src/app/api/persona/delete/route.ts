@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { storageRepo } from '@/lib/storage/repository';
 
-// 删除Persona
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,26 +13,19 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const personaDir = path.join(process.cwd(), 'exes', slug);
-    
-    // 检查目录是否存在
-    try {
-      await fs.access(personaDir);
-    } catch {
+    const deleted = await storageRepo.deletePersona(slug);
+    if (!deleted) {
       return NextResponse.json(
         { success: false, error: { code: '3001', message: 'Persona不存在' } },
         { status: 404 }
       );
     }
 
-    // 删除目录
-    await fs.rm(personaDir, { recursive: true, force: true });
-
     return NextResponse.json({
       success: true,
-      message: `Persona ${slug} 已删除`
+      message: `Persona ${slug} 已删除`,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Delete persona error:', error);
     return NextResponse.json(
       { success: false, error: { code: '5001', message: '删除Persona失败' } },

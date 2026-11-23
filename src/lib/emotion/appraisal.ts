@@ -97,7 +97,7 @@ export function appraiseEvent(
   event: EmotionalEvent,
   personality: PersonalityTraits,
   history: EmotionVector[],
-  context: Record<string, any> = {}
+  context: { timeSinceLastChat?: number; relationshipDuration?: number } = {}
 ): Appraisal {
   return {
     novelty: assessNovelty(event, history),
@@ -110,8 +110,9 @@ export function appraiseEvent(
 
 export function appraisalToEmotion(
   appraisal: Appraisal,
-  personality: PersonalityTraits
+  _personality?: PersonalityTraits
 ): Partial<EmotionVector> {
+  void _personality;
   const valence = appraisal.pleasantness * 0.7 + appraisal.goalRelevance * 0.3;
   const arousal = appraisal.novelty * 0.5 + appraisal.goalRelevance * 0.5;
   const dominance = appraisal.copingPotential;

@@ -50,6 +50,9 @@ uploads/*
 exes/*
 !exes/.gitkeep
 
+# 运行时本地设置数据
+.data/
+
 # 备份
 backups/
 

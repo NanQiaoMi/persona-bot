@@ -1,25 +1,25 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/auth/middleware';
-import { connectDB } from '@/lib/db/mongodb';
-import Persona from '@/lib/db/models/Persona';
+import { storageRepo } from '@/lib/storage/repository';
 
-export const GET = withAuth(async (req: AuthenticatedRequest) => {
+export async function GET() {
   try {
-    await connectDB();
-    
-    const personas = await Persona.find({ userId: req.user?.userId })
-      .select('name slug profile.mbti profile.personalityTags updatedAt')
-      .sort({ updatedAt: -1 });
-
+    const personas = await storageRepo.listPersonas();
     return NextResponse.json({
       success: true,
-      personas: personas.map(p => ({
+      personas: personas.map((p) => ({
         slug: p.slug,
         name: p.name,
-        mbti: p.profile?.mbti,
-        tags: p.profile?.personalityTags || [],
-        lastActive: p.updatedAt
-      }))
+        version: p.version,
+        isPreset: p.isPreset,
+        defaultMode: p.defaultMode,
+        mbti: p.profile.mbti,
+        tags: p.profile.personalityTags,
+        profile: p.profile,
+        emotionState: p.emotionState,
+        intimacy: p.intimacy,
+        lastMessage: p.lastMessage,
+        lastActive: p.lastActive,
+      })),
     });
   } catch (error) {
     console.error('Get personas error:', error);
@@ -28,4 +28,4 @@ export const GET = withAuth(async (req: AuthenticatedRequest) => {
       { status: 500 }
     );
   }
-});
+}

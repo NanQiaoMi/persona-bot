@@ -5,7 +5,7 @@ export interface PersonaData {
   persona_md: string;
   memories_md: string;
   ai_profile: string;  // AI生成的完整人物描述
-  meta: any;
+  meta: Record<string, unknown>;
 }
 
 export class PromptAssembler {
@@ -80,7 +80,11 @@ export class PromptAssembler {
     return sections.join('\n\n');
   }
 
-  assembleSystemPrompt(data: PersonaData, emotionState?: any, lastUserMessage?: string): string {
+  assembleSystemPrompt(
+    data: PersonaData,
+    emotionState?: { emotion?: string; intensity?: number; attitude?: string },
+    lastUserMessage?: string
+  ): string {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     const dayPeriod = now.getHours() < 6 ? '凌晨' : now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上';
@@ -88,9 +92,6 @@ export class PromptAssembler {
     const filteredMemories = lastUserMessage 
       ? this.filterMemories(data.memories_md, lastUserMessage)
       : data.memories_md;
-
-    // 提取AI生成的关键特征
-    const aiTraits = this.extractKeyTraits(data.ai_profile);
 
     const sections = [
       "## 核心身份约束 (The Realism Protocol)",

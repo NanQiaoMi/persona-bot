@@ -1,112 +1,95 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/auth/middleware';
-import { connectDB } from '@/lib/db/mongodb';
-import Persona from '@/lib/db/models/Persona';
-import fs from 'fs/promises';
-import path from 'path';
+import { storageRepo } from '@/lib/storage/repository';
 
-export const GET = withAuth(
-  async (req: AuthenticatedRequest, context: { params: Promise<{ slug: string }> }) => {
-    try {
-      const { slug } = await context.params;
-      await connectDB();
+export async function GET(
+  _req: Request,
+  context: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await context.params;
+    const persona = await storageRepo.getPersona(slug);
 
-      const persona = await Persona.findOne({ slug, userId: req.user?.userId });
-
-      if (!persona) {
-        return NextResponse.json(
-          { success: false, error: { code: '3001', message: 'Persona不存在' } },
-          { status: 404 }
-        );
-      }
-
-      let aiProfileMd = '';
-      try {
-        const aiProfilePath = path.join(process.cwd(), 'exes', slug, 'ai_profile.md');
-        aiProfileMd = await fs.readFile(aiProfilePath, 'utf-8');
-      } catch {
-        // ai_profile.md may not exist
-      }
-
-      return NextResponse.json({
-        success: true,
-        persona: {
-          id: persona._id,
-          name: persona.name,
-          slug: persona.slug,
-          profile: persona.profile,
-          personaMd: persona.personaMd,
-          aiProfileMd,
-          memoriesMd: persona.memoriesMd,
-          emotionState: persona.emotionState,
-          corrections: persona.corrections,
-          createdAt: persona.createdAt,
-          updatedAt: persona.updatedAt,
-        },
-      });
-    } catch (error) {
-      console.error('Get persona error:', error);
+    if (!persona) {
       return NextResponse.json(
-        { success: false, error: { code: '5001', message: '获取Persona失败' } },
-        { status: 500 }
+        { success: false, error: { code: '3001', message: 'Persona不存在' } },
+        { status: 404 }
       );
     }
+
+    return NextResponse.json({
+      success: true,
+      persona,
+    });
+  } catch (error) {
+    console.error('Get persona error:', error);
+    return NextResponse.json(
+      { success: false, error: { code: '5001', message: '获取Persona失败' } },
+      { status: 500 }
+    );
   }
-);
+}
 
-export const PUT = withAuth(
-  async (req: AuthenticatedRequest, context: { params: Promise<{ slug: string }> }) => {
-    try {
-      const { slug } = await context.params;
-      const body = await req.json();
-      await connectDB();
+export async function PUT(
+  req: Request,
+  context: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await context.params;
+    const body = await req.json();
+    const existing = await storageRepo.getPersona(slug);
 
-      const persona = await Persona.findOneAndUpdate(
-        { slug, userId: req.user?.userId },
-        { $set: body },
-        { new: true }
-      );
-
-      if (!persona) {
-        return NextResponse.json(
-          { success: false, error: { code: '3001', message: 'Persona不存在' } },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({ success: true, persona });
-    } catch (error) {
-      console.error('Update persona error:', error);
+    if (!existing) {
       return NextResponse.json(
-        { success: false, error: { code: '5001', message: '更新Persona失败' } },
-        { status: 500 }
+        { success: false, error: { code: '3001', message: 'Persona不存在' } },
+        { status: 404 }
       );
     }
+
+    const updated = await storageRepo.savePersona({
+      ...existing,
+      ...body,
+      slug: existing.slug,
+      profile: {
+        ...existing.profile,
+        ...(body.profile || {}),
+      },
+      emotionState: {
+        ...existing.emotionState,
+        ...(body.emotionState || {}),
+      },
+    });
+
+    return NextResponse.json({ success: true, persona: updated });
+  } catch (error) {
+    console.error('Update persona error:', error);
+    return NextResponse.json(
+      { success: false, error: { code: '5001', message: '更新Persona失败' } },
+      { status: 500 }
+    );
   }
-);
+}
 
-export const DELETE = withAuth(
-  async (req: AuthenticatedRequest, context: { params: Promise<{ slug: string }> }) => {
-    try {
-      const { slug } = await context.params;
-      await connectDB();
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await context.params;
+    const ok = await storageRepo.deletePersona(slug);
 
-      const result = await Persona.findOneAndDelete({ slug, userId: req.user?.userId });
-
-      if (!result) {
-        return NextResponse.json(
-          { success: false, error: { code: '3001', message: 'Persona不存在' } },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({ success: true });
-    } catch (error) {
-      console.error('Delete persona error:', error);
+    if (!ok) {
       return NextResponse.json(
-        { success: false, error: { code: '5001', message: '删除Persona失败' } },
-        { status: 500 }
+        { success: false, error: { code: '3001', message: 'Persona不存在' } },
+        { status: 404 }
       );
     }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Delete persona error:', error);
+    return NextResponse.json(
+      { success: false, error: { code: '5001', message: '删除Persona失败' } },
+      { status: 500 }
+    );
   }
-);
+}

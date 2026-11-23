@@ -7,7 +7,13 @@ interface Persona {
   slug: string;
   name: string;
   version?: string;
-  profile?: any;
+  profile?: {
+    mbti?: string;
+    tags?: {
+      personality?: string[];
+    };
+    enhanced_profile?: string;
+  };
   created_at?: string;
 }
 
@@ -17,22 +23,25 @@ export default function GalleryPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
-    loadPersonas();
-  }, []);
-
-  const loadPersonas = async () => {
-    try {
-      const res = await fetch('/api/persona/list');
-      const data = await res.json();
-      if (data.success) {
-        setPersonas(data.personas || []);
+    let active = true;
+    const fetchPersonas = async () => {
+      try {
+        const res = await fetch('/api/persona/list');
+        const data = await res.json();
+        if (active && data.success) {
+          setPersonas(data.personas || []);
+        }
+      } catch (error) {
+        console.error('Failed to load personas:', error);
+      } finally {
+        if (active) setLoading(false);
       }
-    } catch (error) {
-      console.error('Failed to load personas:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    fetchPersonas();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleDelete = async (slug: string, name: string) => {
     if (!confirm(`确定要删除「${name}」吗？此操作不可撤销。`)) {
