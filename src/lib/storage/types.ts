@@ -86,6 +86,7 @@ export interface ConversationMessage {
   content: string;
   timestamp: string;
   thought?: string;
+  thoughtDurationMs?: number;
   searchQuery?: string;
   searchResults?: SearchResultItem[];
   mode?: PersonaMode;

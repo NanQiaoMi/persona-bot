@@ -15,6 +15,8 @@ interface GrokComposerProps {
   onToggleDeepSearch: () => void;
   activeMode: PersonaMode;
   onChangeMode: (mode: PersonaMode) => void;
+  variant?: "hero" | "dock";
+  personaName?: string;
 }
 
 export default function GrokComposer({
@@ -28,6 +30,8 @@ export default function GrokComposer({
   onToggleDeepSearch,
   activeMode,
   onChangeMode,
+  variant = "dock",
+  personaName,
 }: GrokComposerProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -56,35 +60,29 @@ export default function GrokComposer({
   };
 
   const handleVoiceInput = () => {
-    const SpeechRecognitionCtor =
-      (window as unknown as {
-        SpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-          onerror: () => void;
-          onend: () => void;
-        };
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-          onerror: () => void;
-          onend: () => void;
-        };
-      }).SpeechRecognition ||
-      (window as unknown as {
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-          onerror: () => void;
-          onend: () => void;
-        };
-      }).webkitSpeechRecognition;
+    const win = window as unknown as {
+      SpeechRecognition?: new () => {
+        lang: string;
+        start: () => void;
+        onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+        onerror: () => void;
+        onend: () => void;
+      };
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        start: () => void;
+        onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+        onerror: () => void;
+        onend: () => void;
+      };
+    };
+
+    const SpeechRecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
 
     if (!SpeechRecognitionCtor) {
-      onChange(value ? `${value} [语音输入：最近在忙啥呢？]` : "刚刚给你发了一条语音，快听听我在说啥～");
+      onChange(
+        value ? `${value} [语音输入：最近在忙啥呢？]` : "刚给你发了一条语音，快听听我在说啥～"
+      );
       return;
     }
 
@@ -106,9 +104,20 @@ export default function GrokComposer({
     }
   };
 
+  const wrapperClass =
+    variant === "hero"
+      ? "w-full max-w-2xl mx-auto"
+      : "px-4 pb-5 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/95 to-transparent";
+
+  const canSend = !disabled && (Boolean(value.trim()) || Boolean(imagePreview));
+
   return (
-    <div className="px-4 pb-4 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent">
-      <div className="max-w-3xl mx-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden transition-all">
+    <div className={wrapperClass}>
+      <div
+        className={`${
+          variant === "dock" ? "max-w-3xl mx-auto" : "w-full"
+        } rounded-[26px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] grok-composer-focus transition-all overflow-hidden shadow-2xl`}
+      >
         {/* Image Attachment Preview */}
         {imagePreview && (
           <div className="px-4 pt-3 flex items-center gap-3">
@@ -122,19 +131,19 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={() => setImagePreview(null)}
-                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/75 text-white text-xs flex items-center justify-center"
               >
                 ×
               </button>
             </div>
             <span className="text-xs text-[var(--text-secondary)]">
-              已附带图片 · 发送后角色将结合画面细节与人设点评
+              已附带图片 · {personaName || "TA"} 将结合画面细节与人设点评
             </span>
           </div>
         )}
 
         {/* Textarea */}
-        <div className="px-4 pt-3 pb-2">
+        <div className="px-5 pt-3.5 pb-2">
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -144,15 +153,19 @@ export default function GrokComposer({
                 handleSubmit(false);
               }
             }}
-            rows={2}
+            rows={variant === "hero" ? 3 : 2}
             disabled={disabled}
-            placeholder="像发微信一样随便聊，或开启 DeepSearch 问问今天的新鲜事... (Enter 发送，Shift+Enter 换行)"
-            className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none leading-relaxed"
+            placeholder={
+              personaName
+                ? `向 ${personaName} 随便问点什么，或开启 DeepSearch 聊聊今天的热搜...`
+                : "有什么想聊的？"
+            }
+            className="w-full bg-transparent text-[14.5px] text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none leading-relaxed"
           />
         </div>
 
-        {/* Grok Capsule Controls Bar */}
-        <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--bg-tertiary)]/50 flex flex-wrap items-center justify-between gap-2">
+        {/* Bottom Controls Bar */}
+        <div className="px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)]/70">
           <div className="flex flex-wrap items-center gap-1.5">
             {/* Think Toggle */}
             <button
@@ -160,13 +173,13 @@ export default function GrokComposer({
               onClick={onToggleThink}
               className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 border transition-all ${
                 thinkMode
-                  ? "bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-sm"
-                  : "bg-transparent border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  ? "bg-white/10 border-[var(--border-strong)] text-[var(--text-primary)]"
+                  : "bg-transparent border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
               title="开启后展示角色回复前的真实内心潜台词 (Inner OS)"
             >
-              <span>💭</span>
-              <span>Think 潜台词</span>
+              <span className={thinkMode ? "text-purple-400" : ""}>✦</span>
+              <span>Think</span>
             </button>
 
             {/* DeepSearch Toggle */}
@@ -175,8 +188,8 @@ export default function GrokComposer({
               onClick={onToggleDeepSearch}
               className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 border transition-all ${
                 deepSearch
-                  ? "bg-sky-500/20 border-sky-500/50 text-sky-300 shadow-sm"
-                  : "bg-transparent border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  ? "bg-sky-500/15 border-sky-500/40 text-sky-300"
+                  : "bg-transparent border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
               title="开启后实时联网检索资讯并用角色口吻吐槽/分享"
             >
@@ -185,7 +198,7 @@ export default function GrokComposer({
             </button>
 
             {/* 4 Persona Modes Selector */}
-            <div className="flex items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)]/60 p-0.5">
+            <div className="flex items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)]/70 p-0.5">
               {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((modeKey) => {
                 const spec = PERSONA_MODES[modeKey];
                 const isActive = activeMode === modeKey;
@@ -194,9 +207,9 @@ export default function GrokComposer({
                     key={modeKey}
                     type="button"
                     onClick={() => onChangeMode(modeKey)}
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all flex items-center gap-1 ${
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all flex items-center gap-1 ${
                       isActive
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                        ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-strong)] shadow-sm"
                         : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     }`}
                     title={spec.description}
@@ -209,8 +222,8 @@ export default function GrokComposer({
             </div>
           </div>
 
-          {/* Right Multimodal & Send Controls */}
-          <div className="flex items-center gap-1.5">
+          {/* Right Multimodal & Send Button */}
+          <div className="flex items-center gap-1">
             <input
               ref={fileInputRef}
               type="file"
@@ -221,8 +234,8 @@ export default function GrokComposer({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors"
-              title="发送图片让 TA 看图点评"
+              className="w-8 h-8 rounded-full text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors flex items-center justify-center"
+              title="上传图片看图点评"
             >
               🖼️
             </button>
@@ -235,20 +248,20 @@ export default function GrokComposer({
                 handleSubmit(true);
               }}
               disabled={disabled}
-              className="p-1.5 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors"
-              title="索要角色情境照片/自拍"
+              className="w-8 h-8 rounded-full text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors flex items-center justify-center"
+              title="索要角色情境照片"
             >
               📸
             </button>
             <button
               type="button"
               onClick={handleVoiceInput}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${
+              className={`w-8 h-8 rounded-full text-xs transition-colors flex items-center justify-center ${
                 isRecording
                   ? "bg-rose-500/20 text-rose-400 animate-pulse"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5"
               }`}
-              title="语音输入 (Web Speech STT)"
+              title="语音输入"
             >
               🎙️
             </button>
@@ -256,10 +269,15 @@ export default function GrokComposer({
             <button
               type="button"
               onClick={() => handleSubmit(false)}
-              disabled={disabled || (!value.trim() && !imagePreview)}
-              className="ml-1 px-4 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-semibold text-xs transition-all shadow-md shadow-emerald-500/20"
+              disabled={!canSend}
+              aria-label="发送消息"
+              className={`ml-1.5 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
+                canSend
+                  ? "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 shadow-md"
+                  : "bg-[var(--bg-tertiary)] text-[var(--text-muted)] opacity-50 cursor-not-allowed"
+              }`}
             >
-              {disabled ? "思考中..." : "发送 ↑"}
+              {disabled ? "⋯" : "↑"}
             </button>
           </div>
         </div>

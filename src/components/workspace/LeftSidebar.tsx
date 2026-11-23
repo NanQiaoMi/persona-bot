@@ -13,6 +13,7 @@ interface LeftSidebarProps {
   onOpenSettings: () => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  onCollapse?: () => void;
 }
 
 export default function LeftSidebar({
@@ -23,6 +24,7 @@ export default function LeftSidebar({
   onOpenSettings,
   theme,
   onToggleTheme,
+  onCollapse,
 }: LeftSidebarProps) {
   const [filter, setFilter] = useState<"all" | "preset" | "custom">("all");
   const [search, setSearch] = useState("");
@@ -44,33 +46,33 @@ export default function LeftSidebar({
 
   return (
     <aside className="w-72 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
-      {/* Brand Header */}
+      {/* Minimal Grok Brand Header */}
       <div className="px-4 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-sky-500 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shadow-emerald-500/20">
-            G
+          <div className="w-8 h-8 rounded-full border border-[var(--border-strong)] bg-[var(--bg-primary)] flex items-center justify-center font-black text-sm tracking-tighter">
+            𝕏
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-sm tracking-tight">
+              <span className="font-semibold text-sm tracking-tight">
                 PersonaBot
               </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">
-                GROK 2.0
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full border border-[var(--border-strong)] text-[var(--text-secondary)] font-medium">
+                GROK
               </span>
             </div>
             <p className="text-[10px] text-[var(--text-muted)]">
-              拟人灵魂 × 实时全能大脑
+              灵魂蒸馏 × 实时大脑
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={onToggleTheme}
             className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center text-xs text-[var(--text-secondary)]"
-            title={theme === "dark" ? "切换清爽亮色" : "切换深空暗色"}
+            title={theme === "dark" ? "切换清爽亮色" : "切换黑曜石暗色"}
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
@@ -82,14 +84,24 @@ export default function LeftSidebar({
           >
             ⚙️
           </button>
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center text-xs text-[var(--text-secondary)]"
+              title="收起侧边栏"
+            >
+              ◧
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filter Tabs & Search */}
+      {/* Filter & Search */}
       <div className="p-3 space-y-2 border-b border-[var(--border-subtle)]">
         <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11px]">
           {[
-            { id: "all", label: "全部角色" },
+            { id: "all", label: "全部" },
             { id: "preset", label: "Grok 标杆" },
             { id: "custom", label: "我的蒸馏" },
           ].map((tab) => (
@@ -99,7 +111,7 @@ export default function LeftSidebar({
               onClick={() => setFilter(tab.id as "all" | "preset" | "custom")}
               className={`py-1 rounded-lg font-medium transition-all ${
                 filter === tab.id
-                  ? "bg-[var(--bg-tertiary)] text-emerald-400 shadow-sm"
+                  ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)] shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
@@ -112,8 +124,8 @@ export default function LeftSidebar({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索角色、MBTI 或性格标签..."
-          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-emerald-500/50"
+          placeholder="搜索角色或标签..."
+          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
         />
       </div>
 
@@ -124,7 +136,7 @@ export default function LeftSidebar({
             <p className="mb-2">暂无匹配的角色</p>
             <Link
               href="/create"
-              className="text-emerald-400 hover:underline font-medium"
+              className="text-[var(--text-primary)] underline font-medium"
             >
               + 立即蒸馏专属角色
             </Link>
@@ -140,43 +152,41 @@ export default function LeftSidebar({
                 onClick={() => onSelectPersona(p.slug)}
                 className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 border ${
                   isActive
-                    ? "bg-emerald-500/10 border-emerald-500/40 shadow-sm"
+                    ? "bg-[var(--bg-tertiary)] border-[var(--border-strong)] shadow-sm"
                     : "bg-transparent border-transparent hover:bg-white/5"
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center text-lg shrink-0">
+                <div className="w-9 h-9 rounded-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-base shrink-0">
                   {p.profile.avatarEmoji || p.name.charAt(0)}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-xs text-[var(--text-primary)] truncate">
+                      <span className="font-medium text-xs text-[var(--text-primary)] truncate">
                         {p.name}
                       </span>
                       {p.profile.mbti && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-[var(--text-secondary)]">
+                        <span className="text-[10px] text-[var(--text-muted)]">
                           {p.profile.mbti}
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-rose-400 font-medium shrink-0">
+                    <span className="text-[10px] text-[var(--text-muted)] shrink-0">
                       ♥ {p.intimacy}%
                     </span>
                   </div>
 
                   <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
-                    {p.lastMessage || p.profile.bio || "点击开启沉浸式对话"}
+                    {p.lastMessage || p.profile.bio || "点击开启沉浸对话"}
                   </p>
 
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                  <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[var(--text-muted)]">
+                    <span>
                       {modeSpec.badge} {modeSpec.shortLabel}
                     </span>
                     {p.emotionState?.moodLabel && (
-                      <span className="text-[10px] text-emerald-400 truncate">
-                        · {p.emotionState.moodLabel}
-                      </span>
+                      <span className="truncate">· {p.emotionState.moodLabel}</span>
                     )}
                   </div>
                 </div>
@@ -190,9 +200,9 @@ export default function LeftSidebar({
       <div className="p-3 border-t border-[var(--border-subtle)] space-y-2 bg-[var(--bg-primary)]/40">
         <Link
           href="/create"
-          className="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all"
+          className="w-full py-2 px-3 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
         >
-          <span>✨</span>
+          <span>✦</span>
           <span>蒸馏 / 创建新角色</span>
         </Link>
 
@@ -200,14 +210,14 @@ export default function LeftSidebar({
           <button
             type="button"
             onClick={onOpenImport}
-            className="py-1.5 px-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-tertiary)]/60 hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1"
+            className="py-1.5 px-2.5 rounded-full border border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1"
           >
             <span>📥</span>
             <span>导入记录</span>
           </button>
           <Link
             href="/gallery"
-            className="py-1.5 px-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-tertiary)]/60 hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1"
+            className="py-1.5 px-2.5 rounded-full border border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1"
           >
             <span>🪐</span>
             <span>角色广场</span>

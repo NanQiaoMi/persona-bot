@@ -11,6 +11,7 @@ import {
   SearchResultItem,
 } from "@/lib/storage/types";
 import ChatStage from "./ChatStage";
+import CommandPalette from "./CommandPalette";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
 
@@ -31,9 +32,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [thinkMode, setThinkMode] = useState(true);
   const [deepSearch, setDeepSearch] = useState(false);
   const [activeMode, setActiveMode] = useState<PersonaMode>("fun");
-  const [showInspector, setShowInspector] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showInspector, setShowInspector] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const [streaming, setStreaming] = useState<{
@@ -41,6 +44,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     searchQuery?: string;
     searchResults?: SearchResultItem[];
     thought: string;
+    thoughtDurationMs?: number;
     isStreamingThought: boolean;
     reply: string;
   } | null>(null);
@@ -94,6 +98,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     };
   }, [activeSlug, loadPersonaList, loadActivePersonaDetail]);
 
+  // Global ⌘K / Ctrl+K shortcut for Command Palette
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const handleToggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -102,31 +118,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   };
 
-  const handleSend = async (options?: {
-    imageUrl?: string;
-    requestPhoto?: boolean;
-  }) => {
-    const text =
-      input.trim() ||
-      (options?.requestPhoto ? "发张你那边的随手拍给我看看呗 📸" : "");
-    if (!text && !options?.imageUrl) return;
-    if (streaming) return;
-
-    const userMsg: ConversationMessage = {
-      id: `msg_${Date.now()}_u`,
-      role: "user",
-      content: text || "[发送了一张图片]",
-      timestamp: new Date().toISOString(),
-      imageUrl: options?.imageUrl,
-      mode: activeMode,
-    };
-
-    const nextHistory = [...messages, userMsg];
-    setMessages(nextHistory);
-    setInput("");
+  const runStreamRequest = async (
+    historyToSend: ConversationMessage[],
+    modeToUse: PersonaMode,
+    options?: { requestPhoto?: boolean }
+  ) => {
     setStreaming({
       isSearching: deepSearch,
       thought: "",
+      thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
       reply: "",
     });
@@ -137,13 +137,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug: activeSlug,
-          messages: nextHistory.map((m) => ({
+          messages: historyToSend.map((m) => ({
             role: m.role,
             content: m.content,
             imageUrl: m.imageUrl,
             timestamp: m.timestamp,
           })),
-          mode: activeMode,
+          mode: modeToUse,
           thinkMode,
           deepSearch,
           requestPhoto: options?.requestPhoto,
@@ -193,6 +193,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       ...prev,
                       isSearching: false,
                       thought: payload.fullThought,
+                      thoughtDurationMs: payload.durationMs,
                       isStreamingThought: true,
                     }
                   : prev
@@ -236,6 +237,48 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     } finally {
       setStreaming(null);
     }
+  };
+
+  const handleSend = async (options?: {
+    imageUrl?: string;
+    requestPhoto?: boolean;
+  }) => {
+    const text =
+      input.trim() ||
+      (options?.requestPhoto ? "发张你那边的随手拍给我看看呗 📸" : "");
+    if (!text && !options?.imageUrl) return;
+    if (streaming) return;
+
+    const userMsg: ConversationMessage = {
+      id: `msg_${Date.now()}_u`,
+      role: "user",
+      content: text || "[发送了一张图片]",
+      timestamp: new Date().toISOString(),
+      imageUrl: options?.imageUrl,
+      mode: activeMode,
+    };
+
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+
+    await runStreamRequest(nextHistory, activeMode, {
+      requestPhoto: options?.requestPhoto,
+    });
+  };
+
+  const handleRegenerate = async (
+    msgIndex: number,
+    overrideMode?: PersonaMode
+  ) => {
+    if (streaming) return;
+    const modeToUse = overrideMode || activeMode;
+    if (overrideMode) {
+      setActiveMode(overrideMode);
+    }
+    const truncated = messages.slice(0, msgIndex);
+    setMessages(truncated);
+    await runStreamRequest(truncated, modeToUse);
   };
 
   const handleTriggerProactive = async (hoursIdle?: number) => {
@@ -338,16 +381,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      {/* Left Navigation & Persona Gravity List */}
-      <LeftSidebar
-        personas={personas}
-        activeSlug={activeSlug}
-        onSelectPersona={(slug) => setActiveSlug(slug)}
-        onOpenImport={() => setShowImport(true)}
-        onOpenSettings={() => setShowSettings(true)}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
+      {/* Collapsible Left Navigation */}
+      {sidebarOpen && (
+        <LeftSidebar
+          personas={personas}
+          activeSlug={activeSlug}
+          onSelectPersona={(slug) => setActiveSlug(slug)}
+          onOpenImport={() => setShowImport(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          onCollapse={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Center Grok Stream Stage */}
       <ChatStage
@@ -360,6 +406,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onTriggerProactive={handleTriggerProactive}
         onClearHistory={handleClearHistory}
         onQuickCorrect={handleQuickCorrect}
+        onRegenerate={handleRegenerate}
         thinkMode={thinkMode}
         onToggleThink={() => setThinkMode((v) => !v)}
         deepSearch={deepSearch}
@@ -368,9 +415,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onChangeMode={(m) => setActiveMode(m)}
         showInspector={showInspector}
         onToggleInspector={() => setShowInspector((v) => !v)}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onOpenCommandPalette={() => setShowCommandPalette(true)}
       />
 
-      {/* Right Persona Soul & PAD Emotion Inspector */}
+      {/* Right Persona Soul & PAD Emotion Drawer (Closed by Default) */}
       {showInspector && (
         <RightInspector
           persona={activePersona}
@@ -381,7 +431,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         />
       )}
 
-      {/* Modals */}
+      {/* Modals & ⌘K Command Palette */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        personas={personas}
+        activeSlug={activeSlug}
+        onSelectPersona={(slug) => setActiveSlug(slug)}
+        onChangeMode={(m) => setActiveMode(m)}
+        onToggleTheme={handleToggleTheme}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+
       <ImportModal
         isOpen={showImport}
         onClose={() => setShowImport(false)}

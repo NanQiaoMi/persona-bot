@@ -88,11 +88,24 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
       'authentic',
       null,
       false,
-      true
+      true,
+      4
     );
     const parsed = parseStructuredModelOutput(fallbackRaw);
     expect(parsed.thought.length).toBeGreaterThan(5);
     expect(parsed.mediaCards.some((c) => c.type === 'photo')).toBe(true);
+
+    const challengeRaw = synthesizePersonaAwareFallback(
+      linWan,
+      '你是AI机器人吧',
+      'fun',
+      null,
+      false,
+      false,
+      2
+    );
+    const challengeParsed = parseStructuredModelOutput(challengeRaw);
+    expect(challengeParsed.cleanReply).toContain('图灵测试');
   });
 
   it('analyzes WeChat and loose chat logs in pure TypeScript', () => {
