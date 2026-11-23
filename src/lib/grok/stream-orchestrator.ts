@@ -77,8 +77,16 @@ export type StreamEvent =
       isDemoMode: boolean;
     }
   | {
+      type: 'message_part';
+      message: ConversationMessage;
+      index: number;
+      total: number;
+      hasMore: boolean;
+    }
+  | {
       type: 'done';
       message: ConversationMessage;
+      messages?: ConversationMessage[];
       followup?: PendingFollowup;
     };
 
@@ -268,6 +276,137 @@ export function buildContextualMediaCaption(
 function sleepForSimulatedStream(ms: number): Promise<void> {
   if (process.env.VITEST || ms <= 0) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function splitLongProseParagraph(paragraph: string): string[] {
+  const trimmed = paragraph.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= 55) return [trimmed];
+
+  const lines = trimmed
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const sentenceUnits: string[] = [];
+
+  for (const line of lines) {
+    if (line.length <= 40) {
+      sentenceUnits.push(line);
+      continue;
+    }
+    const matched = line.match(
+      /[^。！？!?]+(?:[。！？!?]+[”’"'」』）)\s~～…]*|$)/g
+    );
+    if (matched && matched.length > 0) {
+      for (const s of matched) {
+        const cleanS = s.trim();
+        if (cleanS) sentenceUnits.push(cleanS);
+      }
+    } else {
+      sentenceUnits.push(line);
+    }
+  }
+
+  if (sentenceUnits.length <= 1) return [trimmed];
+
+  const grouped: string[] = [];
+  let current = '';
+
+  for (const unit of sentenceUnits) {
+    if (!current) {
+      current = unit;
+      continue;
+    }
+    if (current.length < 18 && current.length + unit.length <= 68) {
+      const needsSpace =
+        /[a-zA-Z0-9]$/.test(current) && /^[a-zA-Z0-9]/.test(unit);
+      current = `${current}${needsSpace ? ' ' : ''}${unit}`;
+    } else {
+      grouped.push(current);
+      current = unit;
+    }
+  }
+
+  if (current) {
+    if (
+      grouped.length > 0 &&
+      current.length < 8 &&
+      grouped[grouped.length - 1].length + current.length <= 75
+    ) {
+      grouped[grouped.length - 1] = `${grouped[grouped.length - 1]}${current}`;
+    } else {
+      grouped.push(current);
+    }
+  }
+
+  return grouped.length > 0 ? grouped : [trimmed];
+}
+
+/**
+ * 将回复语义拆分为多条自然聊天短消息（保留显式 [BURST]，同时自动拆分长段落，但保护代码块与列表完整）
+ */
+export function splitIntoNaturalMessages(
+  bursts: string[],
+  maxSegments = 4
+): string[] {
+  const rawChunks = bursts.map((b) => b.trim()).filter(Boolean);
+  if (rawChunks.length === 0) {
+    return ['我在听呢，继续说～'];
+  }
+
+  const expanded: string[] = [];
+  for (const chunk of rawChunks) {
+    const hasCodeFence = /```/.test(chunk);
+    const hasMarkdownList = /(?:^|\n)\s*(?:[-*+]|\d+\.)\s+/.test(chunk);
+    if (hasCodeFence || hasMarkdownList) {
+      expanded.push(chunk);
+      continue;
+    }
+
+    const paragraphs = chunk
+      .split(/\n{2,}/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    for (const para of paragraphs) {
+      expanded.push(...splitLongProseParagraph(para));
+    }
+  }
+
+  const normalized = expanded.filter(Boolean);
+  if (normalized.length === 0) {
+    return ['我在听呢，继续说～'];
+  }
+
+  const limit = Math.max(1, maxSegments);
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+
+  const head = normalized.slice(0, limit - 1);
+  const tailMerged = normalized.slice(limit - 1).join('\n');
+  return [...head, tailMerged];
+}
+
+/**
+ * 计算拟真人类打字/思考间隔（毫秒）；Vitest 下默认返回 0 以保持测试秒级完成
+ */
+export function computeRealisticTypingDelayMs(
+  segment: string,
+  index = 1,
+  options?: { respectTestEnv?: boolean; jitter?: boolean }
+): number {
+  if (options?.respectTestEnv !== false && process.env.VITEST) {
+    return 0;
+  }
+  const len = Math.max(1, segment.trim().length);
+  const jitterMs =
+    options?.jitter !== false ? Math.floor(Math.random() * 280) : 0;
+
+  if (index <= 0) {
+    return Math.min(750, Math.max(260, Math.round(260 + len * 14 + jitterMs)));
+  }
+  return Math.min(2800, Math.max(750, Math.round(680 + len * 46 + jitterMs)));
 }
 
 /**
@@ -799,8 +938,10 @@ export async function executeGrokChatTurn(
     nativeReasoning || ''
   );
 
-  parsed.bursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
-  parsed.cleanReply = parsed.bursts.join('\n\n');
+  const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
+  const segments = splitIntoNaturalMessages(sanitizedBursts);
+  parsed.bursts = segments;
+  parsed.cleanReply = segments.join('\n\n');
 
   if (parsed.mood) {
     updatedEmotion.moodLabel = parsed.mood;
@@ -854,55 +995,6 @@ export async function executeGrokChatTurn(
     return true;
   });
 
-  // Smooth paced simulated streaming ("假流式": buffer complete response first, then type out smoothly bubble by bubble)
-  const startTs = Date.now();
-  if (thinkEnabled && parsed.thought) {
-    const stepSize = Math.max(8, Math.ceil(parsed.thought.length / 5));
-    let acc = '';
-    for (let i = 0; i < parsed.thought.length; i += stepSize) {
-      const delta = parsed.thought.slice(i, i + stepSize);
-      acc += delta;
-      onEvent?.({
-        type: 'thought',
-        delta,
-        fullThought: acc,
-        durationMs: Math.max(400, Date.now() - startTs + i * 12),
-      });
-      await sleepForSimulatedStream(18);
-    }
-    thoughtDurationMs = Math.max(500, parsed.thought.length * 16);
-  }
-
-  onEvent?.({
-    type: 'emotion',
-    emotionState: updatedEmotion,
-    intimacy: newIntimacy,
-    intimacyChange: intimacyDelta,
-  });
-
-  const completedBursts: string[] = [];
-  for (let bIdx = 0; bIdx < parsed.bursts.length; bIdx += 1) {
-    const targetBurst = parsed.bursts[bIdx];
-    const step = Math.max(4, Math.ceil(targetBurst.length / 10));
-    for (let pos = step; pos < targetBurst.length + step; pos += step) {
-      const partial = targetBurst.slice(0, pos);
-      const currentBursts = [...completedBursts, partial];
-      onEvent?.({
-        type: 'reply',
-        delta: partial,
-        fullReply: currentBursts.join('\n\n'),
-        bursts: currentBursts,
-        mediaCards: parsed.mediaCards,
-        isDemoMode,
-      });
-      await sleepForSimulatedStream(24);
-    }
-    completedBursts.push(targetBurst);
-    if (bIdx < parsed.bursts.length - 1) {
-      await sleepForSimulatedStream(160);
-    }
-  }
-
   const pageCard = buildPageCardIfRelevant(
     persona,
     lastUserText,
@@ -924,32 +1016,154 @@ export async function executeGrokChatTurn(
     };
   }
 
-  const assistantMessage: ConversationMessage = {
-    id: `msg_${Date.now()}_ai`,
-    role: 'assistant',
-    content: parsed.cleanReply,
-    timestamp: new Date().toISOString(),
-    thought: thinkEnabled && parsed.thought ? parsed.thought : undefined,
-    thoughtDurationMs:
-      thinkEnabled && parsed.thought ? thoughtDurationMs : undefined,
-    searchQuery: searchResp?.query,
-    searchResults: searchResp?.results,
-    pageCard,
-    fromBot: fromBotMeta,
-    mode: activeMode,
-    mood: updatedEmotion.moodLabel,
+  const baseTs = Date.now();
+  const modelLabel = isDemoMode ? '离线演示' : model;
+
+  if (!onEvent) {
+    const combinedMessage: ConversationMessage = {
+      id: `msg_${baseTs}_ai`,
+      role: 'assistant',
+      content: parsed.cleanReply,
+      timestamp: new Date(baseTs).toISOString(),
+      thought: thinkEnabled && parsed.thought ? parsed.thought : undefined,
+      thoughtDurationMs:
+        thinkEnabled && parsed.thought ? thoughtDurationMs : undefined,
+      searchQuery: searchResp?.query,
+      searchResults: searchResp?.results,
+      pageCard,
+      fromBot: fromBotMeta,
+      mode: activeMode,
+      mood: updatedEmotion.moodLabel,
+      intimacyChange: intimacyDelta,
+      mediaCards: parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
+      bursts: segments,
+      modelUsed: modelLabel,
+      isDemoMode,
+    };
+
+    const userMessageRecord: ConversationMessage = {
+      id: `msg_${baseTs}_user`,
+      role: 'user',
+      content: lastUserText,
+      timestamp: lastUserMsgObj.timestamp || new Date(baseTs).toISOString(),
+      imageUrl: lastUserMsgObj.imageUrl,
+      mode: activeMode,
+    };
+
+    await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
+    await storageRepo.appendMessages(channelPersona.slug, [
+      userMessageRecord,
+      combinedMessage,
+    ]);
+    void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
+      () => {}
+    );
+
+    return combinedMessage;
+  }
+
+  const assistantMessages: ConversationMessage[] = segments.map((seg, i) => {
+    const isFirst = i === 0;
+    const isLast = i === segments.length - 1;
+    return {
+      id: `msg_${baseTs}_ai_${i}`,
+      role: 'assistant',
+      content: seg,
+      timestamp: new Date(baseTs + i * 1000).toISOString(),
+      thought:
+        isFirst && thinkEnabled && parsed.thought ? parsed.thought : undefined,
+      thoughtDurationMs:
+        isFirst && thinkEnabled && parsed.thought ? thoughtDurationMs : undefined,
+      searchQuery: isFirst ? searchResp?.query : undefined,
+      searchResults: isFirst ? searchResp?.results : undefined,
+      pageCard: isLast ? pageCard : undefined,
+      fromBot: fromBotMeta,
+      mode: activeMode,
+      mood: isLast ? updatedEmotion.moodLabel : undefined,
+      intimacyChange: isLast ? intimacyDelta : undefined,
+      mediaCards:
+        isLast && parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
+      bursts: [seg],
+      modelUsed: isLast ? modelLabel : undefined,
+      isDemoMode: isLast ? isDemoMode : undefined,
+    };
+  });
+
+  // Smooth paced simulated streaming ("假流式": buffer complete response first, then type out and emit multi-messages sequentially)
+  const startTs = Date.now();
+  if (thinkEnabled && parsed.thought) {
+    const stepSize = Math.max(8, Math.ceil(parsed.thought.length / 5));
+    let acc = '';
+    for (let i = 0; i < parsed.thought.length; i += stepSize) {
+      const delta = parsed.thought.slice(i, i + stepSize);
+      acc += delta;
+      onEvent({
+        type: 'thought',
+        delta,
+        fullThought: acc,
+        durationMs: Math.max(400, Date.now() - startTs + i * 12),
+      });
+      await sleepForSimulatedStream(18);
+    }
+    thoughtDurationMs = Math.max(500, parsed.thought.length * 16);
+  }
+
+  onEvent({
+    type: 'emotion',
+    emotionState: updatedEmotion,
+    intimacy: newIntimacy,
     intimacyChange: intimacyDelta,
-    mediaCards: parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
-    bursts: parsed.bursts,
-    modelUsed: isDemoMode ? '离线演示' : model,
-    isDemoMode,
-  };
+  });
+
+  for (let i = 0; i < segments.length; i += 1) {
+    const targetSegment = segments[i];
+    const isLast = i === segments.length - 1;
+
+    if (i === 0) {
+      await sleepForSimulatedStream(
+        computeRealisticTypingDelayMs(targetSegment, 0)
+      );
+    } else {
+      onEvent({
+        type: 'status',
+        text: `${persona.name} 正在输入...`,
+      });
+      await sleepForSimulatedStream(
+        computeRealisticTypingDelayMs(targetSegment, i)
+      );
+    }
+
+    const step = Math.max(4, Math.ceil(targetSegment.length / 10));
+    for (let pos = step; pos < targetSegment.length + step; pos += step) {
+      const partial = targetSegment.slice(0, pos);
+      onEvent({
+        type: 'reply',
+        delta: partial,
+        fullReply: partial,
+        bursts: [partial],
+        mediaCards: isLast ? parsed.mediaCards : [],
+        isDemoMode,
+      });
+      await sleepForSimulatedStream(24);
+    }
+
+    onEvent({
+      type: 'message_part',
+      message: assistantMessages[i],
+      index: i,
+      total: segments.length,
+      hasMore: !isLast,
+    });
+  }
+
+  const finalAssistantMessage =
+    assistantMessages[assistantMessages.length - 1];
 
   const userMessageRecord: ConversationMessage = {
-    id: `msg_${Date.now()}_user`,
+    id: `msg_${baseTs}_user`,
     role: 'user',
     content: lastUserText,
-    timestamp: lastUserMsgObj.timestamp || new Date().toISOString(),
+    timestamp: lastUserMsgObj.timestamp || new Date(baseTs).toISOString(),
     imageUrl: lastUserMsgObj.imageUrl,
     mode: activeMode,
   };
@@ -957,7 +1171,7 @@ export async function executeGrokChatTurn(
   await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
   await storageRepo.appendMessages(channelPersona.slug, [
     userMessageRecord,
-    assistantMessage,
+    ...assistantMessages,
   ]);
   void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
     () => {}
@@ -971,11 +1185,20 @@ export async function executeGrokChatTurn(
       }
     : undefined;
 
-  onEvent?.({
+  onEvent({
     type: 'done',
-    message: assistantMessage,
+    message: finalAssistantMessage,
+    messages: assistantMessages,
     followup: pendingFollowup,
   });
 
-  return assistantMessage;
+  return {
+    ...finalAssistantMessage,
+    content: parsed.cleanReply,
+    bursts: segments,
+    thought: assistantMessages[0]?.thought,
+    thoughtDurationMs: assistantMessages[0]?.thoughtDurationMs,
+    searchQuery: assistantMessages[0]?.searchQuery,
+    searchResults: assistantMessages[0]?.searchResults,
+  };
 }

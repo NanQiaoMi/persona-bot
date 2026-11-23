@@ -293,6 +293,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       let buffer = "";
       let finalMessage: ConversationMessage | null = null;
       let pendingFollowup: PendingFollowup | undefined;
+      const committedIds = new Set<string>();
 
       while (true) {
         const { value, done } = await reader.read();
@@ -369,10 +370,37 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       ...prev,
                       isSearching: false,
                       isStreamingThought: false,
+                      statusText: undefined,
                       reply: payload.fullReply,
                       bursts: Array.isArray(payload.bursts)
                         ? payload.bursts
                         : prev.bursts,
+                    }
+                  : prev
+              );
+            } else if (payload.type === "message_part" && payload.message) {
+              const partMsg = payload.message as ConversationMessage;
+              committedIds.add(partMsg.id);
+              setMessages((prev) =>
+                prev.some((m) => m.id === partMsg.id) ? prev : [...prev, partMsg]
+              );
+              const responderName =
+                partMsg.fromBot?.name || activePersona?.name || "对方";
+              setStreaming((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      isSearching: false,
+                      isStreamingThought: false,
+                      thought: "",
+                      thoughtDurationMs: 0,
+                      searchQuery: undefined,
+                      searchResults: undefined,
+                      reply: "",
+                      bursts: [],
+                      statusText: payload.hasMore
+                        ? `${responderName} 正在输入...`
+                        : undefined,
                     }
                   : prev
               );
@@ -389,7 +417,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       }
 
       if (finalMessage) {
-        setMessages((prev) => [...prev, finalMessage!]);
+        if (!committedIds.has(finalMessage.id)) {
+          setMessages((prev) =>
+            prev.some((m) => m.id === finalMessage!.id)
+              ? prev
+              : [...prev, finalMessage!]
+          );
+        }
 
         // Trigger non-blocking background image/sticker generation for any pending cards
         const pendingCards = finalMessage.mediaCards || [];
@@ -559,7 +593,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (overrideMode) {
       setActiveMode(overrideMode);
     }
-    const truncated = messages.slice(0, msgIndex);
+    let truncateIdx = msgIndex;
+    while (truncateIdx > 0 && messages[truncateIdx - 1]?.role === "assistant") {
+      truncateIdx -= 1;
+    }
+    const truncated = messages.slice(0, truncateIdx);
     setMessages(truncated);
     await runStreamRequest(truncated, modeToUse);
   };

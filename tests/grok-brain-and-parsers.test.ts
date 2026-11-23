@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getPersonaModeSpec, PERSONA_MODES } from '@/lib/grok/persona-modes';
 import {
   extractSearchQuery,
@@ -9,11 +9,16 @@ import {
 import { generateProactiveGreeting, getTimePeriodInfo } from '@/lib/grok/proactive-engine';
 import {
   buildContextualMediaCaption,
+  computeRealisticTypingDelayMs,
+  executeGrokChatTurn,
   parseStructuredModelOutput,
   sanitizeGatewayRefusalLeaks,
+  splitIntoNaturalMessages,
   splitLiveBursts,
+  StreamEvent,
   synthesizePersonaAwareFallback,
 } from '@/lib/grok/stream-orchestrator';
+import { storageRepo } from '@/lib/storage/repository';
 import {
   buildMediaGenerationPrompt,
   generatePersonaMedia,
@@ -275,5 +280,77 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     );
     expect(anchoredPrompt).toContain('Consistent character appearance anchor');
     expect(anchoredPrompt).toContain('Shoulder-length wavy black hair');
+  });
+
+  it('splits long replies into natural IM message segments, preserves code blocks, and computes realistic delays', async () => {
+    const longSingleParagraph =
+      '今天外面下了好大一场雨，我差点就被淋成落汤鸡了！还好路过一家便利店顺手买了把透明雨伞，顺便还带了一杯热美式回来。你那边现在天气怎么样呀？下班路上记得多穿一件外套别着凉了哦！';
+    const segments = splitIntoNaturalMessages([longSingleParagraph]);
+    expect(segments.length).toBeGreaterThanOrEqual(2);
+    expect(segments.length).toBeLessThanOrEqual(4);
+    expect(segments.join('')).toContain('便利店');
+
+    const capped = splitIntoNaturalMessages(
+      ['第一条消息。', '第二条消息。', '第三条消息。', '第四条消息。', '第五条消息。', '第六条消息。'],
+      4
+    );
+    expect(capped).toHaveLength(4);
+    expect(capped[3]).toContain('第五条消息');
+
+    const codeMsg = '给你写好啦：\n```ts\nconst a = 1;\nconst b = 2;\nreturn a + b;\n```\n你直接贴过去运行就行！';
+    const codeSegments = splitIntoNaturalMessages([codeMsg]);
+    expect(codeSegments).toHaveLength(1);
+    expect(codeSegments[0]).toContain('```ts');
+
+    // In Vitest default mode delay returns 0ms; when respectTestEnv=false it scales by length within [750, 2800]
+    expect(computeRealisticTypingDelayMs('你好呀', 1)).toBe(0);
+    const shortDelay = computeRealisticTypingDelayMs('好呀～', 1, {
+      respectTestEnv: false,
+      jitter: false,
+    });
+    const longDelay = computeRealisticTypingDelayMs('x'.repeat(80), 1, {
+      respectTestEnv: false,
+      jitter: false,
+    });
+    expect(shortDelay).toBeGreaterThanOrEqual(750);
+    expect(longDelay).toBeLessThanOrEqual(2800);
+    expect(longDelay).toBeGreaterThan(shortDelay);
+
+    const appendSpy = vi
+      .spyOn(storageRepo, 'appendMessages')
+      .mockResolvedValue([]);
+    const emotionSpy = vi
+      .spyOn(storageRepo, 'updateEmotionAndIntimacy')
+      .mockResolvedValue(undefined);
+
+    const streamedEvents: StreamEvent[] = [];
+    const finalMsg = await executeGrokChatTurn(
+      {
+        slug: 'grok-ella',
+        messages: [{ role: 'user', content: '今天工作累麻了，哄哄我' }],
+        mode: 'fun',
+        thinkMode: true,
+        deepSearch: false,
+      },
+      (ev) => streamedEvents.push(ev)
+    );
+
+    const partEvents = streamedEvents.filter(
+      (e): e is Extract<StreamEvent, { type: 'message_part' }> =>
+        e.type === 'message_part'
+    );
+    const doneEvent = streamedEvents.find(
+      (e): e is Extract<StreamEvent, { type: 'done' }> => e.type === 'done'
+    );
+
+    expect(partEvents.length).toBeGreaterThanOrEqual(2);
+    expect(partEvents[0].hasMore).toBe(true);
+    expect(partEvents[partEvents.length - 1].hasMore).toBe(false);
+    expect(partEvents[partEvents.length - 1].message.id).toBe(finalMsg.id);
+    expect(doneEvent?.messages).toHaveLength(partEvents.length);
+    expect(appendSpy).toHaveBeenCalledTimes(1);
+
+    appendSpy.mockRestore();
+    emotionSpy.mockRestore();
   });
 });

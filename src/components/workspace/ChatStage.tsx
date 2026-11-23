@@ -519,11 +519,31 @@ export default function ChatStage({
                   Boolean(persona.isMaster) || persona.slug === "master-bot";
                 const reports = msg.interBotReports || [];
                 const reportsOpen = expandedReportsId === msg.id;
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const nextMsg =
+                  idx < messages.length - 1 ? messages[idx + 1] : null;
+                const isContinuation = Boolean(
+                  prevMsg &&
+                    prevMsg.role === "assistant" &&
+                    (prevMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
+                );
+                const hasNextAssistant = Boolean(
+                  nextMsg &&
+                    nextMsg.role === "assistant" &&
+                    (nextMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
+                );
+                const isIntermediate =
+                  hasNextAssistant &&
+                  !msg.mediaCards?.length &&
+                  !msg.pageCard &&
+                  correctingIndex !== idx;
 
                 return (
                   <div
                     key={msg.id || `${msg.timestamp}-${idx}`}
-                    className="group flex flex-col items-start animate-msg-spring w-full"
+                    className={`group flex flex-col items-start animate-msg-spring w-full ${
+                      isContinuation ? "-mt-3" : ""
+                    }`}
                   >
                     {/* Inter-Bot "N 条消息往来：" Compact Overlapping Chip Bar */}
                     {reports.length > 0 && (
@@ -604,7 +624,7 @@ export default function ChatStage({
                     )}
 
                     {/* Incoming Relay Header ("消息来自 [mini mascot] {name}") */}
-                    {msg.fromBot && (
+                    {msg.fromBot && !isContinuation && (
                       <div className="w-full mb-2.5 flex flex-col items-center gap-2">
                         <div className="w-full flex items-center gap-3 text-[11px] text-[#2563EB]">
                           <div className="h-px flex-1 bg-[var(--border-subtle)]" />
@@ -816,7 +836,13 @@ export default function ChatStage({
                     )}
 
                     {/* Subtle Hover Action Row */}
-                    <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity">
+                    <div
+                      className={
+                        isIntermediate
+                          ? "h-0 overflow-hidden opacity-0 group-hover:h-auto group-hover:mt-1.5 group-hover:opacity-100 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] transition-opacity"
+                          : "mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity"
+                      }
+                    >
                       {msg.mood && <span>{msg.mood}</span>}
                       {msg.isFollowup && (
                         <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
@@ -926,7 +952,13 @@ export default function ChatStage({
 
               {/* Live Streaming Turn with Animated Thinking Mascot */}
               {streaming && (
-                <div className="flex flex-col items-start animate-msg-spring">
+                <div
+                  className={`flex flex-col items-start animate-msg-spring ${
+                    messages[messages.length - 1]?.role === "assistant"
+                      ? "-mt-3"
+                      : ""
+                  }`}
+                >
                   <ThoughtSearchTrace
                     thought={streaming.thought}
                     thoughtDurationMs={streaming.thoughtDurationMs}
