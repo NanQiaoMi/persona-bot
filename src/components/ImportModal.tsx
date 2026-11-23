@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useRef, useState } from "react";
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -8,290 +8,239 @@ interface ImportModalProps {
   onSuccess?: (result: { slug: string; name: string }) => void;
 }
 
-export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalProps) {
-  const [step, setStep] = useState<'select' | 'upload' | 'processing' | 'done'>('select');
-  const [chatType, setChatType] = useState<'wechat' | 'imessage'>('wechat');
-  const [targetName, setTargetName] = useState('');
+export default function ImportModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: ImportModalProps) {
+  const [targetName, setTargetName] = useState("");
+  const [basicInfo, setBasicInfo] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState<{ content?: string } | null>(null);
+  const [rawText, setRawText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [stats, setStats] = useState<{
+    totalCount: number;
+    targetCount: number;
+    topCatchphrases: string[];
+  } | null>(null);
+  const [createdSlug, setCreatedSlug] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setError('');
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file || !targetName.trim()) {
-      setError('请选择文件并输入对方昵称');
-      return;
-    }
-
-    setStep('processing');
-    setError('');
-
-    try {
-      const formData = new FormData();
-      formData.append('action', 'parse');
-      formData.append('file', file);
-      formData.append('targetName', targetName.trim());
-      formData.append('type', chatType);
-
-      const res = await fetch('/api/persona/parse', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setResult({
-          content: `解析成功：共 ${data.metadata?.totalCount || 0} 条消息，目标角色发言 ${data.metadata?.targetCount || 0} 条。`,
-        });
-        setStep('done');
-        onSuccess?.({ slug: targetName.toLowerCase().replace(/\s+/g, '-'), name: targetName });
-      } else {
-        setError(data.error || '解析失败');
-        setStep('upload');
-      }
-    } catch {
-      setError('上传失败，请重试');
-      setStep('upload');
-    }
-  };
-
-  const reset = () => {
-    setStep('select');
-    setChatType('wechat');
-    setTargetName('');
-    setFile(null);
-    setError('');
-    setResult(null);
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
 
   if (!isOpen) return null;
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    setFile(selected);
+    setError("");
+    const text = await selected.text();
+    setRawText(text);
+    if (!targetName.trim()) {
+      setTargetName(
+        selected.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/[_-]/g, " ")
+          .slice(0, 16)
+      );
+    }
+  };
+
+  const handleImportAndDistill = async () => {
+    if (!targetName.trim()) {
+      setError("请输入对方昵称");
+      return;
+    }
+    if (!rawText.trim()) {
+      setError("请选择聊天记录文件或直接粘贴聊天记录内容");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/persona/pipeline-v3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: targetName.trim(),
+          basicInfo: basicInfo.trim() || "通过真实聊天记录导入蒸馏的专属角色",
+          chatLogText: rawText,
+          targetSpeaker: targetName.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "导入蒸馏失败");
+      }
+
+      setCreatedSlug(data.slug);
+      setStats(
+        data.chatStats || {
+          totalCount: rawText.split("\n").length,
+          targetCount: rawText.split("\n").length,
+          topCatchphrases: ["真实口语", "专属记忆"],
+        }
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "导入失败，请重试");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinish = () => {
+    const slug = createdSlug;
+    const name = targetName.trim();
+    setTargetName("");
+    setBasicInfo("");
+    setFile(null);
+    setRawText("");
+    setStats(null);
+    setCreatedSlug("");
+    onSuccess?.({ slug, name });
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={handleClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative w-full max-w-md glass-strong rounded-2xl overflow-hidden animate-scale-in">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E5E5]/50">
-          <h3 className="text-base font-semibold text-[#353535]">导入聊天记录</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold">
+              📥 导入聊天记录并蒸馏角色灵魂
+            </h3>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              支持微信 / iMessage 导出文本或直接粘贴对话片段
+            </p>
+          </div>
           <button
-            onClick={handleClose}
-            className="w-8 h-8 rounded-lg hover:bg-black/5 flex items-center justify-center transition-colors"
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center text-xs text-[var(--text-secondary)]"
           >
-            <svg className="w-5 h-5 text-[#999999]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-5">
-          {step === 'select' && (
-            <div className="space-y-5 animate-fade-in">
-              <p className="text-sm text-[#999999]">
-                选择聊天记录类型，导入后 AI 将学习她的说话风格
-              </p>
-
-              {/* Chat Type Selection */}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setChatType('wechat')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    chatType === 'wechat'
-                      ? 'border-[#07C160] bg-[#07C160]/5'
-                      : 'border-[#E5E5E5] hover:border-[#D0D0D0]'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">💬</div>
-                  <div className="text-sm font-medium text-[#353535]">微信</div>
-                  <div className="text-[11px] text-[#999999] mt-0.5">支持导出的聊天记录</div>
-                </button>
-                <button
-                  onClick={() => setChatType('imessage')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    chatType === 'imessage'
-                      ? 'border-[#07C160] bg-[#07C160]/5'
-                      : 'border-[#E5E5E5] hover:border-[#D0D0D0]'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">🍎</div>
-                  <div className="text-sm font-medium text-[#353535]">iMessage</div>
-                  <div className="text-[11px] text-[#999999] mt-0.5">macOS 导出格式</div>
-                </button>
-              </div>
-
-              {/* Target Name */}
-              <div>
-                <label className="block text-sm font-medium text-[#353535] mb-2">
-                  对方昵称
-                </label>
-                <input
-                  type="text"
-                  value={targetName}
-                  onChange={(e) => setTargetName(e.target.value)}
-                  placeholder="例如：小美、糖糖..."
-                  className="w-full glass-input rounded-xl px-4 py-3 text-sm text-[#353535] placeholder-[#CCCCCC]"
-                />
-              </div>
-
-              {error && (
-                <div className="p-3 rounded-lg bg-[#FA5151]/10 text-[#FA5151] text-sm">
-                  {error}
+        <div className="p-5 space-y-4 text-xs">
+          {!stats ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[var(--text-secondary)] mb-1">
+                    对方昵称 *
+                  </label>
+                  <input
+                    type="text"
+                    value={targetName}
+                    onChange={(e) => setTargetName(e.target.value)}
+                    placeholder="例如：小美、阿杰..."
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs focus:outline-none focus:border-emerald-500"
+                  />
                 </div>
-              )}
-
-              <button
-                onClick={() => targetName.trim() && setStep('upload')}
-                disabled={!targetName.trim()}
-                className="w-full py-3 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                下一步
-              </button>
-            </div>
-          )}
-
-          {step === 'upload' && (
-            <div className="space-y-5 animate-fade-in">
-              <div className="flex items-center gap-3 mb-2">
-                <button
-                  onClick={() => setStep('select')}
-                  className="text-[#576B95] hover:text-[#07C160] transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <h4 className="text-base font-medium text-[#353535]">
-                  上传 {chatType === 'wechat' ? '微信' : 'iMessage'} 聊天记录
-                </h4>
+                <div>
+                  <label className="block text-[var(--text-secondary)] mb-1">
+                    关系简述（可选）
+                  </label>
+                  <input
+                    type="text"
+                    value={basicInfo}
+                    onChange={(e) => setBasicInfo(e.target.value)}
+                    placeholder="例如：大学同学 / 深夜搭子"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
+                  />
+                </div>
               </div>
 
-              {/* File Upload Area */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                  file
-                    ? 'border-[#07C160] bg-[#07C160]/5'
-                    : 'border-[#E5E5E5] hover:border-[#07C160]/50 hover:bg-[#F7F7F7]'
-                }`}
+                className="p-4 rounded-xl border-2 border-dashed border-[var(--border-strong)] hover:border-emerald-500/50 bg-[var(--bg-primary)]/50 text-center cursor-pointer transition-all"
               >
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={chatType === 'wechat' ? '.txt,.csv,.html' : '.chat.db,.txt'}
+                  accept=".txt,.csv,.html,.json,.md"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
-                
                 {file ? (
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 mx-auto rounded-xl bg-[#07C160]/10 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-[#07C160]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-medium text-[#353535]">{file.name}</p>
-                    <p className="text-xs text-[#999999]">{(file.size / 1024).toFixed(1)} KB</p>
+                  <div className="text-emerald-300 font-medium">
+                    ✓ 已加载文件：{file.name} ({(file.size / 1024).toFixed(1)} KB)
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 mx-auto rounded-xl bg-[#F7F7F7] flex items-center justify-center">
-                      <svg className="w-6 h-6 text-[#999999]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
-                    </div>
-                    <p className="text-sm text-[#666666]">点击或拖拽文件到这里</p>
-                    <p className="text-xs text-[#999999]">
-                      {chatType === 'wechat' ? '支持 .txt .csv .html 格式' : '支持 .chat.db 或导出的 .txt 文件'}
-                    </p>
+                  <div className="text-[var(--text-secondary)]">
+                    📂 点击上传聊天记录文件 (.txt / .csv / .html / .json)
                   </div>
                 )}
               </div>
 
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[var(--text-secondary)]">
+                    或直接粘贴聊天记录内容
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!targetName.trim()) setTargetName("林小鹿");
+                      setRawText(
+                        `2026-05-01 22:10:00 林小鹿: 笑死，你今天怎么才想起来找我\n2026-05-01 22:11:00 我: 刚忙完手头的事\n2026-05-01 22:12:00 林小鹿: 不是吧，那你得请我喝冰美式赔罪！`
+                      );
+                    }}
+                    className="text-emerald-400 hover:underline text-[11px]"
+                  >
+                    填入示例语料
+                  </button>
+                </div>
+                <textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  rows={4}
+                  placeholder="2026-05-01 21:00:00 小美: 笑死，你今天怎么这么晚才回消息..."
+                  className="w-full p-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs font-mono focus:outline-none"
+                />
+              </div>
+
               {error && (
-                <div className="p-3 rounded-lg bg-[#FA5151]/10 text-[#FA5151] text-sm">
+                <div className="p-2.5 rounded-lg bg-rose-500/15 text-rose-300">
                   {error}
                 </div>
               )}
 
               <button
-                onClick={handleUpload}
-                disabled={!file}
-                className="w-full py-3 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                disabled={loading}
+                onClick={handleImportAndDistill}
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs"
               >
-                开始解析
+                {loading
+                  ? "正在解析语料并蒸馏五层人格..."
+                  : "✨ 开始解析并生成专属角色"}
               </button>
-            </div>
-          )}
-
-          {step === 'processing' && (
-            <div className="py-8 space-y-6 animate-fade-in">
-              <div className="relative w-20 h-20 mx-auto">
-                <div className="absolute inset-0 rounded-full border-2 border-[#E5E5E5]" />
-                <div className="absolute inset-0 rounded-full border-2 border-t-[#07C160] animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl">📝</span>
-                </div>
+            </>
+          ) : (
+            <div className="py-4 text-center space-y-4">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-2xl">
+                ✨
               </div>
-              <div className="text-center">
-                <h4 className="text-base font-medium text-[#353535] mb-1">正在解析聊天记录</h4>
-                <p className="text-sm text-[#999999]">这可能需要几分钟...</p>
+              <div>
+                <h4 className="text-sm font-bold">
+                  「{targetName}」灵魂蒸馏完成！
+                </h4>
+                <p className="text-[var(--text-secondary)] mt-1">
+                  共提取 {stats.totalCount} 条消息，识别高频口头禅：
+                  {stats.topCatchphrases.join(" / ")}
+                </p>
               </div>
-            </div>
-          )}
-
-          {step === 'done' && (
-            <div className="py-6 space-y-5 animate-fade-in">
-              <div className="text-center">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-[#07C160]/10 flex items-center justify-center mb-4">
-                  <span className="text-3xl">✨</span>
-                </div>
-                <h4 className="text-base font-semibold text-[#353535] mb-1">解析完成</h4>
-                <p className="text-sm text-[#999999]">聊天记录已成功导入</p>
-              </div>
-
-              {result?.content && (
-                <div className="glass-card rounded-xl p-4 max-h-40 overflow-y-auto">
-                  <p className="text-xs text-[#999999] mb-2 font-medium">预览</p>
-                  <p className="text-sm text-[#666666] whitespace-pre-line line-clamp-6">
-                    {result.content}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={reset}
-                  className="flex-1 py-3 rounded-xl glass text-sm text-[#666666] font-medium hover:bg-white/80 transition-all"
-                >
-                  继续导入
-                </button>
-                <button
-                  onClick={handleClose}
-                  className="flex-1 py-3 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white text-sm font-medium transition-all"
-                >
-                  完成
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleFinish}
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs"
+              >
+                立即与「{targetName}」对话 →
+              </button>
             </div>
           )}
         </div>
