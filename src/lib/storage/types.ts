@@ -117,6 +117,17 @@ export interface PageArtifactCardData {
   sources?: SearchResultItem[];
 }
 
+export interface PendingFollowup {
+  delaySec: number;
+  content: string;
+  fromBot?: {
+    slug: string;
+    name: string;
+    shape?: string;
+    color?: string;
+  };
+}
+
 export interface ConversationMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -134,6 +145,7 @@ export interface ConversationMessage {
     shape?: string;
     color?: string;
   };
+  isFollowup?: boolean;
   workingStatus?: string;
   mode?: PersonaMode;
   mood?: string;

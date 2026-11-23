@@ -198,4 +198,31 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     const bursts = splitLiveBursts(rawStream);
     expect(bursts).toEqual(['第一句气泡', '第二句气泡']);
   });
+
+  it('omits fake thoughts when missing, parses [EARLY] and [FOLLOWUP], and enforces anti-OOC camera immersion', () => {
+    const noThoughtParsed = parseStructuredModelOutput(
+      `[EARLY: 稍等我两秒]\n[MOOD: 嘴硬心软]\n其实我觉得你今天已经够拼了 [BURST] 先去洗个热水澡吧\n[FOLLOWUP: 12 | 对了，洗完记得吹干头发再躺下]`
+    );
+    expect(noThoughtParsed.thought).toBe('');
+    expect(noThoughtParsed.bursts).toEqual([
+      '稍等我两秒',
+      '其实我觉得你今天已经够拼了',
+      '先去洗个热水澡吧',
+    ]);
+    expect(noThoughtParsed.followup).toEqual({
+      delaySec: 12,
+      content: '对了，洗完记得吹干头发再躺下',
+    });
+
+    const ella =
+      BUILTIN_PRESETS.find((p) => p.slug === 'grok-ella') || BUILTIN_PRESETS[0];
+    const assembler = new PromptAssembler();
+    const systemPrompt = assembler.assembleFromRecord(ella, {
+      mode: 'fun',
+      thinkMode: true,
+      lastUserMessage: '发张随手拍看看',
+    });
+    expect(systemPrompt).toContain('严禁说出“我没有手机”');
+    expect(systemPrompt).toContain('[FOLLOWUP:');
+  });
 });

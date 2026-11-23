@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
-import { PersonaMode } from "@/lib/storage/types";
+import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
+import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface GrokComposerProps {
   value: string;
@@ -11,6 +12,7 @@ interface GrokComposerProps {
     imageUrl?: string;
     requestPhoto?: boolean;
     requestSticker?: boolean;
+    mentionedSlug?: string;
   }) => void;
   disabled?: boolean;
   thinkMode: boolean;
@@ -23,6 +25,7 @@ interface GrokComposerProps {
   onOpenImport: () => void;
   personaName?: string;
   accentColor?: string;
+  personas?: PersonaSummary[];
 }
 
 export default function GrokComposer({
@@ -40,11 +43,18 @@ export default function GrokComposer({
   onOpenImport,
   personaName,
   accentColor = "#18a999",
+  personas = [],
 }: GrokComposerProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [dismissedAtValue, setDismissedAtValue] = useState<string | null>(null);
+  const [selectedMentionSlug, setSelectedMentionSlug] = useState<
+    string | undefined
+  >(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,18 +69,62 @@ export default function GrokComposer({
     setMenuOpen(false);
   };
 
+  const mentionMatch =
+    dismissedAtValue === value
+      ? null
+      : value.match(/(?:^|\s)@([^\s@]*)$/);
+  const mentionQuery = mentionMatch ? mentionMatch[1].toLowerCase() : "";
+  const filteredMentions = mentionMatch
+    ? personas.filter(
+        (p) =>
+          !mentionQuery ||
+          p.name.toLowerCase().includes(mentionQuery) ||
+          p.slug.toLowerCase().includes(mentionQuery)
+      )
+    : [];
+  const showMentionMenu = Boolean(mentionMatch) && filteredMentions.length > 0;
+  const clampedMentionIdx =
+    filteredMentions.length > 0
+      ? Math.min(mentionIndex, filteredMentions.length - 1)
+      : 0;
+
+  const insertMentionBot = (bot: PersonaSummary) => {
+    const replaced = value.replace(
+      /(?:^|\s)@([^\s@]*)$/,
+      (fullMatch) => (fullMatch.startsWith(" ") ? ` @${bot.name} ` : `@${bot.name} `)
+    );
+    onChange(replaced);
+    setSelectedMentionSlug(bot.slug);
+    setDismissedAtValue(null);
+    setMentionIndex(0);
+    setTimeout(() => textInputRef.current?.focus(), 0);
+  };
+
   const handleSubmit = (
     requestPhoto = false,
     requestSticker = false
   ) => {
     if (disabled) return;
     if (!value.trim() && !imagePreview && !requestPhoto && !requestSticker) return;
+    const matchedInText = personas.find((p) =>
+      value.includes(`@${p.name}`)
+    )?.slug;
+    const resolvedMentionSlug =
+      matchedInText ||
+      (selectedMentionSlug &&
+      personas.some(
+        (p) => p.slug === selectedMentionSlug && value.includes(`@${p.name}`)
+      )
+        ? selectedMentionSlug
+        : undefined);
     onSend({
       imageUrl: imagePreview || undefined,
       requestPhoto,
       requestSticker,
+      mentionedSlug: resolvedMentionSlug,
     });
     setImagePreview(null);
+    setSelectedMentionSlug(undefined);
     setMenuOpen(false);
   };
 
@@ -312,6 +366,48 @@ export default function GrokComposer({
           </div>
         )}
 
+        {/* Floating "@" Bot Mention Picker (Grok Bot Style) */}
+        {showMentionMenu && (
+          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl p-1.5 z-40 animate-fade-in">
+            <div className="max-h-60 overflow-y-auto space-y-0.5">
+              {filteredMentions.map((bot, idx) => {
+                const mascot = getMascotConfigForPersona(bot.slug, bot.profile);
+                const isSelected = idx === clampedMentionIdx;
+                return (
+                  <button
+                    key={bot.slug}
+                    type="button"
+                    onMouseEnter={() => setMentionIndex(idx)}
+                    onClick={() => insertMentionBot(bot)}
+                    className={`w-full px-3 py-2 rounded-[13px] flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-[var(--bg-hover)]"
+                        : "hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <BlobMascot
+                        shape={mascot.shape}
+                        color={mascot.color}
+                        image={mascot.image}
+                        size={22}
+                        trackPointer={false}
+                        animated={false}
+                      />
+                      <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                        {bot.name}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[var(--text-muted)] shrink-0">
+                      Bot
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Main Floating Grok Bot Pill Capsule */}
         <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:shadow-xl transition-all">
           <input
@@ -349,17 +445,50 @@ export default function GrokComposer({
           </button>
 
           <input
+            ref={textInputRef}
             type="text"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              setDismissedAtValue(null);
+              setMentionIndex(0);
+              onChange(e.target.value);
+            }}
             onKeyDown={(e) => {
+              if (showMentionMenu) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setMentionIndex((prev) =>
+                    (prev + 1) % filteredMentions.length
+                  );
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setMentionIndex((prev) =>
+                    (prev - 1 + filteredMentions.length) %
+                    filteredMentions.length
+                  );
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setDismissedAtValue(value);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const chosen = filteredMentions[clampedMentionIdx];
+                  if (chosen) insertMentionBot(chosen);
+                  return;
+                }
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSubmit(false);
               }
             }}
             disabled={disabled}
-            placeholder={`给 ${personaName || "PersonaBot"} 发消息`}
+            placeholder={`给 ${personaName || "PersonaBot"} 发消息（输入 @ 可唤起其他 Bot）`}
             className="flex-1 bg-transparent px-2 text-[14px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
 

@@ -7,6 +7,7 @@ import {
   MediaCard,
   PersonaMode,
   PersonaRecord,
+  PersonaSummary,
   SearchResultItem,
 } from "@/lib/storage/types";
 import { MascotShapeId } from "./mascot-palette";
@@ -30,6 +31,7 @@ interface StreamingState {
 
 interface ChatStageProps {
   persona: PersonaRecord | null;
+  personas?: PersonaSummary[];
   messages: ConversationMessage[];
   streaming: StreamingState | null;
   input: string;
@@ -38,6 +40,7 @@ interface ChatStageProps {
     imageUrl?: string;
     requestPhoto?: boolean;
     requestSticker?: boolean;
+    mentionedSlug?: string;
   }) => void;
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
@@ -121,6 +124,7 @@ function GrokMessageBody({
 
 export default function ChatStage({
   persona,
+  personas = [],
   messages,
   streaming,
   input,
@@ -814,6 +818,11 @@ export default function ChatStage({
                     {/* Subtle Hover Action Row */}
                     <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity">
                       {msg.mood && <span>{msg.mood}</span>}
+                      {msg.isFollowup && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
+                          主动追发
+                        </span>
+                      )}
                       {msg.modelUsed && (
                         <span className="px-1.5 py-0.5 rounded-md bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-mono">
                           {msg.modelUsed}
@@ -1024,6 +1033,7 @@ export default function ChatStage({
       <GrokComposer
         personaName={persona.name}
         accentColor={mascotCfg.color}
+        personas={personas}
         value={input}
         onChange={onChangeInput}
         onSend={onSend}

@@ -26,6 +26,7 @@ export async function POST(request: Request) {
         try {
           const payload = {
             slug: body.slug,
+            mentionedSlug: body.mentionedSlug,
             messages: body.messages,
             mode: body.mode,
             thinkMode: body.thinkMode,
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
             modelId: body.modelId,
           };
 
-          if (body.slug === 'master-bot') {
+          if (body.slug === 'master-bot' && !body.mentionedSlug) {
             await executeMasterBotTurn(payload, sendEvent);
           } else {
             await executeGrokChatTurn(payload, sendEvent);

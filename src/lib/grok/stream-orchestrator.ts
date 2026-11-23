@@ -8,6 +8,7 @@ import {
   isLocalGatewayUrl,
   LOCAL_GATEWAY_BASE_URL,
 } from '@/lib/grok/image-generator';
+import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
@@ -15,6 +16,7 @@ import {
   ConversationMessage,
   MediaCard,
   PageArtifactCardData,
+  PendingFollowup,
   PersonaEmotionSnapshot,
   PersonaMode,
   PersonaRecord,
@@ -22,6 +24,7 @@ import {
 
 export interface ChatTurnRequest {
   slug: string;
+  mentionedSlug?: string;
   messages: Array<{
     role: 'user' | 'assistant';
     content: string;
@@ -75,10 +78,11 @@ export type StreamEvent =
   | {
       type: 'done';
       message: ConversationMessage;
+      followup?: PendingFollowup;
     };
 
 /**
- * 解析模型输出中的 <thought>、[MOOD: ...]、[PHOTO: ...]、[VOICE: ...] 与 [BURST]
+ * 解析模型输出中的 <thought>、[MOOD]、[EARLY]、[FOLLOWUP]、[PHOTO]、[STICKER]、[VOICE] 与 [BURST]
  */
 export function parseStructuredModelOutput(rawText: string, fallbackThought = ''): {
   thought: string;
@@ -86,6 +90,7 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   cleanReply: string;
   bursts: string[];
   mediaCards: MediaCard[];
+  followup?: { delaySec: number; content: string };
 } {
   let working = rawText.trim();
   let thought = fallbackThought;
@@ -101,6 +106,27 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   if (moodMatch) {
     mood = moodMatch[1].trim();
     working = working.replace(moodMatch[0], '').trim();
+  }
+
+  let earlyText = '';
+  const earlyMatch = working.match(/\[EARLY:\s*([^\]]+)\]/i);
+  if (earlyMatch) {
+    earlyText = earlyMatch[1].trim();
+    working = working.replace(earlyMatch[0], '').trim();
+  }
+
+  let followup: { delaySec: number; content: string } | undefined;
+  const followupMatch = working.match(
+    /\[FOLLOWUP:\s*(\d{1,2})\s*[|｜]\s*([^\]]+)\]/i
+  );
+  if (followupMatch) {
+    const rawSec = Number(followupMatch[1]);
+    const delaySec = Math.max(5, Math.min(30, Number.isFinite(rawSec) ? rawSec : 8));
+    const fContent = followupMatch[2].trim();
+    if (fContent) {
+      followup = { delaySec, content: fContent };
+    }
+    working = working.replace(followupMatch[0], '').trim();
   }
 
   const mediaCards: MediaCard[] = [];
@@ -140,6 +166,9 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   working = working.replace(voiceRegex, '').trim();
 
   const bursts = splitLiveBursts(working);
+  if (earlyText && !bursts.some((b) => b === earlyText)) {
+    bursts.unshift(earlyText);
+  }
 
   const cleanReply = bursts.join('\n\n');
 
@@ -149,6 +178,7 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
     cleanReply: cleanReply || '（轻轻挑了下眉，等你继续往下说）',
     bursts: bursts.length > 0 ? bursts : [cleanReply || '我在听呢，继续说～'],
     mediaCards,
+    followup,
   };
 }
 
@@ -159,22 +189,24 @@ function stripLiveControlTags(text: string): string {
   return text
     .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
     .replace(/<thought>[\s\S]*/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST)[^\]]*$/i, '')
+    .replace(/\[EARLY:\s*([^\]]+)\]/gi, '$1\n')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '')
     .replace(/\[BURST\]/gi, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
 /**
- * 将流式或完整文本按 [BURST] 拆分为干净的多气泡数组，清理内部多余空行
+ * 将流式或完整文本按 [BURST] / [EARLY] 拆分为干净的多气泡数组，清理内部多余空行
  */
 export function splitLiveBursts(rawText: string): string[] {
   const withoutTags = rawText
     .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
     .replace(/<thought>[\s\S]*/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST)[^\]]*$/i, '');
+    .replace(/\[EARLY:\s*([^\]]+)\]/gi, '$1[BURST]')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '');
 
   return withoutTags
     .split(/\[BURST\]/gi)
@@ -615,9 +647,28 @@ export async function executeGrokChatTurn(
   req: ChatTurnRequest,
   onEvent?: (event: StreamEvent) => void
 ): Promise<ConversationMessage> {
-  const persona =
+  const channelPersona =
     (await storageRepo.getPersona(req.slug)) ||
     (await storageRepo.getPersona('grok-ella'))!;
+  const mentionedResponder =
+    req.mentionedSlug && req.mentionedSlug !== channelPersona.slug
+      ? await storageRepo.getPersona(req.mentionedSlug)
+      : null;
+  const persona = mentionedResponder || channelPersona;
+  const fromBotMeta = mentionedResponder
+    ? (() => {
+        const m = getMascotConfigForPersona(
+          mentionedResponder.slug,
+          mentionedResponder.profile
+        );
+        return {
+          slug: mentionedResponder.slug,
+          name: mentionedResponder.name,
+          shape: m.shape,
+          color: m.color,
+        };
+      })()
+    : undefined;
   const settings = await storageRepo.getSettings();
 
   const activeMode: PersonaMode = req.mode || persona.defaultMode || 'authentic';
@@ -788,10 +839,7 @@ export async function executeGrokChatTurn(
 
   const parsed = parseStructuredModelOutput(
     rawModelOutput,
-    nativeReasoning ||
-      (thinkEnabled
-        ? `结合当前对话脉络与「${getPersonaModeSpec(activeMode).shortLabel}」风格，组织一条最有活人感的回应。`
-        : '')
+    nativeReasoning || ''
   );
 
   if (parsed.mood) {
@@ -909,11 +957,13 @@ export async function executeGrokChatTurn(
     role: 'assistant',
     content: parsed.cleanReply,
     timestamp: new Date().toISOString(),
-    thought: thinkEnabled ? parsed.thought : undefined,
-    thoughtDurationMs: thinkEnabled ? thoughtDurationMs : undefined,
+    thought: thinkEnabled && parsed.thought ? parsed.thought : undefined,
+    thoughtDurationMs:
+      thinkEnabled && parsed.thought ? thoughtDurationMs : undefined,
     searchQuery: searchResp?.query,
     searchResults: searchResp?.results,
     pageCard,
+    fromBot: fromBotMeta,
     mode: activeMode,
     mood: updatedEmotion.moodLabel,
     intimacyChange: intimacyDelta,
@@ -933,11 +983,23 @@ export async function executeGrokChatTurn(
   };
 
   await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
-  await storageRepo.appendMessages(persona.slug, [userMessageRecord, assistantMessage]);
+  await storageRepo.appendMessages(channelPersona.slug, [
+    userMessageRecord,
+    assistantMessage,
+  ]);
+
+  const pendingFollowup: PendingFollowup | undefined = parsed.followup
+    ? {
+        delaySec: parsed.followup.delaySec,
+        content: parsed.followup.content,
+        fromBot: fromBotMeta,
+      }
+    : undefined;
 
   onEvent?.({
     type: 'done',
     message: assistantMessage,
+    followup: pendingFollowup,
   });
 
   return assistantMessage;

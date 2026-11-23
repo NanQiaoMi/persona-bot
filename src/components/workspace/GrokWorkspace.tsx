@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ImportModal from "@/components/ImportModal";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
   ConversationMessage,
   MediaCard,
+  PendingFollowup,
   PersonaMode,
   PersonaRecord,
   PersonaSummary,
@@ -43,6 +44,29 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showCreateBot, setShowCreateBot] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
+  const followupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeSlugRef = useRef(activeSlug);
+
+  useEffect(() => {
+    activeSlugRef.current = activeSlug;
+    if (followupTimerRef.current) {
+      clearTimeout(followupTimerRef.current);
+      followupTimerRef.current = null;
+    }
+    return () => {
+      if (followupTimerRef.current) {
+        clearTimeout(followupTimerRef.current);
+        followupTimerRef.current = null;
+      }
+    };
+  }, [activeSlug]);
+
+  const clearScheduledFollowup = useCallback(() => {
+    if (followupTimerRef.current) {
+      clearTimeout(followupTimerRef.current);
+      followupTimerRef.current = null;
+    }
+  }, []);
 
   const [streaming, setStreaming] = useState<{
     isSearching: boolean;
@@ -140,9 +164,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     options?: {
       requestPhoto?: boolean;
       requestSticker?: boolean;
+      mentionedSlug?: string;
       deepSearchOverride?: boolean;
     }
   ) => {
+    clearScheduledFollowup();
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
 
     setStreaming({
@@ -161,6 +187,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug: activeSlug,
+          mentionedSlug: options?.mentionedSlug,
           messages: historyToSend.map((m) => ({
             role: m.role,
             content: m.content,
@@ -183,6 +210,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const decoder = new TextDecoder();
       let buffer = "";
       let finalMessage: ConversationMessage | null = null;
+      let pendingFollowup: PendingFollowup | undefined;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -268,6 +296,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               );
             } else if (payload.type === "done" && payload.message) {
               finalMessage = payload.message as ConversationMessage;
+              if (payload.followup) {
+                pendingFollowup = payload.followup as PendingFollowup;
+              }
             }
           } catch {
             // Ignore malformed chunk
@@ -332,6 +363,43 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               });
           }
         });
+        // Schedule autonomous delayed follow-up if the model chose [FOLLOWUP: delaySec | content]
+        if (pendingFollowup && pendingFollowup.content) {
+          const scheduledSlug = activeSlug;
+          const scheduledFollowup = pendingFollowup;
+          const delayMs =
+            Math.max(5, Math.min(30, scheduledFollowup.delaySec || 8)) * 1000;
+          followupTimerRef.current = setTimeout(() => {
+            followupTimerRef.current = null;
+            if (activeSlugRef.current !== scheduledSlug) return;
+            void fetch("/api/chat/followup", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                slug: scheduledSlug,
+                content: scheduledFollowup.content,
+                fromBot: scheduledFollowup.fromBot,
+              }),
+            })
+              .then((r) => r.json())
+              .then((resData) => {
+                if (
+                  resData?.success &&
+                  resData.message &&
+                  activeSlugRef.current === scheduledSlug
+                ) {
+                  setMessages((prevMsgs) => [
+                    ...prevMsgs,
+                    resData.message as ConversationMessage,
+                  ]);
+                  void loadPersonaList();
+                }
+              })
+              .catch(() => {
+                // Ignore background followup failure
+              });
+          }, delayMs);
+        }
       }
       await loadPersonaList();
     } catch (error) {
@@ -345,6 +413,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     imageUrl?: string;
     requestPhoto?: boolean;
     requestSticker?: boolean;
+    mentionedSlug?: string;
   }) => {
     const text =
       input.trim() ||
@@ -372,6 +441,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     await runStreamRequest(nextHistory, activeMode, {
       requestPhoto: options?.requestPhoto,
       requestSticker: options?.requestSticker,
+      mentionedSlug: options?.mentionedSlug,
     });
   };
 
@@ -434,6 +504,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   };
 
   const handleClearHistory = async () => {
+    clearScheduledFollowup();
     try {
       await fetch("/api/conversations", {
         method: "POST",
@@ -545,6 +616,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
       <ChatStage
         persona={activePersona}
+        personas={personas}
         messages={messages}
         streaming={streaming}
         input={input}
