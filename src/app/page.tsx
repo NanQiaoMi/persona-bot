@@ -206,7 +206,7 @@ export default function Home() {
               </div>
               <div>
                 <h3 className="font-bold text-[#353535] mb-1">开始对话</h3>
-                <p className="text-sm text-[#666666]">现在你可以和"她"对话了。AI会用她的方式回复你。</p>
+                <p className="text-sm text-[#666666]">现在你可以和「她」对话了。AI会用她的方式回复你。</p>
               </div>
             </div>
           </div>

@@ -41,7 +41,7 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
       formData.append('targetName', targetName.trim());
       formData.append('type', chatType);
 
-      const res = await fetch('/api/ex-skill', {
+      const res = await fetch('/api/persona/parse', {
         method: 'POST',
         body: formData,
       });
@@ -49,7 +49,9 @@ export default function ImportModal({ isOpen, onClose, onSuccess }: ImportModalP
       const data = await res.json();
 
       if (data.success) {
-        setResult(data.messages?.[0] || { content: '解析成功' });
+        setResult({
+          content: `解析成功：共 ${data.metadata?.totalCount || 0} 条消息，目标角色发言 ${data.metadata?.targetCount || 0} 条。`,
+        });
         setStep('done');
         onSuccess?.({ slug: targetName.toLowerCase().replace(/\s+/g, '-'), name: targetName });
       } else {

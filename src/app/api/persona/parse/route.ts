@@ -1,60 +1,30 @@
 import { NextResponse } from 'next/server';
-import { runPythonTool } from '@/lib/python-runner';
-import fs from 'fs/promises';
-import path from 'path';
+import { WeChatParser } from '@/lib/parsers/wechat';
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const slug = formData.get('slug') as string;
-    const targetName = formData.get('targetName') as string;
-    const type = (formData.get('type') as string) || 'wechat';
+    const file = formData.get('file') as File | null;
+    const targetName = (formData.get('targetName') as string) || 'Persona';
 
-    if (!file || !slug) {
-      return NextResponse.json({ error: 'Missing file or slug' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: 'Missing file' }, { status: 400 });
     }
 
-    const personaDir = path.join(process.cwd(), 'exes', slug);
-    const knowledgeDir = path.join(personaDir, 'knowledge');
-    
-    // Ensure directories exist
-    await fs.mkdir(path.join(process.cwd(), 'uploads'), { recursive: true });
-    await fs.mkdir(knowledgeDir, { recursive: true });
+    const content = await file.text();
+    const parser = new WeChatParser();
+    const result = parser.parse(content, targetName);
 
-    const uploadPath = path.join(process.cwd(), 'uploads', `${slug}-${file.name}`);
-    
-    // Save original file
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await fs.writeFile(uploadPath, buffer);
-
-    let scriptName = '';
-    let args: string[] = [];
-    const outPath = path.join(knowledgeDir, `${type}_out.txt`);
-
-    switch (type) {
-      case 'wechat':
-        scriptName = 'wechat_parser.py';
-        args = ['--file', uploadPath, '--target', targetName || 'Persona', '--output', outPath];
-        break;
-      case 'imessage':
-        scriptName = 'imessage_parser.py';
-        args = ['--file', uploadPath, '--target', targetName || 'Persona', '--output', outPath];
-        break;
-      default:
-        return NextResponse.json({ error: 'Unsupported parser type' }, { status: 400 });
-    }
-
-    const result = await runPythonTool(scriptName, args);
-
-    if (result.code !== 0) {
-      console.error('Parser failed:', result.stderr);
-      return NextResponse.json({ error: 'Parser failed', detail: result.stderr }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, message: 'File parsed successfully', output: outPath });
-  } catch (error: any) {
+    return NextResponse.json({
+      success: true,
+      message: 'File parsed successfully',
+      metadata: result.metadata,
+      statistics: result.statistics,
+      preview: result.messages.slice(0, 30),
+    });
+  } catch (error) {
     console.error('Error parsing file:', error);
-    return NextResponse.json({ error: 'Failed to parse file', detail: error.message }, { status: 500 });
+    const detail = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to parse file', detail }, { status: 500 });
   }
 }

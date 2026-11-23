@@ -1,8 +1,8 @@
 // scripts/create-test-user.js
 // 运行: node scripts/create-test-user.js
 
-const mongoose = require('mongoose');
-const crypto = require('crypto');
+import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 // MongoDB 连接
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/personabot';
@@ -54,7 +54,6 @@ async function createTestUser() {
     let adminUser = await User.findOne({ role: 'admin' });
     if (!adminUser) {
       // 简单的密码哈希（仅用于测试）
-      const crypto = require('crypto');
       const passwordHash = crypto.createHash('sha256').update('Admin123456').digest('hex');
       
       adminUser = await User.create({

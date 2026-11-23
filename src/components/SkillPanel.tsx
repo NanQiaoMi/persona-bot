@@ -26,10 +26,18 @@ export default function SkillPanel({ isOpen, onClose, onSelectSkill }: SkillPane
       const loadSkills = async () => {
         setLoading(true);
         try {
-          const res = await fetch('/api/ex-skill?action=list');
+          const res = await fetch('/api/persona/list');
           const data = await res.json();
           if (data.success) {
-            setSkills(data.skills || []);
+            setSkills(
+              (data.personas || []).map((p: { slug: string; name: string; version?: string; profile?: { bio?: string } }) => ({
+                slug: p.slug,
+                name: p.name,
+                identity: p.profile?.bio || p.slug,
+                version: p.version || 'v2.0',
+                corrections_count: 0,
+              }))
+            );
           }
         } catch (error) {
           console.error('Failed to load skills:', error);
@@ -45,10 +53,18 @@ export default function SkillPanel({ isOpen, onClose, onSelectSkill }: SkillPane
   const loadSkills = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/ex-skill?action=list');
+      const res = await fetch('/api/persona/list');
       const data = await res.json();
       if (data.success) {
-        setSkills(data.skills || []);
+        setSkills(
+          (data.personas || []).map((p: { slug: string; name: string; version?: string; profile?: { bio?: string } }) => ({
+            slug: p.slug,
+            name: p.name,
+            identity: p.profile?.bio || p.slug,
+            version: p.version || 'v2.0',
+            corrections_count: 0,
+          }))
+        );
       }
     } catch (error) {
       console.error('Failed to load skills:', error);

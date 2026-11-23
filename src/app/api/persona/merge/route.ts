@@ -1,32 +1,40 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { storageRepo } from '@/lib/storage/repository';
 
 export async function POST(request: Request) {
   try {
-    const { slug, newData } = await request.json();
+    const { slug, newData, correction } = await request.json();
 
-    if (!slug || !newData) {
-      return NextResponse.json({ error: 'Slug and new data are required' }, { status: 400 });
+    if (!slug) {
+      return NextResponse.json({ error: 'Slug is required' }, { status: 400 });
     }
 
-    const personaDir = path.join(process.cwd(), 'exes', slug);
-    const personaPath = path.join(personaDir, 'persona.md');
-    const memoriesPath = path.join(personaDir, 'memories.md');
-
-    // In a real implementation, we would call the LLM here using merger.md
-    // For now, we'll implement the shell and assume the frontend handles the LLM call for merging
-    // or we'll add a separate LLM utility for background tasks.
-
-    // Mock implementation: Append to files
-    if (newData.personaUpdate) {
-      await fs.appendFile(personaPath, `\n\n## 追加更新 (${new Date().toLocaleDateString()})\n${newData.personaUpdate}`);
-    }
-    
-    if (newData.memoriesUpdate) {
-      await fs.appendFile(memoriesPath, `\n\n## 追加记忆 (${new Date().toLocaleDateString()})\n${newData.memoriesUpdate}`);
+    if (correction) {
+      const updated = await storageRepo.addCorrection(slug, {
+        userInput: correction.userInput || '',
+        botResponse: correction.original || correction.botResponse || '',
+        correction: correction.reason || correction.correction || '',
+        category: correction.type || 'style',
+      });
+      if (!updated) {
+        return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, persona: updated });
     }
 
+    const persona = await storageRepo.getPersona(slug);
+    if (!persona) {
+      return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
+    }
+
+    if (newData?.personaUpdate) {
+      persona.personaMd = `${persona.personaMd.trimEnd()}\n\n## 追加更新 (${new Date().toLocaleDateString('zh-CN')})\n${newData.personaUpdate}`;
+    }
+    if (newData?.memoriesUpdate) {
+      persona.memoriesMd = `${persona.memoriesMd.trimEnd()}\n\n## 追加记忆 (${new Date().toLocaleDateString('zh-CN')})\n${newData.memoriesUpdate}`;
+    }
+
+    await storageRepo.savePersona(persona);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Merge API Error:', error);

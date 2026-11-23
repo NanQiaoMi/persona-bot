@@ -24,24 +24,27 @@ export default function PersonaSwitcher({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadPersonas();
-  }, []);
+    let active = true;
+    const fetchPersonas = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/personas', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
 
-  const loadPersonas = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/personas', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setPersonas(data.personas || []);
+        if (active && data.success) {
+          setPersonas(data.personas || []);
+        }
+      } catch (error) {
+        console.error('Failed to load personas:', error);
       }
-    } catch (error) {
-      console.error('Failed to load personas:', error);
-    }
-  };
+    };
+    fetchPersonas();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSwitch = async (slug: string) => {
     if (slug === currentSlug || loading) return;
