@@ -88,8 +88,12 @@ export interface SearchResultItem {
 }
 
 export interface MediaCard {
-  type: 'photo' | 'voice';
+  type: 'photo' | 'sticker' | 'voice';
   caption: string;
+  imageUrl?: string;
+  prompt?: string;
+  model?: string;
+  errorHint?: string;
   durationSec?: number;
   mood?: string;
 }
@@ -140,10 +144,13 @@ export interface ConversationMessage {
 }
 
 export interface RuntimeSettings {
-  llmProvider: 'xai' | 'deepseek' | 'openai' | 'ollama' | 'custom';
+  llmProvider: 'local_gateway' | 'xai' | 'deepseek' | 'openai' | 'ollama' | 'custom';
   llmBaseUrl: string;
   llmApiKey: string;
   llmModel: string;
+  imageModel?: string;
+  enableAutoSticker?: boolean;
+  enableAutoPhoto?: boolean;
   searchProvider: 'builtin' | 'tavily' | 'serper';
   tavilyApiKey: string;
   serperApiKey: string;

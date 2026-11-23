@@ -5,6 +5,7 @@ import ImportModal from "@/components/ImportModal";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
   ConversationMessage,
+  MediaCard,
   PersonaMode,
   PersonaRecord,
   PersonaSummary,
@@ -52,6 +53,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     thoughtDurationMs?: number;
     isStreamingThought: boolean;
     reply: string;
+    mediaCards?: MediaCard[];
   } | null>(null);
 
   const loadPersonaList = useCallback(async () => {
@@ -134,7 +136,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const runStreamRequest = async (
     historyToSend: ConversationMessage[],
     modeToUse: PersonaMode,
-    options?: { requestPhoto?: boolean; deepSearchOverride?: boolean }
+    options?: {
+      requestPhoto?: boolean;
+      requestSticker?: boolean;
+      deepSearchOverride?: boolean;
+    }
   ) => {
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
 
@@ -144,6 +150,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
       reply: "",
+      mediaCards: [],
     });
 
     try {
@@ -162,6 +169,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           thinkMode,
           deepSearch: useDeepSearch,
           requestPhoto: options?.requestPhoto,
+          requestSticker: options?.requestSticker,
         }),
       });
 
@@ -232,6 +240,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                     }
                   : prev
               );
+            } else if (payload.type === "media" && Array.isArray(payload.mediaCards)) {
+              setStreaming((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      statusText: undefined,
+                      mediaCards: payload.mediaCards as MediaCard[],
+                    }
+                  : prev
+              );
             } else if (payload.type === "reply") {
               setStreaming((prev) =>
                 prev
@@ -266,10 +284,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const handleSend = async (options?: {
     imageUrl?: string;
     requestPhoto?: boolean;
+    requestSticker?: boolean;
   }) => {
     const text =
       input.trim() ||
-      (options?.requestPhoto ? "发张你那边的随手拍给我看看呗 📸" : "");
+      (options?.requestSticker
+        ? "发个适合现在氛围的表情包给我看看～"
+        : options?.requestPhoto
+          ? "发张你那边的随手拍给我看看呗 📸"
+          : "");
     if (!text && !options?.imageUrl) return;
     if (streaming) return;
 
@@ -288,6 +311,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
     await runStreamRequest(nextHistory, activeMode, {
       requestPhoto: options?.requestPhoto,
+      requestSticker: options?.requestSticker,
     });
   };
 

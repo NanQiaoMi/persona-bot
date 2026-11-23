@@ -16,10 +16,13 @@ const DATA_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), '.data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
-  llmProvider: 'xai',
-  llmBaseUrl: process.env.LLM_BASE_URL || 'https://api.x.ai/v1',
+  llmProvider: 'local_gateway',
+  llmBaseUrl: process.env.LLM_BASE_URL || 'http://127.0.0.1:18630/v1',
   llmApiKey: '',
-  llmModel: process.env.LLM_MODEL || 'grok-3',
+  llmModel: process.env.LLM_MODEL || 'gpt-5.6',
+  imageModel: process.env.IMAGE_MODEL || 'gpt-image-2.6',
+  enableAutoSticker: true,
+  enableAutoPhoto: true,
   searchProvider: process.env.TAVILY_API_KEY
     ? 'tavily'
     : process.env.SERPER_API_KEY
@@ -30,7 +33,7 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
   defaultThinkMode: true,
   defaultDeepSearch: true,
   autoVoicePlayback: false,
-  theme: 'dark',
+  theme: 'light',
 };
 
 function sanitizeSlug(slug: string): string {

@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import {
   ConversationMessage,
+  MediaCard,
   PersonaMode,
   PersonaRecord,
   SearchResultItem,
@@ -23,6 +24,7 @@ interface StreamingState {
   thoughtDurationMs?: number;
   isStreamingThought: boolean;
   reply: string;
+  mediaCards?: MediaCard[];
 }
 
 interface ChatStageProps {
@@ -31,7 +33,11 @@ interface ChatStageProps {
   streaming: StreamingState | null;
   input: string;
   onChangeInput: (val: string) => void;
-  onSend: (options?: { imageUrl?: string; requestPhoto?: boolean }) => void;
+  onSend: (options?: {
+    imageUrl?: string;
+    requestPhoto?: boolean;
+    requestSticker?: boolean;
+  }) => void;
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
   onClearHistory: () => void;
@@ -138,6 +144,11 @@ export default function ChatStage({
   const [relayedId, setRelayedId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
+  const [lightboxMedia, setLightboxMedia] = useState<{
+    url: string;
+    caption: string;
+    kind: "photo" | "sticker";
+  } | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -625,35 +636,106 @@ export default function ChatStage({
                     {/* Elevated White Interactive "Page" Artifact Card */}
                     {msg.pageCard && <PageArtifactCard card={msg.pageCard} />}
 
-                    {/* Multimodal Photo / Voice Cards */}
+                    {/* Multimodal Sticker / Photo / Voice Cards */}
                     {msg.mediaCards && msg.mediaCards.length > 0 && (
-                      <div className="mt-2.5 space-y-2 w-full max-w-md">
-                        {msg.mediaCards.map((card, cIdx) =>
-                          card.type === "photo" ? (
-                            <div
-                              key={cIdx}
-                              className="p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-1.5"
-                            >
-                              <div className="flex items-center justify-between text-[11px]">
-                                <span className="font-semibold text-[var(--text-primary)]">
-                                  📸 {persona.name} 的情境实拍
-                                </span>
-                                <span className="text-[10px] text-[var(--text-muted)]">
-                                  MOMENT
-                                </span>
+                      <div className="mt-2.5 space-y-2.5 w-full max-w-md">
+                        {msg.mediaCards.map((card, cIdx) => {
+                          if (card.type === "sticker") {
+                            return card.imageUrl ? (
+                              <button
+                                key={cIdx}
+                                type="button"
+                                onClick={() =>
+                                  setLightboxMedia({
+                                    url: card.imageUrl!,
+                                    caption: card.caption,
+                                    kind: "sticker",
+                                  })
+                                }
+                                title={card.caption}
+                                className="group/sticker inline-block rounded-2xl overflow-hidden bg-[var(--bg-composer)] border border-[var(--border-subtle)] p-1.5 shadow-sm hover:scale-[1.03] transition-transform cursor-pointer"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={card.imageUrl}
+                                  alt={card.caption}
+                                  className="w-36 h-36 rounded-xl object-contain"
+                                />
+                              </button>
+                            ) : (
+                              <div
+                                key={cIdx}
+                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-xs"
+                              >
+                                <div className="flex items-center gap-2 font-medium text-[var(--text-primary)]">
+                                  <span>🎭</span>
+                                  <span>表情包：{card.caption}</span>
+                                </div>
+                                {card.errorHint && (
+                                  <span className="text-[11px] text-[var(--text-muted)]">
+                                    {card.errorHint}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-[var(--text-secondary)] italic leading-relaxed">
-                                &ldquo;{card.caption}&rdquo;
-                              </p>
-                            </div>
-                          ) : (
+                            );
+                          }
+
+                          if (card.type === "photo") {
+                            return (
+                              <div
+                                key={cIdx}
+                                className="rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card overflow-hidden"
+                              >
+                                {card.imageUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setLightboxMedia({
+                                        url: card.imageUrl!,
+                                        caption: card.caption,
+                                        kind: "photo",
+                                      })
+                                    }
+                                    className="block w-full overflow-hidden bg-black/5 cursor-pointer"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={card.imageUrl}
+                                      alt={card.caption}
+                                      className="w-full max-h-72 object-cover hover:scale-[1.02] transition-transform"
+                                    />
+                                  </button>
+                                )}
+                                <div className="p-3.5 space-y-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-semibold text-[var(--text-primary)]">
+                                      📸 {persona.name} 的情境实拍
+                                    </span>
+                                    <span className="text-[10px] text-[var(--text-muted)]">
+                                      {card.model || "MOMENT"}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-[var(--text-secondary)] italic leading-relaxed">
+                                    &ldquo;{card.caption}&rdquo;
+                                  </p>
+                                  {card.errorHint && !card.imageUrl && (
+                                    <p className="text-[11px] text-[var(--text-muted)] pt-0.5">
+                                      {card.errorHint}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
                             <button
                               key={cIdx}
                               type="button"
                               onClick={() =>
                                 speakMessage(`${msg.id}-v-${cIdx}`, card.caption)
                               }
-                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5"
+                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5 cursor-pointer"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="w-7 h-7 rounded-full bg-[#18a999]/15 text-[#18a999] flex items-center justify-center text-xs shrink-0">
@@ -672,8 +754,8 @@ export default function ChatStage({
                                 点击播放
                               </span>
                             </button>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -788,11 +870,44 @@ export default function ChatStage({
                     searchResults={streaming.searchResults}
                   />
                   {streaming.reply ? (
-                    <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 text-[14px] leading-[1.68] text-[var(--text-primary)]">
-                      <span className="whitespace-pre-wrap break-words">
-                        {streaming.reply}
-                      </span>
-                      <span className="grok-cursor" />
+                    <div className="space-y-2.5">
+                      <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 text-[14px] leading-[1.68] text-[var(--text-primary)]">
+                        <span className="whitespace-pre-wrap break-words">
+                          {streaming.reply}
+                        </span>
+                        <span className="grok-cursor" />
+                      </div>
+                      {streaming.statusText && (
+                        <div className="py-1 flex items-center gap-2.5">
+                          <BlobMascot
+                            shape={mascotCfg.shape}
+                            color={mascotCfg.color}
+                            image={mascotCfg.image}
+                            size={22}
+                            trackPointer
+                            state="working"
+                          />
+                          <span className="text-[12.5px] font-medium animate-text-shimmer">
+                            {streaming.statusText}
+                          </span>
+                        </div>
+                      )}
+                      {streaming.mediaCards && streaming.mediaCards.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {streaming.mediaCards.map(
+                            (mc, mIdx) =>
+                              mc.imageUrl && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={mIdx}
+                                  src={mc.imageUrl}
+                                  alt={mc.caption}
+                                  className="w-36 h-36 rounded-2xl object-cover border border-[var(--border-subtle)]"
+                                />
+                              )
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="py-1.5 flex items-center gap-3">
@@ -818,6 +933,43 @@ export default function ChatStage({
           )}
         </div>
       </div>
+
+      {/* Image / Sticker Lightbox Preview */}
+      {lightboxMedia && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm p-6 animate-fade-in"
+          onClick={() => setLightboxMedia(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxMedia.url}
+              alt={lightboxMedia.caption}
+              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+            />
+            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span className="max-w-md truncate">{lightboxMedia.caption}</span>
+              <a
+                href={lightboxMedia.url}
+                download
+                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 font-medium"
+              >
+                下载原图
+              </a>
+              <button
+                type="button"
+                onClick={() => setLightboxMedia(null)}
+                className="px-2 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Bottom Capsule Composer */}
       <GrokComposer

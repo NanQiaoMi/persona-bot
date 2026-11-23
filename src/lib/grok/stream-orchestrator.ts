@@ -4,6 +4,11 @@ import {
   performDeepSearch,
   shouldAutoTriggerSearch,
 } from '@/lib/grok/deep-search';
+import {
+  generatePersonaMedia,
+  isLocalGatewayUrl,
+  LOCAL_GATEWAY_BASE_URL,
+} from '@/lib/grok/image-generator';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
@@ -28,6 +33,7 @@ export interface ChatTurnRequest {
   thinkMode?: boolean;
   deepSearch?: boolean;
   requestPhoto?: boolean;
+  requestSticker?: boolean;
   modelId?: string;
 }
 
@@ -35,6 +41,10 @@ export type StreamEvent =
   | {
       type: 'status';
       text: string;
+    }
+  | {
+      type: 'media';
+      mediaCards: MediaCard[];
     }
   | {
       type: 'search';
@@ -105,6 +115,16 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   }
   working = working.replace(photoRegex, '').trim();
 
+  const stickerRegex = /\[STICKER:\s*([^\]]+)\]/gi;
+  let stickerMatch: RegExpExecArray | null;
+  while ((stickerMatch = stickerRegex.exec(working)) !== null) {
+    mediaCards.push({
+      type: 'sticker',
+      caption: stickerMatch[1].trim(),
+    });
+  }
+  working = working.replace(stickerRegex, '').trim();
+
   const voiceRegex = /\[VOICE:\s*([^\]]+)\]/gi;
   let voiceMatch: RegExpExecArray | null;
   while ((voiceMatch = voiceRegex.exec(working)) !== null) {
@@ -145,6 +165,7 @@ function stripLiveControlTags(text: string): string {
     .replace(/<thought>[\s\S]*/gi, '')
     .replace(/\[MOOD:\s*[^\]]*\]?/gi, '')
     .replace(/\[PHOTO:\s*[^\]]*\]?/gi, '')
+    .replace(/\[STICKER:\s*[^\]]*\]?/gi, '')
     .replace(/\[VOICE:\s*[^\]]*\]?/gi, '')
     .replace(/\[BURST\]/gi, '\n')
     .trim();
@@ -401,12 +422,16 @@ async function streamFromUpstreamLLM(
     thoughtDurationMs: number;
   }) => void
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey && apiKey !== 'your-api-key') {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model,
       stream: true,
@@ -424,6 +449,40 @@ async function streamFromUpstreamLLM(
 
   if (!res.ok || !res.body) {
     throw new Error(`LLM stream status ${res.status}`);
+  }
+
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/json')) {
+    const json = await res.json();
+    const messageObj = json.choices?.[0]?.message || {};
+    const rawContent =
+      typeof messageObj.content === 'string' ? messageObj.content : '';
+    const reasoningContent =
+      typeof messageObj.reasoning_content === 'string'
+        ? messageObj.reasoning_content
+        : '';
+    const cleanVisible = stripLiveControlTags(rawContent);
+    if (reasoningContent && thinkEnabled) {
+      onDelta({
+        thoughtDelta: reasoningContent,
+        fullThought: reasoningContent,
+        fullReply: '',
+        thoughtDurationMs: 600,
+      });
+    }
+    if (cleanVisible) {
+      onDelta({
+        fullThought: reasoningContent,
+        replyDelta: cleanVisible,
+        fullReply: cleanVisible,
+        thoughtDurationMs: 600,
+      });
+    }
+    return {
+      rawOutput: rawContent,
+      reasoningContent,
+      thoughtDurationMs: 600,
+    };
   }
 
   const reader = res.body.getReader();
@@ -616,9 +675,15 @@ export async function executeGrokChatTurn(
   const baseUrl = (
     settings.llmBaseUrl ||
     process.env.LLM_BASE_URL ||
-    'https://api.x.ai/v1'
+    LOCAL_GATEWAY_BASE_URL
   ).replace(/\/$/, '');
-  const model = settings.llmModel || process.env.LLM_MODEL || 'grok-3';
+  const model =
+    req.modelId || settings.llmModel || process.env.LLM_MODEL || 'gpt-5.6';
+  const imageModel = settings.imageModel || process.env.IMAGE_MODEL || 'gpt-image-2.6';
+  const isVitest = Boolean(process.env.VITEST);
+  const canCallUpstream =
+    (Boolean(apiKey) && apiKey !== 'your-api-key') ||
+    (!isVitest && isLocalGatewayUrl(baseUrl));
 
   let rawModelOutput = '';
   let nativeReasoning = '';
@@ -626,7 +691,7 @@ export async function executeGrokChatTurn(
   let isDemoMode = false;
   let alreadyStreamedLive = false;
 
-  if (apiKey && apiKey !== 'your-api-key') {
+  if (canCallUpstream) {
     try {
       const endpoint = baseUrl.endsWith('/chat/completions')
         ? baseUrl
@@ -706,6 +771,42 @@ export async function executeGrokChatTurn(
     updatedEmotion.moodLabel = parsed.mood;
   }
 
+  const hasExplicitSticker =
+    Boolean(req.requestSticker) ||
+    /表情包|发个图|来个图|斗图|贴纸|sticker/i.test(lastUserText);
+  const hasExplicitPhoto =
+    Boolean(req.requestPhoto) ||
+    /自拍|照片|随手拍|画一张|生成.*图|配张图/i.test(lastUserText);
+
+  if (
+    hasExplicitSticker &&
+    !parsed.mediaCards.some((c) => c.type === 'sticker')
+  ) {
+    parsed.mediaCards.unshift({
+      type: 'sticker',
+      caption: `${persona.name} 配合当下心情的专属表情包（${parsed.mood || '俏皮互动中'}）`,
+    });
+  } else if (
+    hasExplicitPhoto &&
+    !parsed.mediaCards.some((c) => c.type === 'photo')
+  ) {
+    parsed.mediaCards.unshift({
+      type: 'photo',
+      caption: `${persona.name} 刚刚顺手拍下的日常画面`,
+    });
+  }
+
+  // Filter auto-emitted visual cards according to user preferences unless explicitly requested
+  parsed.mediaCards = parsed.mediaCards.filter((card) => {
+    if (card.type === 'sticker' && !hasExplicitSticker) {
+      return settings.enableAutoSticker !== false;
+    }
+    if (card.type === 'photo' && !hasExplicitPhoto) {
+      return settings.enableAutoPhoto !== false;
+    }
+    return true;
+  });
+
   // Emit smooth streaming chunks when running in Demo Mode / non-live fallback
   if (!alreadyStreamedLive) {
     const startTs = Date.now();
@@ -762,6 +863,45 @@ export async function executeGrokChatTurn(
     parsed.cleanReply,
     activeMode
   );
+
+  // Async visual generation via /images/generations (sticker or photo, max 1 per turn)
+  const firstVisualIdx = parsed.mediaCards.findIndex(
+    (c) => (c.type === 'sticker' || c.type === 'photo') && !c.imageUrl
+  );
+  if (firstVisualIdx !== -1 && canCallUpstream) {
+    const targetCard = parsed.mediaCards[firstVisualIdx];
+    const kind = targetCard.type === 'sticker' ? 'sticker' : 'photo';
+    onEvent?.({
+      type: 'status',
+      text:
+        kind === 'sticker'
+          ? `正在使用 ${imageModel} 绘制专属表情包...`
+          : `正在使用 ${imageModel} 生成情境图片...`,
+    });
+
+    const mediaRes = await generatePersonaMedia({
+      kind,
+      caption: targetCard.caption,
+      personaName: persona.name,
+      personaStyle: persona.profile.personalityTags?.slice(0, 3).join(', '),
+      baseUrl,
+      apiKey,
+      imageModel,
+    });
+
+    parsed.mediaCards[firstVisualIdx] = {
+      ...targetCard,
+      imageUrl: mediaRes.imageUrl,
+      model: mediaRes.model,
+      prompt: mediaRes.prompt,
+      errorHint: mediaRes.errorHint,
+    };
+
+    onEvent?.({
+      type: 'media',
+      mediaCards: parsed.mediaCards,
+    });
+  }
 
   const assistantMessage: ConversationMessage = {
     id: `msg_${Date.now()}_ai`,

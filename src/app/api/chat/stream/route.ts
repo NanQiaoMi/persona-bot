@@ -31,6 +31,7 @@ export async function POST(request: Request) {
             thinkMode: body.thinkMode,
             deepSearch: body.deepSearch,
             requestPhoto: body.requestPhoto,
+            requestSticker: body.requestSticker,
             modelId: body.modelId,
           };
 
