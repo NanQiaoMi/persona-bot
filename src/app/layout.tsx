@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/layout/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PersonaBot - 拟人化AI聊天机器人",
-  description: "将回忆蒸馏成AI Skill，生成像她一样说话的AI",
+  title: "PersonaBot v2.0 (Grok Edition) — 拟人灵魂与实时全能大脑",
+  description:
+    "将真实聊天记录蒸馏出五层人格与共同记忆，融合 Grok DeepSearch 实时联网、Think 内心潜台词与多档人格模式。",
 };
 
 export default function RootLayout({
@@ -26,13 +26,11 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
+      data-theme="dark"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#EDEDED] text-[#353535]">
-        <Navbar />
-        <main className="flex-1 pt-14">
-          {children}
-        </main>
+      <body className="min-h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+        {children}
       </body>
     </html>
   );
