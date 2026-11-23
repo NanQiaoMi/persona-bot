@@ -117,7 +117,7 @@ export default function GrokComposer({
       <div className="relative max-w-3xl mx-auto">
         {/* Floating "+" Toolbox Popover */}
         {menuOpen && (
-          <div className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-fade-in">
+          <div className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-msg-spring">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--text-primary)]">
                 Grok 能力与人格工具箱
@@ -125,21 +125,20 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
-                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                className="w-6 h-6 rounded-full hover:bg-[var(--bg-secondary)] flex items-center justify-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            {/* Brain Toggles */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={onToggleThink}
                 className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
                   thinkMode
-                    ? "border-[var(--accent-teal)] bg-[#18a999]/10 text-[#18a999]"
-                    : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                    ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
+                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
                 }`}
               >
                 <span>✦</span>
@@ -151,7 +150,7 @@ export default function GrokComposer({
                 className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
                   deepSearch
                     ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
-                    : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
                 }`}
               >
                 <span>🌐</span>
@@ -159,7 +158,6 @@ export default function GrokComposer({
               </button>
             </div>
 
-            {/* 4 Persona Modes */}
             <div className="space-y-1.5">
               <div className="text-[11px] font-medium text-[var(--text-muted)]">
                 人格尺度调节
@@ -187,12 +185,11 @@ export default function GrokComposer({
               </div>
             </div>
 
-            {/* Quick Multimodal Actions */}
             <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] flex flex-col items-center gap-0.5"
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors"
               >
                 <span>🖼️</span>
                 <span>传图点评</span>
@@ -205,7 +202,7 @@ export default function GrokComposer({
                   }
                   handleSubmit(true);
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] flex flex-col items-center gap-0.5"
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors"
               >
                 <span>📸</span>
                 <span>索要自拍</span>
@@ -216,7 +213,7 @@ export default function GrokComposer({
                   setMenuOpen(false);
                   onOpenImport();
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] flex flex-col items-center gap-0.5"
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors"
               >
                 <span>📥</span>
                 <span>导入记录</span>
@@ -229,7 +226,7 @@ export default function GrokComposer({
                 setMenuOpen(false);
                 onTriggerProactive();
               }}
-              className="w-full py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-xs font-medium text-[var(--text-primary)] flex items-center justify-center gap-1.5"
+              className="w-full py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-xs font-medium text-[var(--text-primary)] flex items-center justify-center gap-1.5 transition-colors"
             >
               <span>⚡</span>
               <span>让 {personaName || "TA"} 主动破冰</span>
@@ -239,7 +236,7 @@ export default function GrokComposer({
 
         {/* Active Image Attachment Preview */}
         {imagePreview && (
-          <div className="mb-2.5 px-4 py-2 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center gap-3">
+          <div className="mb-2.5 px-4 py-2 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center gap-3 animate-fade-in">
             <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-[var(--border-strong)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -261,13 +258,13 @@ export default function GrokComposer({
           </div>
         )}
 
-        {/* Subtle Active Chips above Capsule when non-default */}
+        {/* Subtle Active Mode & Search Chips */}
         {(deepSearch || activeMode !== "authentic") && (
-          <div className="mb-1.5 px-2 flex items-center gap-1.5 text-[11px]">
+          <div className="mb-2 px-2 flex items-center gap-1.5 text-[11px]">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className="px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               {modeSpec.badge} {modeSpec.shortLabel}
             </button>
@@ -275,7 +272,7 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={onToggleDeepSearch}
-                className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300"
+                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors"
               >
                 🌐 DeepSearch 已开启 ×
               </button>
@@ -284,7 +281,7 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={onToggleThink}
-                className="px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-muted)]"
+                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
               >
                 ✦ Think
               </button>
@@ -293,7 +290,7 @@ export default function GrokComposer({
         )}
 
         {/* Main Floating Grok Bot Pill Capsule */}
-        <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill">
+        <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:shadow-xl transition-all">
           <input
             ref={fileInputRef}
             type="file"
@@ -302,15 +299,14 @@ export default function GrokComposer({
             className="hidden"
           />
 
-          {/* Left "+" Circle Button */}
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="打开功能菜单"
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all shrink-0 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
               menuOpen
                 ? "bg-[var(--text-primary)] text-[var(--bg-primary)] rotate-45"
-                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"
+                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
             }`}
             title="切换 Think / DeepSearch / 人格模式 / 传图"
           >
@@ -329,7 +325,6 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          {/* Clean Single/Auto-height Text Input */}
           <input
             type="text"
             value={value}
@@ -345,14 +340,13 @@ export default function GrokComposer({
             className="flex-1 bg-transparent px-2 text-[14px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
 
-          {/* Right Mic Circle Button */}
           <button
             type="button"
             onClick={handleVoiceInput}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
               isRecording
                 ? "bg-rose-500/20 text-rose-500 animate-pulse"
-                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"
+                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
             }`}
             title="语音输入"
           >
@@ -371,7 +365,7 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          {/* Right Teal Circular Action Button (Waveform when idle / Arrow when typing) */}
+          {/* Animated Teal Grok Bot Waveform / Send Button */}
           <button
             type="button"
             onClick={() => {
@@ -383,7 +377,7 @@ export default function GrokComposer({
             }}
             disabled={disabled}
             aria-label={hasContent ? "发送消息" : "语音/主动破冰"}
-            className="w-9 h-9 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white flex items-center justify-center shadow-md shadow-[#18a999]/25 transition-all shrink-0"
+            className="w-9 h-9 rounded-full bg-[#18a999] hover:bg-[#149688] hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md shadow-[#18a999]/30 transition-all shrink-0"
             title={hasContent ? "发送消息 (Enter)" : "让 TA 主动开口破冰"}
           >
             {disabled ? (
@@ -403,16 +397,11 @@ export default function GrokComposer({
                 />
               </svg>
             ) : (
-              /* Signature Grok Bot Teal Equalizer Waveform */
-              <svg
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <rect x="4" y="9" width="2.2" height="6" rx="1.1" />
-                <rect x="8.3" y="5" width="2.2" height="14" rx="1.1" />
-                <rect x="12.6" y="7" width="2.2" height="10" rx="1.1" />
-                <rect x="16.9" y="10" width="2.2" height="4" rx="1.1" />
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <rect className="animate-wave-1" x="4" y="9" width="2.2" height="6" rx="1.1" />
+                <rect className="animate-wave-2" x="8.3" y="5.5" width="2.2" height="13" rx="1.1" />
+                <rect className="animate-wave-3" x="12.6" y="7" width="2.2" height="10" rx="1.1" />
+                <rect className="animate-wave-4" x="16.9" y="9.5" width="2.2" height="5" rx="1.1" />
               </svg>
             )}
           </button>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PersonaRecord } from "@/lib/storage/types";
+import BlobMascot, { getBlobVariantForSlug } from "./BlobMascot";
 
 interface RightInspectorProps {
   persona: PersonaRecord | null;
@@ -39,21 +40,24 @@ export default function RightInspector({
   const dominancePct = Math.round(persona.emotionState.dominance * 100);
 
   return (
-    <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen">
+    <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen animate-fade-in">
       {/* Header */}
       <div className="px-4 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
-        <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-            角色灵魂与状态舱
-          </h3>
-          <p className="text-[11px] text-[var(--text-muted)]">
-            {persona.name} · {persona.version}
-          </p>
+        <div className="flex items-center gap-2.5">
+          <BlobMascot variant={getBlobVariantForSlug(persona.slug)} size={28} />
+          <div>
+            <h3 className="text-xs font-bold text-[var(--text-primary)]">
+              {persona.name} · 灵魂状态舱
+            </h3>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {persona.profile.mbti || "Persona"} · {persona.version}
+            </p>
+          </div>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center text-xs text-[var(--text-secondary)]"
+          className="w-7 h-7 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           title="收起状态舱"
         >
           ✕
@@ -61,7 +65,7 @@ export default function RightInspector({
       </div>
 
       {/* Tabs */}
-      <div className="p-2 border-b border-[var(--border-subtle)] grid grid-cols-4 gap-1 bg-[var(--bg-primary)]/40 text-[11px]">
+      <div className="p-2 border-b border-[var(--border-subtle)] grid grid-cols-4 gap-1 text-[11px]">
         {[
           { id: "emotion", label: "情绪雷达" },
           { id: "persona", label: "五层人格" },
@@ -76,9 +80,9 @@ export default function RightInspector({
                 tab.id as "emotion" | "persona" | "memories" | "corrections"
               )
             }
-            className={`py-1.5 rounded-lg font-medium transition-all ${
+            className={`py-1.5 rounded-xl font-medium transition-all ${
               activeTab === tab.id
-                ? "bg-[var(--bg-tertiary)] text-emerald-400 shadow-sm"
+                ? "bg-[var(--bg-composer)] text-[var(--text-primary)] grok-active-row"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
@@ -88,26 +92,28 @@ export default function RightInspector({
       </div>
 
       {/* Tab Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
         {activeTab === "emotion" && (
-          <div className="space-y-4 animate-fade-in">
+          <div className="space-y-3.5 animate-fade-in">
             {/* Mood & Intimacy Card */}
-            <div className="p-3.5 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] space-y-3">
+            <div className="p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[var(--text-secondary)]">当前心情</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-semibold">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-semibold">
                   {persona.emotionState.moodLabel || persona.emotionState.primary}
                 </span>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[var(--text-secondary)]">亲密度 / 好感度</span>
-                  <span className="text-rose-400 font-bold">♥ {persona.intimacy}%</span>
+                  <span className="text-rose-500 font-bold tabular-nums">
+                    ♥ {persona.intimacy}%
+                  </span>
                 </div>
-                <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 transition-all duration-500"
+                    className="h-full rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-[#18a999] transition-all duration-500"
                     style={{ width: `${persona.intimacy}%` }}
                   />
                 </div>
@@ -115,21 +121,19 @@ export default function RightInspector({
             </div>
 
             {/* PAD 3D Emotion Radar Bars */}
-            <div className="p-3.5 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] space-y-3">
+            <div className="p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-3">
               <div className="font-semibold text-[var(--text-primary)]">
                 PAD 三维情绪状态机
               </div>
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-[var(--text-secondary)]">
-                    愉悦度 (Pleasure)
-                  </span>
-                  <span>{pleasurePct}%</span>
+                  <span className="text-[var(--text-secondary)]">愉悦度 (Pleasure)</span>
+                  <span className="tabular-nums font-medium">{pleasurePct}%</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                   <div
-                    className="h-full bg-emerald-400 transition-all"
+                    className="h-full rounded-full bg-[#18a999] transition-all duration-500"
                     style={{ width: `${pleasurePct}%` }}
                   />
                 </div>
@@ -137,14 +141,12 @@ export default function RightInspector({
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-[var(--text-secondary)]">
-                    激活度 / 兴奋度 (Arousal)
-                  </span>
-                  <span>{arousalPct}%</span>
+                  <span className="text-[var(--text-secondary)]">激活度 (Arousal)</span>
+                  <span className="tabular-nums font-medium">{arousalPct}%</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                   <div
-                    className="h-full bg-sky-400 transition-all"
+                    className="h-full rounded-full bg-sky-500 transition-all duration-500"
                     style={{ width: `${arousalPct}%` }}
                   />
                 </div>
@@ -152,14 +154,12 @@ export default function RightInspector({
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-[var(--text-secondary)]">
-                    掌控感 / 气场 (Dominance)
-                  </span>
-                  <span>{dominancePct}%</span>
+                  <span className="text-[var(--text-secondary)]">掌控感 (Dominance)</span>
+                  <span className="tabular-nums font-medium">{dominancePct}%</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                   <div
-                    className="h-full bg-purple-400 transition-all"
+                    className="h-full rounded-full bg-purple-500 transition-all duration-500"
                     style={{ width: `${dominancePct}%` }}
                   />
                 </div>
@@ -167,25 +167,25 @@ export default function RightInspector({
             </div>
 
             {/* Profile Tags */}
-            <div className="p-3.5 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] space-y-2">
+            <div className="p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-2.5">
               <div className="font-semibold text-[var(--text-primary)]">
                 人格指纹
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {persona.profile.mbti && (
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-medium">
                     {persona.profile.mbti}
                   </span>
                 )}
                 {persona.profile.zodiac && (
-                  <span className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-300">
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-500/12 text-purple-600 dark:text-purple-300 font-medium">
                     {persona.profile.zodiac}
                   </span>
                 )}
                 {persona.profile.personalityTags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 rounded-md bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+                    className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
                   >
                     {tag}
                   </span>
@@ -193,28 +193,28 @@ export default function RightInspector({
               </div>
             </div>
 
-            {/* Time Awareness Simulation Triggers */}
-            <div className="p-3.5 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] space-y-2">
+            {/* Time Awareness Triggers */}
+            <div className="p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-2">
               <div className="font-semibold text-[var(--text-primary)]">
-                ⏰ 时间感知与主动破冰实验
+                ⏰ 时间感知与主动破冰
               </div>
               <p className="text-[11px] text-[var(--text-muted)]">
-                模拟不同时间跨度下角色的情绪自然衰减与主动找你说话：
+                模拟不同时间跨度下角色的情绪自然衰减与主动敲门：
               </p>
               <div className="grid grid-cols-1 gap-1.5 pt-1">
                 <button
                   type="button"
                   onClick={() => onTriggerProactive(1)}
-                  className="py-1.5 px-3 rounded-lg bg-[var(--bg-primary)] hover:bg-emerald-500/15 hover:text-emerald-300 border border-[var(--border-subtle)] text-left transition-all"
+                  className="py-2 px-3 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-left text-[var(--text-primary)] transition-all"
                 >
-                  ⚡ 让 TA 结合当前时段主动找你开口
+                  ⚡ 结合当前时段主动找你开口
                 </button>
                 <button
                   type="button"
                   onClick={() => onTriggerProactive(12)}
-                  className="py-1.5 px-3 rounded-lg bg-[var(--bg-primary)] hover:bg-purple-500/15 hover:text-purple-300 border border-[var(--border-subtle)] text-left transition-all"
+                  className="py-2 px-3 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-left text-[var(--text-primary)] transition-all"
                 >
-                  🌙 模拟冷落 TA 12 小时后的吃醋/吐槽反应
+                  🌙 模拟冷落 TA 12 小时后的吃醋/吐槽
                 </button>
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function RightInspector({
                 <button
                   type="button"
                   onClick={() => setEditingPersonaMd(persona.personaMd)}
-                  className="text-emerald-400 hover:underline"
+                  className="text-[#18a999] font-medium hover:underline"
                 >
                   编辑设定
                 </button>
@@ -251,7 +251,7 @@ export default function RightInspector({
                       setEditingPersonaMd(null);
                       setSaving(false);
                     }}
-                    className="text-emerald-400 font-semibold"
+                    className="text-[#18a999] font-semibold"
                   >
                     保存
                   </button>
@@ -264,10 +264,10 @@ export default function RightInspector({
                 value={editingPersonaMd}
                 onChange={(e) => setEditingPersonaMd(e.target.value)}
                 rows={20}
-                className="w-full p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
+                className="w-full p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
               />
             ) : (
-              <pre className="p-3 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11px] text-[var(--text-secondary)] leading-relaxed font-sans">
+              <pre className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
                 {persona.personaMd}
               </pre>
             )}
@@ -282,7 +282,7 @@ export default function RightInspector({
                 <button
                   type="button"
                   onClick={() => setEditingMemoriesMd(persona.memoriesMd)}
-                  className="text-emerald-400 hover:underline"
+                  className="text-[#18a999] font-medium hover:underline"
                 >
                   编辑记忆
                 </button>
@@ -304,7 +304,7 @@ export default function RightInspector({
                       setEditingMemoriesMd(null);
                       setSaving(false);
                     }}
-                    className="text-emerald-400 font-semibold"
+                    className="text-[#18a999] font-semibold"
                   >
                     保存
                   </button>
@@ -317,10 +317,10 @@ export default function RightInspector({
                 value={editingMemoriesMd}
                 onChange={(e) => setEditingMemoriesMd(e.target.value)}
                 rows={18}
-                className="w-full p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
+                className="w-full p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
               />
             ) : (
-              <pre className="p-3 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11px] text-[var(--text-secondary)] leading-relaxed font-sans">
+              <pre className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
                 {persona.memoriesMd}
               </pre>
             )}
@@ -329,14 +329,14 @@ export default function RightInspector({
 
         {activeTab === "corrections" && (
           <div className="space-y-3 animate-fade-in">
-            <div className="p-3 rounded-xl bg-[var(--bg-tertiary)]/70 border border-[var(--border-subtle)] space-y-2">
+            <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-2.5">
               <div className="font-semibold">新增行为纠偏 (OOC Guard)</div>
               <textarea
                 value={newCorrection}
                 onChange={(e) => setNewCorrection(e.target.value)}
                 rows={3}
                 placeholder="例如：她生气时绝不会主动讲道理，只会发个冷笑话或说“随便你”..."
-                className="w-full p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
+                className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
               />
               <button
                 type="button"
@@ -347,7 +347,7 @@ export default function RightInspector({
                   setNewCorrection("");
                   setSaving(false);
                 }}
-                className="w-full py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-semibold text-xs"
+                className="w-full py-2 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-semibold text-xs transition-all"
               >
                 写入永久纠偏层
               </button>
@@ -358,20 +358,20 @@ export default function RightInspector({
                 已生效纠偏记录 ({persona.corrections?.length || 0})
               </div>
               {(!persona.corrections || persona.corrections.length === 0) ? (
-                <div className="p-4 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
+                <div className="p-4 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
                   暂无纠偏记录，也可直接在聊天气泡旁点击「纠偏」按钮
                 </div>
               ) : (
                 persona.corrections.map((item) => (
                   <div
                     key={item.id}
-                    className="p-2.5 rounded-xl bg-[var(--bg-tertiary)]/60 border border-[var(--border-subtle)] space-y-1"
+                    className="p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-1"
                   >
-                    <div className="text-emerald-400 font-medium">
+                    <div className="text-[#18a999] font-medium">
                       ✓ {item.correction}
                     </div>
                     {item.botResponse && (
-                      <div className="text-[10px] text-[var(--text-muted)] truncate">
+                      <div className="text-[10.5px] text-[var(--text-muted)] truncate">
                         针对原回复：{item.botResponse}
                       </div>
                     )}

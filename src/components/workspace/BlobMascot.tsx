@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 export type BlobVariant =
   | "bot"
   | "blue"
@@ -13,6 +15,9 @@ interface BlobMascotProps {
   variant?: BlobVariant;
   size?: number;
   showOnlineDot?: boolean;
+  animated?: boolean;
+  state?: "idle" | "thinking" | "happy";
+  blinkDelayMs?: number;
   className?: string;
 }
 
@@ -33,49 +38,92 @@ export default function BlobMascot({
   variant = "blue",
   size = 32,
   showOnlineDot = false,
+  animated = true,
+  state = "idle",
+  blinkDelayMs = 0,
   className = "",
 }: BlobMascotProps) {
+  const uid = useId().replace(/:/g, "");
+  const bodyAnimClass = animated
+    ? state === "thinking"
+      ? "animate-blob-think"
+      : "animate-blob-breathe"
+    : "";
+
   if (variant === "bot") {
+    const gradId = `bot3d-${uid}`;
     return (
       <div
-        className={`relative inline-flex items-center justify-center shrink-0 ${className}`}
+        className={`relative inline-flex items-center justify-center shrink-0 blob-interactive ${className}`}
         style={{ width: size, height: size }}
       >
-        <svg viewBox="0 0 64 64" className="w-full h-full drop-shadow-md">
+        <svg viewBox="0 0 64 64" className="w-full h-full overflow-visible">
           <defs>
-            <radialGradient id="botGloss" cx="35%" cy="28%" r="68%">
-              <stop offset="0%" stopColor="#3f3f46" />
-              <stop offset="45%" stopColor="#18181b" />
-              <stop offset="100%" stopColor="#050507" />
+            <radialGradient id={gradId} cx="34%" cy="26%" r="72%">
+              <stop offset="0%" stopColor="#52525b" />
+              <stop offset="38%" stopColor="#18181b" />
+              <stop offset="85%" stopColor="#09090b" />
+              <stop offset="100%" stopColor="#000000" />
             </radialGradient>
           </defs>
-          <circle cx="32" cy="32" r="28" fill="url(#botGloss)" />
-          {/* Tilted white pill eyes matching Grok Bot mascot */}
+          {/* Soft floor shadow */}
           <ellipse
-            cx="33"
-            cy="25"
-            rx="3.2"
-            ry="6.8"
-            transform="rotate(-12 33 25)"
-            fill="#ffffff"
+            cx="32"
+            cy="59"
+            rx="16"
+            ry="3.2"
+            fill="rgba(0,0,0,0.16)"
           />
-          <ellipse
-            cx="44"
-            cy="24"
-            rx="3.2"
-            ry="6.8"
-            transform="rotate(-12 44 24)"
-            fill="#ffffff"
-          />
+          <g className={`blob-body-layer ${bodyAnimClass}`}>
+            <circle cx="32" cy="31" r="26.5" fill={`url(#${gradId})`} />
+            {/* Crisp Apple-style specular rim */}
+            <ellipse
+              cx="23"
+              cy="16"
+              rx="9"
+              ry="4.5"
+              transform="rotate(-24 23 16)"
+              fill="#ffffff"
+              opacity="0.16"
+            />
+            {/* Living glancing + blinking white pill eyes */}
+            <g className={animated ? "animate-blob-look" : ""}>
+              <g
+                className={animated ? "animate-blob-blink" : ""}
+                style={{ animationDelay: `${blinkDelayMs}ms` }}
+              >
+                <ellipse
+                  cx="33"
+                  cy="24.5"
+                  rx="3.1"
+                  ry="6.6"
+                  transform="rotate(-11 33 24.5)"
+                  fill="#ffffff"
+                />
+                <ellipse
+                  cx="43.5"
+                  cy="23.5"
+                  rx="3.1"
+                  ry="6.6"
+                  transform="rotate(-11 43.5 23.5)"
+                  fill="#ffffff"
+                />
+              </g>
+            </g>
+          </g>
         </svg>
+
         {showOnlineDot && (
           <span
-            className="absolute bottom-0.5 right-0.5 rounded-full bg-[#3B82F6] ring-2 ring-[var(--bg-secondary)]"
+            className="absolute bottom-0.5 right-0.5 flex items-center justify-center"
             style={{
-              width: Math.max(8, Math.round(size * 0.22)),
-              height: Math.max(8, Math.round(size * 0.22)),
+              width: Math.max(9, Math.round(size * 0.22)),
+              height: Math.max(9, Math.round(size * 0.22)),
             }}
-          />
+          >
+            <span className="absolute inset-0 rounded-full bg-[#3B82F6] opacity-60 animate-ping" />
+            <span className="relative w-full h-full rounded-full bg-[#3B82F6] ring-2 ring-[var(--bg-secondary)]" />
+          </span>
         )}
       </div>
     );
@@ -83,66 +131,109 @@ export default function BlobMascot({
 
   const palette: Record<
     Exclude<BlobVariant, "bot">,
-    { fill: string; highlight: string; shape: string }
+    { light: string; main: string; deep: string; shape: string }
   > = {
     blue: {
-      fill: "#2684FF",
-      highlight: "#60A5FA",
+      light: "#7CB9FF",
+      main: "#2684FF",
+      deep: "#0B5ED7",
       shape:
-        "M32 6C45 6 57 14 58 27C59 41 49 56 34 57C19 58 7 47 7 31C7 16 18 6 32 6Z",
+        "M32 7C45 7 56 15 57 27C58 41 48 55 34 56C19 57 8 46 8 31C8 16 18 7 32 7Z",
     },
     mint: {
-      fill: "#20C997",
-      highlight: "#5EEAD4",
+      light: "#7DF2CF",
+      main: "#20C997",
+      deep: "#0CA678",
       shape:
-        "M19 10C30 6 47 10 54 22C60 33 55 51 42 56C28 60 11 52 7 37C4 25 9 14 19 10Z",
+        "M19 10C30 6 46 10 53 22C59 33 54 50 41 55C27 59 11 51 8 36C5 24 10 14 19 10Z",
     },
     purple: {
-      fill: "#7C4DFF",
-      highlight: "#A78BFA",
+      light: "#BFA7FF",
+      main: "#7C4DFF",
+      deep: "#5B21B6",
       shape:
-        "M34 7C49 8 58 20 56 34C54 48 42 58 27 56C12 54 6 41 9 27C12 14 21 6 34 7Z",
+        "M34 8C48 9 57 20 55 34C53 47 41 57 27 55C13 53 7 40 10 27C13 14 21 7 34 8Z",
     },
     pink: {
-      fill: "#FF3B8B",
-      highlight: "#F472B6",
+      light: "#FF8EC0",
+      main: "#FF3B8B",
+      deep: "#DB2777",
       shape:
-        "M32 7C39 7 44 12 49 14C55 17 59 23 57 30C56 36 59 43 54 49C49 55 41 54 34 56C27 59 19 57 14 51C9 45 10 38 7 31C5 24 9 16 16 13C22 11 26 7 32 7Z",
+        "M32 8C39 8 44 12 49 14C55 17 58 23 56 30C55 36 58 43 53 48C48 54 41 53 34 55C27 58 19 56 14 50C9 44 10 37 8 31C6 24 10 16 17 13C22 11 26 8 32 8Z",
     },
     slate: {
-      fill: "#686D76",
-      highlight: "#9CA3AF",
+      light: "#B0B5BD",
+      main: "#686D76",
+      deep: "#4B5563",
       shape:
-        "M32 7C41 7 45 14 51 18C57 22 59 31 54 38C49 44 50 53 41 56C33 59 25 54 18 51C10 48 6 39 9 30C12 22 12 14 20 10C25 8 28 7 32 7Z",
+        "M32 8C41 8 45 14 50 18C56 22 58 31 53 37C48 43 49 52 40 55C32 58 25 53 18 50C11 47 7 38 10 30C13 22 13 14 21 10C25 8 28 8 32 8Z",
     },
     amber: {
-      fill: "#F59E0B",
-      highlight: "#FCD34D",
+      light: "#FDE68A",
+      main: "#F59E0B",
+      deep: "#D97706",
       shape:
-        "M32 8C47 8 56 18 56 33C56 47 45 57 31 57C16 57 8 46 8 32C8 17 18 8 32 8Z",
+        "M32 8C46 8 55 18 55 32C55 46 44 56 31 56C17 56 9 45 9 32C9 17 18 8 32 8Z",
     },
   };
 
   const spec = palette[variant];
+  const blobGradId = `blob3d-${variant}-${uid}`;
 
   return (
-    <svg
-      viewBox="0 0 64 64"
+    <div
+      className={`relative inline-flex items-center justify-center shrink-0 blob-interactive ${className}`}
       style={{ width: size, height: size }}
-      className={`shrink-0 ${className}`}
     >
-      <path d={spec.shape} fill={spec.fill} />
-      <ellipse
-        cx="25"
-        cy="17"
-        rx="10"
-        ry="5"
-        transform="rotate(-18 25 17)"
-        fill={spec.highlight}
-        opacity="0.32"
-      />
-      <rect x="24.5" y="23" width="5.2" height="12" rx="2.6" fill="#FFFFFF" />
-      <rect x="34.5" y="23" width="5.2" height="12" rx="2.6" fill="#FFFFFF" />
-    </svg>
+      <svg viewBox="0 0 64 64" className="w-full h-full overflow-visible">
+        <defs>
+          <radialGradient id={blobGradId} cx="32%" cy="24%" r="74%">
+            <stop offset="0%" stopColor={spec.light} />
+            <stop offset="48%" stopColor={spec.main} />
+            <stop offset="100%" stopColor={spec.deep} />
+          </radialGradient>
+        </defs>
+        <ellipse
+          cx="32"
+          cy="58"
+          rx="15"
+          ry="2.8"
+          fill="rgba(0,0,0,0.1)"
+        />
+        <g className={`blob-body-layer ${bodyAnimClass}`}>
+          <path d={spec.shape} fill={`url(#${blobGradId})`} />
+          <ellipse
+            cx="24"
+            cy="17"
+            rx="9.5"
+            ry="4.2"
+            transform="rotate(-20 24 17)"
+            fill="#ffffff"
+            opacity="0.34"
+          />
+          <g
+            className={animated ? "animate-blob-blink" : ""}
+            style={{ animationDelay: `${blinkDelayMs}ms` }}
+          >
+            <rect
+              x="24.5"
+              y="22.5"
+              width="5.2"
+              height="11.5"
+              rx="2.6"
+              fill="#FFFFFF"
+            />
+            <rect
+              x="34.5"
+              y="22.5"
+              width="5.2"
+              height="11.5"
+              rx="2.6"
+              fill="#FFFFFF"
+            />
+          </g>
+        </g>
+      </svg>
+    </div>
   );
 }

@@ -30,6 +30,7 @@ interface ChatStageProps {
   input: string;
   onChangeInput: (val: string) => void;
   onSend: (options?: { imageUrl?: string; requestPhoto?: boolean }) => void;
+  onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
   onClearHistory: () => void;
   onQuickCorrect: (msgIndex: number, reason: string) => Promise<void>;
@@ -74,7 +75,7 @@ function renderInlineMarkdown(text: string) {
 function GrokMessageBody({ content }: { content: string }) {
   const blocks = content.split(/(```[\s\S]*?```)/g);
   return (
-    <div className="space-y-2 text-[14px] leading-[1.65] text-[var(--text-primary)]">
+    <div className="space-y-2 text-[14px] leading-[1.68] text-[var(--text-primary)]">
       {blocks.map((block, bIdx) => {
         if (block.startsWith("```") && block.endsWith("```")) {
           const inner = block.slice(3, -3).replace(/^[a-zA-Z]+\n/, "");
@@ -104,6 +105,7 @@ export default function ChatStage({
   input,
   onChangeInput,
   onSend,
+  onQuickSend,
   onTriggerProactive,
   onClearHistory,
   onQuickCorrect,
@@ -184,7 +186,7 @@ export default function ChatStage({
     return (
       <div className="flex-1 flex items-center justify-center bg-[var(--bg-primary)]">
         <div className="flex flex-col items-center gap-3 text-xs text-[var(--text-muted)]">
-          <BlobMascot variant="bot" size={44} showOnlineDot />
+          <BlobMascot variant="bot" size={52} showOnlineDot state="thinking" />
           <span>正在连接 PersonaBot...</span>
         </div>
       </div>
@@ -193,6 +195,7 @@ export default function ChatStage({
 
   const blobVariant = getBlobVariantForSlug(persona.slug);
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
+  const accentColor = persona.profile.accentColor || "#18a999";
   const firstTimestamp = messages[0]?.timestamp
     ? new Date(messages[0].timestamp).toLocaleTimeString("zh-CN", {
         hour: "2-digit",
@@ -205,15 +208,14 @@ export default function ChatStage({
 
   return (
     <div className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden">
-      {/* Floating Transparent Grok Bot Header */}
-      <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-2 flex items-center justify-between pointer-events-none">
-        {/* Left: Reopen sidebar if collapsed */}
-        <div className="pointer-events-auto flex items-center gap-2 min-w-[72px]">
+      {/* Frosted Floating Header */}
+      <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header backdrop-blur-xl pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
           {!sidebarOpen && (
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
               title="展开侧边栏"
             >
               ◧
@@ -223,7 +225,7 @@ export default function ChatStage({
             <button
               type="button"
               onClick={onClearHistory}
-              className="px-3 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+              className="px-3.5 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all"
               title="清空当前对话"
             >
               新对话
@@ -231,28 +233,32 @@ export default function ChatStage({
           )}
         </div>
 
-        {/* Center Floating Pill: [BlobMascot] Persona Name */}
+        {/* Center Floating Pill with Living BlobMascot */}
         <button
           type="button"
           onClick={onToggleInspector}
-          className="pointer-events-auto inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] transition-all"
-          title="点击展开/收起角色灵魂状态舱"
+          className="pointer-events-auto inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          title="点击滑出/收起角色灵魂状态舱"
         >
-          <BlobMascot variant={blobVariant} size={22} />
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+          <BlobMascot
+            variant={blobVariant}
+            size={24}
+            state={streaming ? "thinking" : "idle"}
+          />
+          <span className="text-[13.5px] font-semibold text-[var(--text-primary)]">
             {persona.name}
           </span>
           <span className="text-[11px] text-[var(--text-muted)]">
-            {showInspector ? "✕" : "· 状态"}
+            {showInspector ? "✕" : `♥ ${persona.intimacy}%`}
           </span>
         </button>
 
-        {/* Right Floating Pill: 分享 */}
-        <div className="pointer-events-auto flex items-center justify-end gap-2 min-w-[72px]">
+        {/* Right Floating Share Pill */}
+        <div className="pointer-events-auto flex items-center justify-end gap-2 min-w-[84px]">
           <button
             type="button"
             onClick={handleShare}
-            className="px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
+            className="px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
           >
             {sharedToast ? "已复制 ✓" : "分享"}
           </button>
@@ -266,68 +272,96 @@ export default function ChatStage({
       >
         <div className="max-w-3xl mx-auto">
           {messages.length === 0 && !streaming ? (
-            /* Clean Empty State matching Grok Bot minimalism */
-            <div className="pt-14 pb-8 flex flex-col items-center text-center space-y-5 animate-fade-in">
-              <BlobMascot variant={blobVariant} size={68} />
-              <div className="space-y-1.5 max-w-md">
-                <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+            /* Tactile Apple-Grade Empty State with Floating Living Mascot */
+            <div className="pt-10 pb-8 flex flex-col items-center text-center space-y-6 animate-fade-in">
+              <div className="relative flex items-center justify-center">
+                <div
+                  className="absolute w-32 h-32 rounded-full blur-2xl opacity-20 animate-float-gentle"
+                  style={{ background: accentColor }}
+                />
+                <div className="relative animate-float-gentle">
+                  <BlobMascot variant={blobVariant} size={82} />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-w-md">
+                <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
                   {persona.name}
                 </h2>
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
                   {persona.profile.bio ||
                     "支持 DeepSearch 实时联网生成结构化页面、Think 内心潜台词与多档人格模式。"}
                 </p>
-                <div className="pt-1 flex items-center justify-center gap-2 text-[11px] text-[var(--text-muted)]">
+                <div className="pt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)]">
                   <span>
                     {modeSpec.badge} {modeSpec.shortLabel}
                   </span>
-                  <span>·</span>
+                  <span className="opacity-40">·</span>
                   <span>♥ 亲密度 {persona.intimacy}%</span>
-                  <span>·</span>
+                  <span className="opacity-40">·</span>
                   <span>{persona.emotionState.moodLabel || "在线"}</span>
                 </div>
               </div>
 
-              {/* 4 Quick Starter Pills */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl pt-2">
+              {/* 4 One-Click Interactive Starter Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-1">
                 {[
                   {
                     icon: "📊",
+                    badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
                     title: "联网整理今日热搜清单",
-                    sub: "自动调用 DeepSearch 生成可展开「页面」卡片",
+                    sub: "一键触发 DeepSearch + 内嵌「页面」卡片",
                     text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
+                    enableSearch: true,
                   },
                   {
                     icon: "💭",
+                    badgeBg: "bg-purple-500/12 text-purple-600 dark:text-purple-300",
                     title: "看看你此刻真实的内心 OS",
-                    sub: "触发 Think 潜台词推演",
+                    sub: "触发 Think 潜台词时间轴推演",
                     text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
+                    enableSearch: false,
                   },
                   {
                     icon: "📸",
+                    badgeBg: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
                     title: "发张你那边的随手拍",
-                    sub: "生成实时情境镜头卡片",
+                    sub: "生成角色实时情境镜头卡片",
                     text: "发张你现在手边的随手拍给我看看呗",
+                    enableSearch: false,
                   },
                   {
                     icon: "🌙",
+                    badgeBg: "bg-rose-500/12 text-rose-600 dark:text-rose-300",
                     title: "忙完了一天，求安慰",
-                    sub: "感受角色的情绪共鸣与连发节奏",
+                    sub: "体验多段短句连发与情绪共鸣",
                     text: "今天工作累麻了，快按你的脾气哄我两句",
+                    enableSearch: false,
                   },
                 ].map((chip) => (
                   <button
                     key={chip.title}
                     type="button"
-                    onClick={() => onChangeInput(chip.text)}
-                    className="p-3.5 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)]/80 border border-[var(--border-subtle)] text-left transition-all"
+                    onClick={() =>
+                      onQuickSend(chip.text, { deepSearch: chip.enableSearch })
+                    }
+                    className="group/chip p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-all duration-200 flex items-start gap-3"
                   >
-                    <div className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-                      <span>{chip.icon}</span>
-                      <span>{chip.title}</span>
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 ${chip.badgeBg}`}
+                    >
+                      {chip.icon}
                     </div>
-                    <div className="text-[11px] text-[var(--text-muted)] mt-1">
-                      {chip.sub}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] flex items-center justify-between gap-1">
+                        <span className="truncate">{chip.title}</span>
+                        <span className="text-[var(--text-muted)] opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-all">
+                          →
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-[var(--text-secondary)] mt-0.5 line-clamp-1">
+                        {chip.sub}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -342,7 +376,7 @@ export default function ChatStage({
                 </div>
                 <div className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-muted)]">
                   <span>已发消息给</span>
-                  <BlobMascot variant="bot" size={14} />
+                  <BlobMascot variant="bot" size={16} animated={false} />
                   <span className="font-medium text-[var(--text-secondary)]">
                     {persona.name}
                   </span>
@@ -360,10 +394,10 @@ export default function ChatStage({
                   return (
                     <div
                       key={msg.id || `${msg.timestamp}-${idx}`}
-                      className="flex flex-col items-end animate-fade-in"
+                      className="flex flex-col items-end animate-msg-spring"
                     >
                       {msg.imageUrl && (
-                        <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs">
+                        <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={msg.imageUrl}
@@ -389,9 +423,8 @@ export default function ChatStage({
                 return (
                   <div
                     key={msg.id || `${msg.timestamp}-${idx}`}
-                    className="group flex flex-col items-start animate-fade-in"
+                    className="group flex flex-col items-start animate-msg-spring"
                   >
-                    {/* Collapsible Think & Search Pill */}
                     <ThoughtSearchTrace
                       thought={msg.thought}
                       thoughtDurationMs={msg.thoughtDurationMs}
@@ -437,7 +470,7 @@ export default function ChatStage({
                               onClick={() =>
                                 speakMessage(`${msg.id}-v-${cIdx}`, card.caption)
                               }
-                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all"
+                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="w-7 h-7 rounded-full bg-[#18a999]/15 text-[#18a999] flex items-center justify-center text-xs shrink-0">
@@ -462,7 +495,7 @@ export default function ChatStage({
                     )}
 
                     {/* Subtle Hover Action Row */}
-                    <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-70 group-hover:opacity-100 transition-opacity">
+                    <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity">
                       {msg.mood && <span>{msg.mood}</span>}
                       <button
                         type="button"
@@ -510,7 +543,7 @@ export default function ChatStage({
 
                     {/* Inline Correction Popover */}
                     {correctingIndex === idx && (
-                      <div className="mt-2 p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] grok-floating-card w-full max-w-md space-y-2 animate-fade-in">
+                      <div className="mt-2 p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] grok-floating-card w-full max-w-md space-y-2 animate-msg-spring">
                         <div className="text-xs font-semibold text-[var(--text-primary)]">
                           纠正 {persona.name} 的表达偏差：
                         </div>
@@ -547,9 +580,9 @@ export default function ChatStage({
                 );
               })}
 
-              {/* Live Streaming Turn */}
+              {/* Live Streaming Turn with Animated Thinking Mascot */}
               {streaming && (
-                <div className="flex flex-col items-start animate-fade-in">
+                <div className="flex flex-col items-start animate-msg-spring">
                   <ThoughtSearchTrace
                     thought={streaming.thought}
                     thoughtDurationMs={streaming.thoughtDurationMs}
@@ -559,16 +592,20 @@ export default function ChatStage({
                     searchResults={streaming.searchResults}
                   />
                   {streaming.reply ? (
-                    <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 text-[14px] leading-[1.65] text-[var(--text-primary)]">
+                    <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 text-[14px] leading-[1.68] text-[var(--text-primary)]">
                       <span className="whitespace-pre-wrap break-words">
                         {streaming.reply}
                       </span>
                       <span className="grok-cursor" />
                     </div>
                   ) : (
-                    <div className="rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 text-xs text-[var(--text-secondary)] flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#18a999] animate-pulse-dot" />
-                      <span>{persona.name} 正在输入...</span>
+                    <div className="rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 text-xs text-[var(--text-secondary)] flex items-center gap-2.5">
+                      <BlobMascot
+                        variant={blobVariant}
+                        size={22}
+                        state="thinking"
+                      />
+                      <span>{persona.name} 正在思考怎么回复你...</span>
                     </div>
                   )}
                 </div>

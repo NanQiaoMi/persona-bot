@@ -120,10 +120,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const runStreamRequest = async (
     historyToSend: ConversationMessage[],
     modeToUse: PersonaMode,
-    options?: { requestPhoto?: boolean }
+    options?: { requestPhoto?: boolean; deepSearchOverride?: boolean }
   ) => {
+    const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
+
     setStreaming({
-      isSearching: deepSearch,
+      isSearching: useDeepSearch,
       thought: "",
       thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
@@ -144,7 +146,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           })),
           mode: modeToUse,
           thinkMode,
-          deepSearch,
+          deepSearch: useDeepSearch,
           requestPhoto: options?.requestPhoto,
         }),
       });
@@ -266,6 +268,29 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     });
   };
 
+  const handleQuickSend = async (
+    text: string,
+    options?: { deepSearch?: boolean }
+  ) => {
+    if (!text.trim() || streaming) return;
+    if (options?.deepSearch) {
+      setDeepSearch(true);
+    }
+    const userMsg: ConversationMessage = {
+      id: `msg_${Date.now()}_u`,
+      role: "user",
+      content: text.trim(),
+      timestamp: new Date().toISOString(),
+      mode: activeMode,
+    };
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+    await runStreamRequest(nextHistory, activeMode, {
+      deepSearchOverride: options?.deepSearch,
+    });
+  };
+
   const handleRegenerate = async (
     msgIndex: number,
     overrideMode?: PersonaMode
@@ -384,6 +409,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         <LeftSidebar
           personas={personas}
           activeSlug={activeSlug}
+          isStreaming={Boolean(streaming)}
           onSelectPersona={(slug) => setActiveSlug(slug)}
           onOpenSettings={() => setShowSettings(true)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
@@ -400,6 +426,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         input={input}
         onChangeInput={setInput}
         onSend={handleSend}
+        onQuickSend={handleQuickSend}
         onTriggerProactive={handleTriggerProactive}
         onClearHistory={handleClearHistory}
         onQuickCorrect={handleQuickCorrect}

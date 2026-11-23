@@ -7,6 +7,7 @@ import BlobMascot, { getBlobVariantForSlug } from "./BlobMascot";
 interface LeftSidebarProps {
   personas: PersonaSummary[];
   activeSlug: string;
+  isStreaming?: boolean;
   onSelectPersona: (slug: string) => void;
   onOpenSettings: () => void;
   onOpenCommandPalette: () => void;
@@ -18,6 +19,7 @@ interface LeftSidebarProps {
 export default function LeftSidebar({
   personas,
   activeSlug,
+  isStreaming = false,
   onSelectPersona,
   onOpenSettings,
   onOpenCommandPalette,
@@ -26,14 +28,14 @@ export default function LeftSidebar({
   onCollapse,
 }: LeftSidebarProps) {
   return (
-    <aside className="w-[260px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
-      {/* Top Action Row (Search & New Persona) */}
+    <aside className="w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
+      {/* Top Action Row */}
       <div className="px-4 pt-4 pb-1 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onToggleTheme}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
             title={theme === "dark" ? "切换清爽浅色 (Grok Bot)" : "切换深空暗色"}
           >
             {theme === "dark" ? "☀️" : "🌙"}
@@ -42,7 +44,7 @@ export default function LeftSidebar({
             <button
               type="button"
               onClick={onCollapse}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
               title="收起侧边栏"
             >
               ◧
@@ -54,7 +56,7 @@ export default function LeftSidebar({
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-primary)] hover:scale-105 transition-all"
+            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
             title="搜索或切换 (⌘K)"
           >
             <svg
@@ -74,7 +76,7 @@ export default function LeftSidebar({
 
           <Link
             href="/create"
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-sm text-[var(--text-primary)] hover:scale-105 transition-all"
+            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-sm text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
             title="蒸馏 / 创建新角色"
           >
             <svg
@@ -94,16 +96,24 @@ export default function LeftSidebar({
         </div>
       </div>
 
-      {/* Centered Glossy Black Grok Bot Mascot */}
+      {/* Centered Living Glossy Black Grok Bot Mascot */}
       <div className="py-4 flex flex-col items-center justify-center">
-        <BlobMascot variant="bot" size={58} showOnlineDot />
-        <span className="mt-2 text-[12px] font-medium text-[var(--text-secondary)]">
+        <BlobMascot
+          variant="bot"
+          size={64}
+          showOnlineDot
+          state={isStreaming ? "thinking" : "idle"}
+        />
+        <span className="mt-2 text-[12px] font-semibold tracking-tight text-[var(--text-primary)]">
           PersonaBot
+        </span>
+        <span className="text-[10.5px] text-[var(--text-muted)]">
+          {isStreaming ? "正在思考回复中..." : "Grok 拟人工作台"}
         </span>
       </div>
 
-      {/* Clean 2-Line Topic / Persona List */}
-      <div className="flex-1 overflow-y-auto px-2.5 space-y-1">
+      {/* Clean 2-Line Topic / Persona List with Elevated Active Card */}
+      <div className="flex-1 overflow-y-auto px-3 space-y-1.5">
         {personas.map((p, index) => {
           const isActive = p.slug === activeSlug;
           const variant = getBlobVariantForSlug(p.slug, index);
@@ -118,13 +128,18 @@ export default function LeftSidebar({
               key={p.slug}
               type="button"
               onClick={() => onSelectPersona(p.slug)}
-              className={`w-full text-left px-3 py-2.5 rounded-2xl transition-all flex items-center gap-3 ${
+              className={`group w-full text-left px-3 py-2.5 rounded-2xl transition-all duration-200 flex items-center gap-3 ${
                 isActive
-                  ? "bg-[var(--bg-tertiary)]/90 shadow-xs"
-                  : "bg-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                  ? "bg-[var(--bg-composer)] grok-active-row scale-[1.01]"
+                  : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
               }`}
             >
-              <BlobMascot variant={variant} size={32} />
+              <BlobMascot
+                variant={variant}
+                size={34}
+                blinkDelayMs={index * 750}
+                state={isActive && isStreaming ? "thinking" : "idle"}
+              />
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
@@ -132,7 +147,7 @@ export default function LeftSidebar({
                     {p.name}
                   </span>
                   {p.profile.mbti && (
-                    <span className="text-[10px] text-[var(--text-muted)] shrink-0">
+                    <span className="text-[10px] font-medium text-[var(--text-muted)] shrink-0">
                       {p.profile.mbti}
                     </span>
                   )}
@@ -150,7 +165,7 @@ export default function LeftSidebar({
       <div className="p-3.5 flex items-center gap-2.5">
         <Link
           href="/gallery"
-          className="w-9 h-9 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-base hover:scale-105 transition-transform shrink-0"
+          className="w-9 h-9 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-base hover:scale-105 active:scale-95 transition-transform shrink-0"
           title="角色引力场广场 (/gallery)"
         >
           🐱
@@ -159,7 +174,7 @@ export default function LeftSidebar({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex-1 py-2 px-3.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
+          className="flex-1 py-2 px-3.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
         >
           <span>连接应用</span>
           <span className="inline-flex items-center gap-0.5 text-[11px]">
