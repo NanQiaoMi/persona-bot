@@ -1,38 +1,27 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-
-interface Persona {
-  slug: string;
-  name: string;
-  version?: string;
-  profile?: {
-    mbti?: string;
-    tags?: {
-      personality?: string[];
-    };
-    enhanced_profile?: string;
-  };
-  created_at?: string;
-}
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
 
 export default function GalleryPage() {
-  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "preset" | "custom">("all");
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const fetchPersonas = async () => {
       try {
-        const res = await fetch('/api/persona/list');
+        const res = await fetch("/api/personas");
         const data = await res.json();
         if (active && data.success) {
           setPersonas(data.personas || []);
         }
-      } catch (error) {
-        console.error('Failed to load personas:', error);
+      } catch (err) {
+        console.error("Failed to load personas:", err);
       } finally {
         if (active) setLoading(false);
       }
@@ -43,155 +32,205 @@ export default function GalleryPage() {
     };
   }, []);
 
-  const handleDelete = async (slug: string, name: string) => {
-    if (!confirm(`确定要删除「${name}」吗？此操作不可撤销。`)) {
-      return;
+  const handleExportMarkdown = async (slug: string, name: string) => {
+    try {
+      const res = await fetch(`/api/personas/${encodeURIComponent(slug)}`);
+      const data = await res.json();
+      if (!data.success || !data.persona) return;
+      const p = data.persona;
+      const bundle = `# ${p.name} (${p.slug}) — PersonaBot v2.0 角色灵魂包\n\n## 全息画像\n${p.aiProfileMd}\n\n---\n\n${p.personaMd}\n\n---\n\n${p.memoriesMd}\n`;
+      const blob = new Blob([bundle], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name}-${slug}-persona.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
     }
+  };
 
+  const handleDelete = async (slug: string, name: string) => {
+    if (!confirm(`确定要删除角色「${name}」吗？`)) return;
     setDeleting(slug);
     try {
-      const res = await fetch(`/api/persona/delete?slug=${encodeURIComponent(slug)}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(
+        `/api/persona/delete?slug=${encodeURIComponent(slug)}`,
+        { method: "DELETE" }
+      );
       const data = await res.json();
-
       if (data.success) {
-        setPersonas(prev => prev.filter(p => p.slug !== slug));
-      } else {
-        alert('删除失败：' + (data.error?.message || '未知错误'));
+        setPersonas((prev) => prev.filter((p) => p.slug !== slug));
       }
-    } catch (error) {
-      console.error('Delete failed:', error);
-      alert('删除失败，请稍后重试');
     } finally {
       setDeleting(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-[#07C160]/20 border-t-[#07C160] rounded-full animate-spin" />
-          <p className="text-[#999999]">加载中...</p>
-        </div>
-      </div>
-    );
-  }
+  const filtered = personas.filter((p) => {
+    if (filter === "preset" && !p.isPreset) return false;
+    if (filter === "custom" && p.isPreset) return false;
+    return true;
+  });
 
   return (
-    <div className="min-h-screen px-4 py-8">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-[#353535]">已蒸馏的角色</h1>
-            <p className="text-[#999999] mt-1">管理和对话你的AI角色</p>
-          </div>
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
+      {/* Header */}
+      <header className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]/80 backdrop-blur-md flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <Link
-            href="/create"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white font-medium transition-all duration-200"
+            href="/"
+            className="px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] hover:bg-white/10 border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            创建新角色
+            ← 返回 Grok 工作台
           </Link>
+          <div>
+            <h1 className="text-base font-bold">
+              🪐 角色引力场广场 (Persona Gravity Gallery)
+            </h1>
+            <p className="text-xs text-[var(--text-muted)]">
+              开箱即用的 Grok 标杆角色与你蒸馏的专属真人灵魂，支持一键导出 Markdown 角色卡
+            </p>
+          </div>
         </div>
 
-        {/* Personas Grid */}
-        {personas.length === 0 ? (
-          <div className="text-center py-24">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#F7F7F7] flex items-center justify-center">
-              <span className="text-4xl">🎭</span>
-            </div>
-            <h2 className="text-xl font-bold text-[#353535] mb-3">还没有任何角色</h2>
-            <p className="text-[#999999] mb-8 max-w-md mx-auto">
-              创建你的第一个Persona，让AI用她的方式和你对话
-            </p>
-            <Link
-              href="/create"
-              className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white font-semibold transition-all duration-200"
-            >
-              ✨ 创建第一个 Persona
-            </Link>
+        <Link
+          href="/create"
+          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20"
+        >
+          + 蒸馏 / 创建新角色
+        </Link>
+      </header>
+
+      <div className="max-w-6xl w-full mx-auto p-6 space-y-6">
+        {/* Filter Bar */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            {[
+              { id: "all", label: `全部角色 (${personas.length})` },
+              {
+                id: "preset",
+                label: `Grok 标杆角色 (${personas.filter((p) => p.isPreset).length})`,
+              },
+              {
+                id: "custom",
+                label: `我的专属蒸馏 (${personas.filter((p) => !p.isPreset).length})`,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() =>
+                  setFilter(tab.id as "all" | "preset" | "custom")
+                }
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                  filter === tab.id
+                    ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Grid */}
+        {loading ? (
+          <div className="py-24 text-center text-xs text-[var(--text-muted)]">
+            正在加载角色引力场...
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {personas.map((persona) => (
-              <div
-                key={persona.slug}
-                className="bg-white rounded-2xl border border-[#E5E5E5] overflow-hidden hover:shadow-lg transition-all duration-300"
-              >
-                <div className="p-6">
-                  {/* Card Header */}
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#07C160] to-[#06AD56] flex items-center justify-center text-white text-xl font-bold">
-                      {persona.name.charAt(0)}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-[#353535]">
-                        {persona.name}
-                      </h3>
-                      {persona.profile?.mbti && (
-                        <span className="text-sm text-[#576B95]">{persona.profile.mbti}</span>
-                      )}
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map((p) => {
+              const modeSpec =
+                PERSONA_MODES[(p.defaultMode as PersonaMode) || "authentic"] ||
+                PERSONA_MODES.authentic;
+              const tags = p.profile?.personalityTags || [];
 
-                  {/* Tags */}
-                  {persona.profile?.tags?.personality && persona.profile.tags.personality.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {persona.profile.tags.personality.slice(0, 3).map((tag: string, i: number) => (
+              return (
+                <div
+                  key={p.slug}
+                  className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-strong)] flex items-center justify-center text-2xl">
+                          {p.profile?.avatarEmoji || p.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-sm">{p.name}</h3>
+                            {p.isPreset && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium">
+                                Grok 标杆
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--text-secondary)]">
+                            {p.profile?.mbti && <span>{p.profile.mbti}</span>}
+                            <span>·</span>
+                            <span>
+                              {modeSpec.badge} {modeSpec.shortLabel}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-rose-400 font-semibold">
+                        ♥ {p.intimacy || 65}%
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
+                      {p.profile?.bio || "拥有完整五层性格结构与共同记忆的拟人角色"}
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {tags.slice(0, 4).map((tag) => (
                         <span
-                          key={i}
-                          className="px-2.5 py-1 text-xs rounded-full bg-[#F7F7F7] text-[#666666]"
+                          key={tag}
+                          className="px-2 py-0.5 rounded-md bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)]"
                         >
                           {tag}
                         </span>
                       ))}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Description */}
-                  <p className="text-sm text-[#999999] line-clamp-2 mb-4">
-                    {persona.profile?.enhanced_profile?.substring(0, 100) || '暂无描述'}
-                  </p>
+                  <div className="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+                    <Link
+                      href={`/chat/${p.slug}`}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs text-center transition-all"
+                    >
+                      进入对话 →
+                    </Link>
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-4 border-t border-[#F0F0F0]">
-                    <span className="text-xs text-[#CCCCCC]">
-                      {persona.created_at ? new Date(persona.created_at).toLocaleDateString('zh-CN') : ''}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/chat/${persona.slug}`}
-                        className="px-4 py-2 text-sm font-medium text-[#07C160] hover:bg-[#07C160]/10 rounded-lg transition-all"
-                      >
-                        进入对话 →
-                      </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleExportMarkdown(p.slug, p.name)}
+                      className="px-3 py-2 rounded-xl bg-[var(--bg-tertiary)] hover:bg-white/10 border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]"
+                      title="导出 Markdown 角色卡"
+                    >
+                      导出 .md
+                    </button>
+
+                    {!p.isPreset && (
                       <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleDelete(persona.slug, persona.name);
-                        }}
-                        disabled={deleting === persona.slug}
-                        className="p-2 text-[#CCCCCC] hover:text-[#FA5151] hover:bg-[#FA5151]/10 rounded-lg transition-all disabled:opacity-50"
-                        title="删除"
+                        type="button"
+                        disabled={deleting === p.slug}
+                        onClick={() => handleDelete(p.slug, p.name)}
+                        className="px-2.5 py-2 rounded-xl bg-[var(--bg-tertiary)] hover:bg-rose-500/20 text-xs text-[var(--text-muted)] hover:text-rose-300"
+                        title="删除角色"
                       >
-                        {deleting === persona.slug ? (
-                          <div className="w-4 h-4 border-2 border-[#FA5151]/20 border-t-[#FA5151] rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
+                        🗑
                       </button>
-                    </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
