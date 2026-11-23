@@ -81,6 +81,8 @@ export default function SettingsModal({
   });
   const [saving, setSaving] = useState(false);
   const [testingGateway, setTestingGateway] = useState(false);
+  const [liveChatModels, setLiveChatModels] = useState<string[]>([]);
+  const [liveImageModels, setLiveImageModels] = useState<string[]>([]);
   const [gatewayTestResult, setGatewayTestResult] = useState<{
     authStatus: string;
     message: string;
@@ -96,23 +98,51 @@ export default function SettingsModal({
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
-    const loadSettings = async () => {
+    const loadSettingsAndModels = async () => {
       try {
         const res = await fetch("/api/settings");
         const data = await res.json();
+        const loaded: RuntimeSettings = {
+          imageModel: "gpt-image-2.6",
+          enableAutoSticker: true,
+          enableAutoPhoto: true,
+          ...(data?.settings || {}),
+        };
         if (active && data.success && data.settings) {
-          setForm({
-            imageModel: "gpt-image-2.6",
-            enableAutoSticker: true,
-            enableAutoPhoto: true,
-            ...data.settings,
+          setForm(loaded);
+        }
+
+        // Auto-fetch live models from configured gateway /v1/models
+        const gwRes = await fetch("/api/settings/test-gateway", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            baseUrl: loaded.llmBaseUrl,
+            apiKey: loaded.llmApiKey,
+            chatModel: loaded.llmModel,
+            imageModel: loaded.imageModel,
+          }),
+        });
+        const gwData = await gwRes.json();
+        if (!active) return;
+        if (Array.isArray(gwData?.chatModels) && gwData.chatModels.length > 0) {
+          setLiveChatModels(gwData.chatModels);
+        }
+        if (Array.isArray(gwData?.imageModels) && gwData.imageModels.length > 0) {
+          setLiveImageModels(gwData.imageModels);
+        }
+        if (gwData?.message) {
+          setGatewayTestResult({
+            authStatus: gwData.authStatus || "error",
+            message: gwData.message,
+            models: gwData.models,
           });
         }
       } catch {
         // Ignore error
       }
     };
-    loadSettings();
+    void loadSettingsAndModels();
     return () => {
       active = false;
     };
@@ -144,7 +174,7 @@ export default function SettingsModal({
     }
   };
 
-  const handleTestGateway = async () => {
+  const handleTestGateway = async (overrideBaseUrl?: string, overrideModel?: string) => {
     setTestingGateway(true);
     setGatewayTestResult(null);
     try {
@@ -152,13 +182,23 @@ export default function SettingsModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          baseUrl: form.llmBaseUrl,
+          baseUrl: overrideBaseUrl || form.llmBaseUrl,
           apiKey: form.llmApiKey,
-          chatModel: form.llmModel,
+          chatModel: overrideModel || form.llmModel,
           imageModel: form.imageModel,
         }),
       });
       const data = await res.json();
+      if (Array.isArray(data?.chatModels) && data.chatModels.length > 0) {
+        setLiveChatModels(data.chatModels);
+      } else if (overrideBaseUrl) {
+        setLiveChatModels([]);
+      }
+      if (Array.isArray(data?.imageModels) && data.imageModels.length > 0) {
+        setLiveImageModels(data.imageModels);
+      } else if (overrideBaseUrl) {
+        setLiveImageModels([]);
+      }
       setGatewayTestResult({
         authStatus: data.authStatus || "error",
         message: data.message || "检测完成",
@@ -200,6 +240,15 @@ export default function SettingsModal({
   const isLocalPreset =
     form.llmProvider === "local_gateway" ||
     form.llmBaseUrl.includes("127.0.0.1:18630");
+
+  const displayedChatModels =
+    liveChatModels.length > 0
+      ? liveChatModels
+      : isLocalPreset
+        ? [...LOCAL_CHAT_MODELS]
+        : [];
+  const displayedImageModels =
+    liveImageModels.length > 0 ? liveImageModels : [...LOCAL_IMAGE_MODELS];
 
   return (
     <div
@@ -243,14 +292,15 @@ export default function SettingsModal({
                   <button
                     key={preset.id}
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       setForm((prev) => ({
                         ...prev,
                         llmProvider: preset.id,
                         llmBaseUrl: preset.baseUrl,
                         llmModel: preset.model,
-                      }))
-                    }
+                      }));
+                      void handleTestGateway(preset.baseUrl, preset.model);
+                    }}
                     className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
                       isSelected
                         ? "border-[#1683FF] bg-[#1683FF]/10 text-[#1683FF]"
@@ -287,21 +337,28 @@ export default function SettingsModal({
             </div>
 
             <div>
-              <label className="block text-[var(--text-secondary)] mb-1">
-                聊天模型 (Chat Model)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[var(--text-secondary)]">
+                  聊天文本模型 (Chat Model)
+                </label>
+                {liveChatModels.length > 0 && (
+                  <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    已实时拉取 {liveChatModels.length} 个模型
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 value={form.llmModel}
                 onChange={(e) =>
                   setForm((prev) => ({ ...prev, llmModel: e.target.value }))
                 }
-                placeholder="gpt-5.6 / auto"
+                placeholder="gpt-5.6 / gpt-6 / auto"
                 className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#1683FF]"
               />
-              {isLocalPreset && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  {LOCAL_CHAT_MODELS.map((m) => (
+              {displayedChatModels.length > 0 && (
+                <div className="mt-2 max-h-24 overflow-y-auto flex flex-wrap items-center gap-1.5 pr-1">
+                  {displayedChatModels.map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -311,7 +368,7 @@ export default function SettingsModal({
                       className={`px-2.5 py-0.5 rounded-full text-[10.5px] border transition-colors cursor-pointer ${
                         form.llmModel === m
                           ? "border-[#1683FF] bg-[#1683FF]/12 text-[#1683FF] font-semibold"
-                          : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                       }`}
                     >
                       {m}
@@ -339,11 +396,11 @@ export default function SettingsModal({
               />
               <button
                 type="button"
-                onClick={handleTestGateway}
+                onClick={() => void handleTestGateway()}
                 disabled={testingGateway}
                 className="px-3.5 py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11.5px] font-semibold text-[var(--text-primary)] shrink-0 cursor-pointer"
               >
-                {testingGateway ? "检测中..." : "测试网关连通"}
+                {testingGateway ? "拉取中..." : "↻ 拉取模型 / 测试连通"}
               </button>
             </div>
 
@@ -358,23 +415,24 @@ export default function SettingsModal({
                 }`}
               >
                 <div>{gatewayTestResult.message}</div>
-                {gatewayTestResult.models &&
-                  gatewayTestResult.models.length > 0 && (
-                    <div className="mt-1 text-[10.5px] opacity-85 truncate">
-                      可用模型：{gatewayTestResult.models.slice(0, 10).join(" · ")}
-                    </div>
-                  )}
               </div>
             )}
           </div>
 
           {/* 2. Image & Sticker Model Settings */}
           <div className="pt-3 border-t border-[var(--border-subtle)] space-y-3">
-            <label className="font-semibold text-[var(--text-primary)] block">
-              2. 🎨 图片与表情包生成模型（Image &amp; Sticker Engine）
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-[var(--text-primary)]">
+                2. 🎨 图片与表情包生成模型（Image &amp; Sticker Engine）
+              </label>
+              {liveImageModels.length > 0 && (
+                <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  已实时拉取 {liveImageModels.length} 个模型
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {LOCAL_IMAGE_MODELS.map((imgModel) => {
+              {displayedImageModels.map((imgModel) => {
                 const active = (form.imageModel || "gpt-image-2.6") === imgModel;
                 return (
                   <button

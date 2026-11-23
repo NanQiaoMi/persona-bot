@@ -2,6 +2,26 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+function classifyGatewayModels(models: string[]): {
+  chatModels: string[];
+  imageModels: string[];
+} {
+  const imageRegex = /image|dall-e|flux|imagen|midjourney/i;
+  const nonChatRegex = /image|dall-e|flux|imagen|midjourney|whisper|tts|embedding|moderation/i;
+
+  const imageModels = models.filter((id) => imageRegex.test(id));
+  const chatModels = models
+    .filter((id) => !nonChatRegex.test(id))
+    .sort((a, b) => {
+      const aReserved = /reserved|alpha/i.test(a) ? 1 : 0;
+      const bReserved = /reserved|alpha/i.test(b) ? 1 : 0;
+      if (aReserved !== bReserved) return aReserved - bReserved;
+      return a.localeCompare(b);
+    });
+
+  return { chatModels, imageModels };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -29,15 +49,18 @@ export async function POST(request: Request) {
               .map((m) => m.id)
               .filter((id): id is string => Boolean(id))
           : [];
+        const { chatModels, imageModels } = classifyGatewayModels(models);
         return NextResponse.json({
           success: true,
           reachable: true,
           authStatus: 'ok',
           statusCode: modelsRes.status,
           models,
+          chatModels,
+          imageModels,
           message:
             models.length > 0
-              ? `✓ 本地网关已连通，检测到 ${models.length} 个可用模型`
+              ? `✓ 本地网关已连通，拉取到 ${chatModels.length} 个对话模型与 ${imageModels.length} 个生图模型`
               : '✓ 本地网关已连通，认证状态正常',
         });
       }
