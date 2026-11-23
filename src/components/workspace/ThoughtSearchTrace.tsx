@@ -40,56 +40,50 @@ export default function ThoughtSearchTrace({
 
   let summaryText = "";
   if (isSearching) {
-    summaryText = `正在实时检索「${searchQuery || "全网动态"}」...`;
+    summaryText = `正在检索「${searchQuery || "全网动态"}」...`;
   } else if (isStreamingThought) {
-    summaryText = "正在深度推演情绪与潜台词...";
+    summaryText = "正在思考潜台词...";
   } else if (hasThought && hasSearch) {
     summaryText = `思考了 ${secondsLabel} · 查阅了 ${sourceCount} 个来源`;
   } else if (hasThought) {
     summaryText = `思考了 ${secondsLabel}`;
   } else {
-    summaryText = `已查阅 ${sourceCount} 个实时来源`;
+    summaryText = `已查阅 ${sourceCount} 个来源`;
   }
 
   return (
-    <div className="mb-3 max-w-2xl">
-      {/* Compact Grok Pill Trigger */}
+    <div className="mb-2 max-w-2xl">
       <button
         type="button"
         onClick={() => {
           setUserToggled(true);
           setExpanded(!isOpen);
         }}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-[var(--border-strong)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
       >
         <span
-          className={`inline-flex items-center justify-center w-3.5 h-3.5 text-[11px] ${
-            isLive ? "animate-orbit-spin text-zinc-100" : "text-[var(--text-muted)]"
+          className={`inline-flex items-center justify-center w-3 h-3 text-[10px] ${
+            isLive ? "animate-orbit-spin text-[#18a999]" : "text-[var(--text-muted)]"
           }`}
         >
           ✦
         </span>
-        <span className="font-medium tracking-tight">{summaryText}</span>
-        <span className="text-[10px] text-[var(--text-muted)] ml-0.5">
+        <span className="font-medium">{summaryText}</span>
+        <span className="text-[9px] text-[var(--text-muted)]">
           {isOpen ? "▲" : "▼"}
         </span>
       </button>
 
-      {/* Expandable Vertical Timeline */}
       {isOpen && (
-        <div className="mt-2.5 ml-2 pl-4 border-l border-[var(--border-strong)] space-y-3 animate-fade-in">
+        <div className="mt-2 ml-2 pl-3.5 border-l-2 border-[var(--border-subtle)] space-y-2.5 animate-fade-in">
           {hasSearch && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                <span>
-                  DeepSearch 关键词：
-                  <span className="text-[var(--text-primary)] font-medium ml-1">
-                    {searchQuery || "实时话题"}
-                  </span>
+            <div className="space-y-1.5">
+              <div className="text-[11px] text-[var(--text-secondary)]">
+                🌐 DeepSearch 检索词：
+                <span className="font-medium text-[var(--text-primary)]">
+                  {searchQuery || "实时动态"}
                 </span>
               </div>
-
               {searchResults && searchResults.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {searchResults.map((item, idx) => (
@@ -99,9 +93,9 @@ export default function ThoughtSearchTrace({
                       target="_blank"
                       rel="noreferrer"
                       title={item.snippet}
-                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-tertiary)]/80 hover:bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all max-w-[260px]"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all max-w-[260px]"
                     >
-                      <span className="text-[10px] font-mono px-1 rounded bg-white/10 text-[var(--text-primary)]">
+                      <span className="text-[10px] font-mono px-1 rounded bg-black/5 dark:bg-white/10 text-[var(--text-primary)]">
                         {idx + 1}
                       </span>
                       <span className="truncate">{item.title}</span>
@@ -113,14 +107,9 @@ export default function ThoughtSearchTrace({
           )}
 
           {hasThought && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full bg-purple-400 ${
-                    isStreamingThought ? "animate-pulse-dot" : ""
-                  }`}
-                />
-                <span>内心潜台词 (Inner OS)</span>
+            <div className="space-y-0.5">
+              <div className="text-[11px] text-[var(--text-muted)]">
+                💭 内心潜台词 (Inner OS)
               </div>
               <p className="text-xs text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
                 {thought || "正在组织潜台词..."}

@@ -80,6 +80,24 @@ export interface MediaCard {
   mood?: string;
 }
 
+export interface PageCardMetric {
+  value: string;
+  label: string;
+  detail: string;
+  tone?: 'neutral' | 'amber' | 'teal' | 'rose';
+}
+
+export interface PageArtifactCardData {
+  id: string;
+  title: string;
+  subtitle: string;
+  metrics: PageCardMetric[];
+  statusNotice: string;
+  footerLabel: string;
+  fullContent?: string;
+  sources?: SearchResultItem[];
+}
+
 export interface ConversationMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -89,6 +107,7 @@ export interface ConversationMessage {
   thoughtDurationMs?: number;
   searchQuery?: string;
   searchResults?: SearchResultItem[];
+  pageCard?: PageArtifactCardData;
   mode?: PersonaMode;
   mood?: string;
   intimacyChange?: number;

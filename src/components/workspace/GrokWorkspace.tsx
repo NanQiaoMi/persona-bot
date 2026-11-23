@@ -37,7 +37,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   const [streaming, setStreaming] = useState<{
     isSearching: boolean;
@@ -98,7 +98,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     };
   }, [activeSlug, loadPersonaList, loadActivePersonaDetail]);
 
-  // Global ⌘K / Ctrl+K shortcut for Command Palette
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -381,21 +380,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      {/* Collapsible Left Navigation */}
       {sidebarOpen && (
         <LeftSidebar
           personas={personas}
           activeSlug={activeSlug}
           onSelectPersona={(slug) => setActiveSlug(slug)}
-          onOpenImport={() => setShowImport(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenCommandPalette={() => setShowCommandPalette(true)}
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onCollapse={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Center Grok Stream Stage */}
       <ChatStage
         persona={activePersona}
         messages={messages}
@@ -417,10 +414,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onToggleInspector={() => setShowInspector((v) => !v)}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        onOpenCommandPalette={() => setShowCommandPalette(true)}
+        onOpenImport={() => setShowImport(true)}
       />
 
-      {/* Right Persona Soul & PAD Emotion Drawer (Closed by Default) */}
       {showInspector && (
         <RightInspector
           persona={activePersona}
@@ -431,7 +427,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         />
       )}
 
-      {/* Modals & ⌘K Command Palette */}
       <CommandPalette
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}

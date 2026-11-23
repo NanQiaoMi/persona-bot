@@ -10,6 +10,7 @@ import { storageRepo } from '@/lib/storage/repository';
 import {
   ConversationMessage,
   MediaCard,
+  PageArtifactCardData,
   PersonaEmotionSnapshot,
   PersonaMode,
   PersonaRecord,
@@ -283,6 +284,98 @@ export function synthesizePersonaAwareFallback(
   }
 
   return `<thought>${thought}</thought>\n[MOOD: ${mood}]\n${bursts.join(' [BURST] ')}${mediaTag}`;
+}
+
+/**
+ * 在 DeepSearch 检索或结构化清单/汇总/档案场景下，自动生成可交互的 Grok Bot「页面」卡片
+ */
+function buildPageCardIfRelevant(
+  persona: PersonaRecord,
+  userMessage: string,
+  searchResp: DeepSearchResponse | null,
+  cleanReply: string,
+  mode: PersonaMode
+): PageArtifactCardData | undefined {
+  const isStructuredIntent =
+    Boolean(searchResp && searchResp.results.length > 0) ||
+    /清单|汇总|总结|对比|机会|计划|分析|档案|报告|热搜|攻略|盘点/.test(userMessage);
+
+  if (!isStructuredIntent) return undefined;
+
+  const queryTitle = searchResp?.query
+    ? `${searchResp.query} · 实时情报清单`
+    : `${persona.name} 的结构化整理页面`;
+
+  const sourceCount = searchResp?.results.length || 0;
+  const nowStr = new Date().toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const firstSource = searchResp?.results[0];
+  const secondSource = searchResp?.results[1];
+
+  return {
+    id: `page_${Date.now()}`,
+    title: queryTitle,
+    subtitle: firstSource
+      ? `${firstSource.snippet.slice(0, 110)}（由 ${persona.name} 结合实时信息与人设视角整理，点击底部可展开完整档案）`
+      : `基于当前对话上下文由 ${persona.name} 为你整理的可续查结构化页面，支持展开阅读全文与来源核验。`,
+    metrics: [
+      {
+        value: sourceCount > 0 ? `${sourceCount}` : `${cleanReply.length}`,
+        label: sourceCount > 0 ? '实时来源' : '正文字符',
+        detail: firstSource
+          ? `主信源：${firstSource.source}`
+          : `人格尺度：${getPersonaModeSpec(mode).shortLabel}`,
+        tone: 'neutral',
+      },
+      {
+        value: `${persona.intimacy}%`,
+        label: '当前亲密度',
+        detail: `心情：${persona.emotionState.moodLabel || persona.emotionState.primary}`,
+        tone: 'teal',
+      },
+      {
+        value: searchResp ? searchResp.provider.toUpperCase() : persona.profile.mbti || 'GROK',
+        label: searchResp ? '检索引擎' : '人格基底',
+        detail: secondSource
+          ? `交叉参考：${secondSource.title.slice(0, 22)}`
+          : '支持上下文实时续写更新',
+        tone: 'amber',
+      },
+      {
+        value: 'LIVE',
+        label: '实时状态',
+        detail: `更新于 ${nowStr} (Asia/Shanghai)`,
+        tone: 'rose',
+      },
+    ],
+    statusNotice: searchResp
+      ? `阶段: deepsearch-${searchResp.provider} · 已抓取 ${sourceCount} 条公开网页摘要并注入角色记忆 (${nowStr})`
+      : `阶段: persona-synthesis · 已按 ${persona.name} 五层人格与当前对话上下文生成页面 (${nowStr})`,
+    footerLabel: '页面',
+    fullContent: [
+      `# ${queryTitle}`,
+      '',
+      `> 生成角色：${persona.name} (${persona.profile.mbti || 'Persona'}) · 模式：${getPersonaModeSpec(mode).label}`,
+      '',
+      '## 核心整理内容',
+      cleanReply,
+      '',
+      ...(searchResp && searchResp.results.length > 0
+        ? [
+            '## DeepSearch 实时参考来源',
+            ...searchResp.results.map(
+              (r, i) => `${i + 1}. **${r.title}** (${r.source})\n   ${r.snippet}${r.url ? `\n   链接：${r.url}` : ''}`
+            ),
+          ]
+        : []),
+    ].join('\n'),
+    sources: searchResp?.results,
+  };
 }
 
 /**
@@ -658,6 +751,14 @@ export async function executeGrokChatTurn(
     });
   }
 
+  const pageCard = buildPageCardIfRelevant(
+    persona,
+    lastUserText,
+    searchResp,
+    parsed.cleanReply,
+    activeMode
+  );
+
   const assistantMessage: ConversationMessage = {
     id: `msg_${Date.now()}_ai`,
     role: 'assistant',
@@ -667,6 +768,7 @@ export async function executeGrokChatTurn(
     thoughtDurationMs: thinkEnabled ? thoughtDurationMs : undefined,
     searchQuery: searchResp?.query,
     searchResults: searchResp?.results,
+    pageCard,
     mode: activeMode,
     mood: updatedEmotion.moodLabel,
     intimacyChange: intimacyDelta,
