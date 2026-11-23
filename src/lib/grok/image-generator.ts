@@ -118,7 +118,7 @@ export async function generatePersonaMedia(
         n: 1,
         size: '1024x1024',
       }),
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(120000),
     });
 
     if (res.status === 401 || res.status === 403) {

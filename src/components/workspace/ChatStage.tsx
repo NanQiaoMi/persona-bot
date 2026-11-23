@@ -24,6 +24,7 @@ interface StreamingState {
   thoughtDurationMs?: number;
   isStreamingThought: boolean;
   reply: string;
+  bursts?: string[];
   mediaCards?: MediaCard[];
 }
 
@@ -83,11 +84,19 @@ function renderInlineMarkdown(text: string) {
   });
 }
 
-function GrokMessageBody({ content }: { content: string }) {
-  const blocks = content.split(/(```[\s\S]*?```)/g);
+function GrokMessageBody({
+  content,
+  showCursor = false,
+}: {
+  content: string;
+  showCursor?: boolean;
+}) {
+  const normalized = content.replace(/\n{3,}/g, "\n\n").trim();
+  const blocks = normalized.split(/(```[\s\S]*?```)/g).filter(Boolean);
   return (
-    <div className="space-y-2 text-[14px] leading-[1.68] text-[var(--text-primary)]">
+    <div className="space-y-1.5 text-[14px] leading-[1.6] text-[var(--text-primary)]">
       {blocks.map((block, bIdx) => {
+        const isLast = bIdx === blocks.length - 1;
         if (block.startsWith("```") && block.endsWith("```")) {
           const inner = block.slice(3, -3).replace(/^[a-zA-Z]+\n/, "");
           return (
@@ -102,6 +111,7 @@ function GrokMessageBody({ content }: { content: string }) {
         return (
           <p key={bIdx} className="whitespace-pre-wrap break-words">
             {renderInlineMarkdown(block)}
+            {showCursor && isLast && <span className="grok-cursor" />}
           </p>
         );
       })}
@@ -626,10 +636,15 @@ export default function ChatStage({
                       searchResults={msg.searchResults}
                     />
 
-                    {/* Soft Gray Rounded Grok Bot Reply Card */}
-                    <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 space-y-2.5">
+                    {/* Multi-Bubble IM Style Grok Bot Reply Stack */}
+                    <div className="flex flex-col items-start gap-1.5 w-full">
                       {bursts.map((burstText, bIdx) => (
-                        <GrokMessageBody key={bIdx} content={burstText} />
+                        <div
+                          key={bIdx}
+                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                        >
+                          <GrokMessageBody content={burstText} />
+                        </div>
                       ))}
                     </div>
 
@@ -641,28 +656,52 @@ export default function ChatStage({
                       <div className="mt-2.5 space-y-2.5 w-full max-w-md">
                         {msg.mediaCards.map((card, cIdx) => {
                           if (card.type === "sticker") {
-                            return card.imageUrl ? (
-                              <button
-                                key={cIdx}
-                                type="button"
-                                onClick={() =>
-                                  setLightboxMedia({
-                                    url: card.imageUrl!,
-                                    caption: card.caption,
-                                    kind: "sticker",
-                                  })
-                                }
-                                title={card.caption}
-                                className="group/sticker inline-block rounded-2xl overflow-hidden bg-[var(--bg-composer)] border border-[var(--border-subtle)] p-1.5 shadow-sm hover:scale-[1.03] transition-transform cursor-pointer"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={card.imageUrl}
-                                  alt={card.caption}
-                                  className="w-36 h-36 rounded-xl object-contain"
-                                />
-                              </button>
-                            ) : (
+                            if (card.imageUrl) {
+                              return (
+                                <button
+                                  key={cIdx}
+                                  type="button"
+                                  onClick={() =>
+                                    setLightboxMedia({
+                                      url: card.imageUrl!,
+                                      caption: card.caption,
+                                      kind: "sticker",
+                                    })
+                                  }
+                                  title={card.caption}
+                                  className="group/sticker inline-block rounded-2xl overflow-hidden bg-[var(--bg-composer)] border border-[var(--border-subtle)] p-1.5 shadow-sm hover:scale-[1.03] transition-transform cursor-pointer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={card.imageUrl}
+                                    alt={card.caption}
+                                    className="w-36 h-36 rounded-xl object-contain"
+                                  />
+                                </button>
+                              );
+                            }
+
+                            if (card.status === "generating") {
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className="w-40 h-36 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex flex-col items-center justify-center gap-2 p-3 text-center animate-fade-in"
+                                >
+                                  <BlobMascot
+                                    shape={mascotCfg.shape}
+                                    color={mascotCfg.color}
+                                    size={30}
+                                    trackPointer={false}
+                                    state="working"
+                                  />
+                                  <span className="text-[11px] font-medium animate-text-shimmer">
+                                    正在绘制表情包...
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return (
                               <div
                                 key={cIdx}
                                 className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-xs"
@@ -686,7 +725,7 @@ export default function ChatStage({
                                 key={cIdx}
                                 className="rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card overflow-hidden"
                               >
-                                {card.imageUrl && (
+                                {card.imageUrl ? (
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -705,7 +744,20 @@ export default function ChatStage({
                                       className="w-full max-h-72 object-cover hover:scale-[1.02] transition-transform"
                                     />
                                   </button>
-                                )}
+                                ) : card.status === "generating" ? (
+                                  <div className="h-44 w-full bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-2.5 animate-fade-in">
+                                    <BlobMascot
+                                      shape={mascotCfg.shape}
+                                      color={mascotCfg.color}
+                                      size={34}
+                                      trackPointer={false}
+                                      state="working"
+                                    />
+                                    <span className="text-xs font-medium animate-text-shimmer">
+                                      正在使用 {card.model || "gpt-image-2.6"} 生成实拍图...
+                                    </span>
+                                  </div>
+                                ) : null}
                                 <div className="p-3.5 space-y-1">
                                   <div className="flex items-center justify-between text-[11px]">
                                     <span className="font-semibold text-[var(--text-primary)]">
@@ -762,6 +814,11 @@ export default function ChatStage({
                     {/* Subtle Hover Action Row */}
                     <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity">
                       {msg.mood && <span>{msg.mood}</span>}
+                      {msg.modelUsed && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-mono">
+                          {msg.modelUsed}
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => copyMessage(msg.id, msg.content)}
@@ -870,13 +927,21 @@ export default function ChatStage({
                     searchResults={streaming.searchResults}
                   />
                   {streaming.reply ? (
-                    <div className="space-y-2.5">
-                      <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 text-[14px] leading-[1.68] text-[var(--text-primary)]">
-                        <span className="whitespace-pre-wrap break-words">
-                          {streaming.reply}
-                        </span>
-                        <span className="grok-cursor" />
-                      </div>
+                    <div className="flex flex-col items-start gap-1.5 w-full">
+                      {(streaming.bursts && streaming.bursts.length > 0
+                        ? streaming.bursts
+                        : [streaming.reply]
+                      ).map((bText, bIdx, arr) => (
+                        <div
+                          key={bIdx}
+                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                        >
+                          <GrokMessageBody
+                            content={bText}
+                            showCursor={bIdx === arr.length - 1}
+                          />
+                        </div>
+                      ))}
                       {streaming.statusText && (
                         <div className="py-1 flex items-center gap-2.5">
                           <BlobMascot
@@ -890,22 +955,6 @@ export default function ChatStage({
                           <span className="text-[12.5px] font-medium animate-text-shimmer">
                             {streaming.statusText}
                           </span>
-                        </div>
-                      )}
-                      {streaming.mediaCards && streaming.mediaCards.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {streaming.mediaCards.map(
-                            (mc, mIdx) =>
-                              mc.imageUrl && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  key={mIdx}
-                                  src={mc.imageUrl}
-                                  alt={mc.caption}
-                                  className="w-36 h-36 rounded-2xl object-cover border border-[var(--border-subtle)]"
-                                />
-                              )
-                          )}
                         </div>
                       )}
                     </div>

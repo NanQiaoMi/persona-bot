@@ -5,7 +5,6 @@ import {
   shouldAutoTriggerSearch,
 } from '@/lib/grok/deep-search';
 import {
-  generatePersonaMedia,
   isLocalGatewayUrl,
   LOCAL_GATEWAY_BASE_URL,
 } from '@/lib/grok/image-generator';
@@ -140,12 +139,9 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   }
   working = working.replace(voiceRegex, '').trim();
 
-  const bursts = working
-    .split(/\[BURST\]/i)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const bursts = splitLiveBursts(working);
 
-  const cleanReply = bursts.join('\n');
+  const cleanReply = bursts.join('\n\n');
 
   return {
     thought,
@@ -157,18 +153,40 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
 }
 
 /**
- * 去除流式中间态里的控制标记，让前端展示干净流畅的正文
+ * 去除流式中间态里的完整/半截控制标记，并规范化多余空行，避免前端输出闪烁或空行过多
  */
 function stripLiveControlTags(text: string): string {
   return text
     .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
     .replace(/<thought>[\s\S]*/gi, '')
-    .replace(/\[MOOD:\s*[^\]]*\]?/gi, '')
-    .replace(/\[PHOTO:\s*[^\]]*\]?/gi, '')
-    .replace(/\[STICKER:\s*[^\]]*\]?/gi, '')
-    .replace(/\[VOICE:\s*[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE):[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST)[^\]]*$/i, '')
     .replace(/\[BURST\]/gi, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * 将流式或完整文本按 [BURST] 拆分为干净的多气泡数组，清理内部多余空行
+ */
+export function splitLiveBursts(rawText: string): string[] {
+  const withoutTags = rawText
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+    .replace(/<thought>[\s\S]*/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE):[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST)[^\]]*$/i, '');
+
+  return withoutTags
+    .split(/\[BURST\]/gi)
+    .map((segment) =>
+      segment
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    )
+    .filter(Boolean);
 }
 
 /**
@@ -419,6 +437,7 @@ async function streamFromUpstreamLLM(
     fullThought: string;
     replyDelta?: string;
     fullReply: string;
+    liveBursts?: string[];
     thoughtDurationMs: number;
   }) => void
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
@@ -444,7 +463,7 @@ async function streamFromUpstreamLLM(
       ],
       temperature,
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!res.ok || !res.body) {
@@ -462,11 +481,13 @@ async function streamFromUpstreamLLM(
         ? messageObj.reasoning_content
         : '';
     const cleanVisible = stripLiveControlTags(rawContent);
+    const liveBursts = splitLiveBursts(rawContent);
     if (reasoningContent && thinkEnabled) {
       onDelta({
         thoughtDelta: reasoningContent,
         fullThought: reasoningContent,
         fullReply: '',
+        liveBursts: [],
         thoughtDurationMs: 600,
       });
     }
@@ -475,6 +496,7 @@ async function streamFromUpstreamLLM(
         fullThought: reasoningContent,
         replyDelta: cleanVisible,
         fullReply: cleanVisible,
+        liveBursts: liveBursts.length > 0 ? liveBursts : [cleanVisible],
         thoughtDurationMs: 600,
       });
     }
@@ -554,6 +576,7 @@ async function streamFromUpstreamLLM(
           }
 
           const cleanVisible = stripLiveControlTags(rawContent);
+          const liveBursts = splitLiveBursts(rawContent);
           if (cleanVisible.length > lastEmittedReply.length) {
             if (!thoughtEnd) thoughtEnd = Date.now();
             const rDelta = cleanVisible.slice(lastEmittedReply.length);
@@ -562,6 +585,7 @@ async function streamFromUpstreamLLM(
               fullThought: lastEmittedThought,
               replyDelta: rDelta,
               fullReply: cleanVisible,
+              liveBursts: liveBursts.length > 0 ? liveBursts : [cleanVisible],
               thoughtDurationMs: Math.max(200, thoughtEnd - thoughtStart),
             });
           }
@@ -708,7 +732,7 @@ export async function executeGrokChatTurn(
         req.messages,
         temperature,
         thinkEnabled,
-        ({ thoughtDelta, fullThought, replyDelta, fullReply, thoughtDurationMs: dMs }) => {
+        ({ thoughtDelta, fullThought, replyDelta, fullReply, liveBursts, thoughtDurationMs: dMs }) => {
           if (thoughtDelta && thinkEnabled) {
             onEvent?.({
               type: 'thought',
@@ -722,7 +746,10 @@ export async function executeGrokChatTurn(
               type: 'reply',
               delta: replyDelta,
               fullReply,
-              bursts: fullReply.split('\n').filter(Boolean),
+              bursts:
+                liveBursts && liveBursts.length > 0
+                  ? liveBursts
+                  : fullReply.split('\n\n').filter(Boolean),
               mediaCards: [],
               isDemoMode: false,
             });
@@ -864,43 +891,17 @@ export async function executeGrokChatTurn(
     activeMode
   );
 
-  // Async visual generation via /images/generations (sticker or photo, max 1 per turn)
+  // Mark first visual media card as 'generating' when upstream gateway is reachable;
+  // frontend triggers non-blocking /api/media/generate immediately after text reply lands
   const firstVisualIdx = parsed.mediaCards.findIndex(
     (c) => (c.type === 'sticker' || c.type === 'photo') && !c.imageUrl
   );
   if (firstVisualIdx !== -1 && canCallUpstream) {
-    const targetCard = parsed.mediaCards[firstVisualIdx];
-    const kind = targetCard.type === 'sticker' ? 'sticker' : 'photo';
-    onEvent?.({
-      type: 'status',
-      text:
-        kind === 'sticker'
-          ? `正在使用 ${imageModel} 绘制专属表情包...`
-          : `正在使用 ${imageModel} 生成情境图片...`,
-    });
-
-    const mediaRes = await generatePersonaMedia({
-      kind,
-      caption: targetCard.caption,
-      personaName: persona.name,
-      personaStyle: persona.profile.personalityTags?.slice(0, 3).join(', '),
-      baseUrl,
-      apiKey,
-      imageModel,
-    });
-
     parsed.mediaCards[firstVisualIdx] = {
-      ...targetCard,
-      imageUrl: mediaRes.imageUrl,
-      model: mediaRes.model,
-      prompt: mediaRes.prompt,
-      errorHint: mediaRes.errorHint,
+      ...parsed.mediaCards[firstVisualIdx],
+      status: 'generating',
+      model: imageModel,
     };
-
-    onEvent?.({
-      type: 'media',
-      mediaCards: parsed.mediaCards,
-    });
   }
 
   const assistantMessage: ConversationMessage = {
@@ -918,6 +919,7 @@ export async function executeGrokChatTurn(
     intimacyChange: intimacyDelta,
     mediaCards: parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
     bursts: parsed.bursts,
+    modelUsed: isDemoMode ? '离线演示' : model,
     isDemoMode,
   };
 

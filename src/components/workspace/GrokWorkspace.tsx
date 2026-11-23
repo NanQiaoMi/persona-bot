@@ -53,6 +53,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     thoughtDurationMs?: number;
     isStreamingThought: boolean;
     reply: string;
+    bursts?: string[];
     mediaCards?: MediaCard[];
   } | null>(null);
 
@@ -150,6 +151,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
       reply: "",
+      bursts: [],
       mediaCards: [],
     });
 
@@ -258,6 +260,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       isSearching: false,
                       isStreamingThought: false,
                       reply: payload.fullReply,
+                      bursts: Array.isArray(payload.bursts)
+                        ? payload.bursts
+                        : prev.bursts,
                     }
                   : prev
               );
@@ -272,6 +277,61 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
       if (finalMessage) {
         setMessages((prev) => [...prev, finalMessage!]);
+
+        // Trigger non-blocking background image/sticker generation for any pending cards
+        const pendingCards = finalMessage.mediaCards || [];
+        pendingCards.forEach((card, cardIndex) => {
+          if (
+            (card.type === "sticker" || card.type === "photo") &&
+            card.status === "generating"
+          ) {
+            const targetMessageId = finalMessage!.id;
+            const targetSlug = activeSlug;
+            void fetch("/api/media/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                slug: targetSlug,
+                messageId: targetMessageId,
+                cardIndex,
+                kind: card.type,
+                caption: card.caption,
+              }),
+            })
+              .then((r) => r.json())
+              .then((resData) => {
+                if (resData?.success && resData.card) {
+                  setMessages((prevMsgs) =>
+                    prevMsgs.map((m) => {
+                      if (m.id !== targetMessageId) return m;
+                      const updated = [...(m.mediaCards || [])];
+                      updated[cardIndex] = {
+                        ...updated[cardIndex],
+                        ...resData.card,
+                      };
+                      return { ...m, mediaCards: updated };
+                    })
+                  );
+                }
+              })
+              .catch(() => {
+                setMessages((prevMsgs) =>
+                  prevMsgs.map((m) => {
+                    if (m.id !== targetMessageId) return m;
+                    const updated = [...(m.mediaCards || [])];
+                    if (updated[cardIndex]) {
+                      updated[cardIndex] = {
+                        ...updated[cardIndex],
+                        status: "error",
+                        errorHint: "图片生成超时，已保留描述卡片",
+                      };
+                    }
+                    return { ...m, mediaCards: updated };
+                  })
+                );
+              });
+          }
+        });
       }
       await loadPersonaList();
     } catch (error) {

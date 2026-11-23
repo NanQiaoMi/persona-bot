@@ -90,6 +90,7 @@ export interface SearchResultItem {
 export interface MediaCard {
   type: 'photo' | 'sticker' | 'voice';
   caption: string;
+  status?: 'generating' | 'ready' | 'error';
   imageUrl?: string;
   prompt?: string;
   model?: string;
@@ -140,6 +141,7 @@ export interface ConversationMessage {
   imageUrl?: string;
   mediaCards?: MediaCard[];
   bursts?: string[];
+  modelUsed?: string;
   isDemoMode?: boolean;
 }
 

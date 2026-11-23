@@ -9,6 +9,7 @@ import {
 import { generateProactiveGreeting, getTimePeriodInfo } from '@/lib/grok/proactive-engine';
 import {
   parseStructuredModelOutput,
+  splitLiveBursts,
   synthesizePersonaAwareFallback,
 } from '@/lib/grok/stream-orchestrator';
 import {
@@ -192,5 +193,9 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     });
     expect(offlineRes.imageUrl).toBeUndefined();
     expect(offlineRes.errorHint).toBeTruthy();
+
+    const rawStream = `<thought>内部思考</thought>\n[MOOD: 开心]\n\n\n第一句气泡\n\n\n\n[BURST]\n\n第二句气泡\n[STICKER: 得意`;
+    const bursts = splitLiveBursts(rawStream);
+    expect(bursts).toEqual(['第一句气泡', '第二句气泡']);
   });
 });
