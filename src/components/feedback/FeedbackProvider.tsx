@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button, IconButton, Modal } from "@/components/primitives";
 
 /**
  * 全局反馈层：轻提示 (Toast) + 确认弹窗 (Confirm)。
@@ -48,10 +49,10 @@ interface FeedbackContextValue {
 const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 
 const TONE_STYLES: Record<ToastTone, { dot: string; ring: string }> = {
-  success: { dot: "bg-[var(--color-success)]", ring: "ring-[var(--color-success)]/20" },
-  info: { dot: "bg-[var(--color-info)]", ring: "ring-[var(--color-info)]/20" },
-  warning: { dot: "bg-[var(--color-warning)]", ring: "ring-[var(--color-warning)]/25" },
-  error: { dot: "bg-[var(--color-danger)]", ring: "ring-[var(--color-danger)]/25" },
+  success: { dot: "bg-success", ring: "ring-[var(--sem-success)]/20" },
+  info: { dot: "bg-info", ring: "ring-[var(--sem-info)]/20" },
+  warning: { dot: "bg-warning", ring: "ring-[var(--sem-warning)]/25" },
+  error: { dot: "bg-danger", ring: "ring-[var(--sem-danger)]/25" },
 };
 
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
@@ -106,16 +107,6 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (!confirmState) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeConfirm(false);
-      if (e.key === "Enter") closeConfirm(true);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [confirmState, closeConfirm]);
-
-  useEffect(() => {
     const map = timers.current;
     return () => map.forEach((t) => clearTimeout(t));
   }, []);
@@ -137,88 +128,69 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
             <div
               key={t.id}
               role={t.tone === "error" ? "alert" : "status"}
-              className={`pointer-events-auto flex items-start gap-2.5 rounded-[16px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl px-3.5 py-3 shadow-[var(--shadow-overlay)] ring-4 ${tone.ring} ${
+              className={`pointer-events-auto flex items-start gap-2.5 rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl px-3.5 py-3 shadow-overlay ring-4 ${tone.ring} ${
                 t.leaving ? "animate-toast-out" : "animate-toast-in"
               }`}
             >
               <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium text-[var(--text-primary)]">{t.title}</div>
+                <div className="text-[13px] font-medium text-primary">{t.title}</div>
                 {t.description && (
-                  <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                  <div className="mt-0.5 text-[12px] leading-relaxed text-secondary">
                     {t.description}
                   </div>
                 )}
               </div>
               {t.action && (
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => {
                     t.action?.onClick();
                     dismiss(t.id);
                   }}
-                  className="shrink-0 rounded-full bg-[var(--bg-secondary)] px-2.5 py-1 text-[12px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer"
                 >
                   {t.action.label}
-                </button>
+                </Button>
               )}
-              <button
-                type="button"
-                aria-label="关闭提示"
+              <IconButton
+                label="关闭提示"
+                size={32}
                 onClick={() => dismiss(t.id)}
-                className="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer text-xs leading-5"
+                className="!w-6 !h-6 text-[12px]"
               >
                 ✕
-              </button>
+              </IconButton>
             </div>
           );
         })}
       </div>
 
-      {confirmState && (
-        <div
-          className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-[2px] animate-fade-in"
-          onClick={() => closeConfirm(false)}
-        >
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="confirm-title"
-            onClick={(e) => e.stopPropagation()}
-            className="w-full sm:w-[380px] rounded-t-[24px] sm:rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl p-5 shadow-[var(--shadow-overlay)] animate-popover-in"
+      <Modal
+        isOpen={Boolean(confirmState)}
+        onClose={() => closeConfirm(false)}
+        role="alertdialog"
+        size="sm"
+        hideCloseButton
+        zIndexClass="z-[110]"
+        title={confirmState?.title}
+        description={confirmState?.description}
+        bodyClassName="px-5 py-4"
+      >
+        <div className="flex gap-2 justify-end">
+          <Button variant="ghost" size="md" onClick={() => closeConfirm(false)}>
+            {confirmState?.cancelLabel ?? "取消"}
+          </Button>
+          <Button
+            variant={confirmState?.danger ? "danger" : "primary"}
+            size="md"
+            autoFocus
+            onClick={() => closeConfirm(true)}
           >
-            <div id="confirm-title" className="text-[15px] font-semibold text-[var(--text-primary)]">
-              {confirmState.title}
-            </div>
-            {confirmState.description && (
-              <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--text-secondary)]">
-                {confirmState.description}
-              </p>
-            )}
-            <div className="mt-5 flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => closeConfirm(false)}
-                className="rounded-full px-4 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] cursor-pointer"
-              >
-                {confirmState.cancelLabel ?? "取消"}
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => closeConfirm(true)}
-                className={`rounded-full px-4 py-2 text-[13px] font-medium text-white cursor-pointer ${
-                  confirmState.danger
-                    ? "bg-[var(--color-danger)] hover:brightness-95"
-                    : "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90"
-                }`}
-              >
-                {confirmState.confirmLabel ?? "确定"}
-              </button>
-            </div>
-          </div>
+            {confirmState?.confirmLabel ?? "确定"}
+          </Button>
         </div>
-      )}
+      </Modal>
     </FeedbackContext.Provider>
   );
 }

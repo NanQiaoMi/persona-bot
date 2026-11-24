@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Button, Modal } from "@/components/primitives";
 import { PersonaRecord } from "@/lib/storage/types";
 import BlobMascot, {
   getMascotConfigForPersona,
@@ -8,6 +9,7 @@ import BlobMascot, {
   MASCOT_SHAPES,
   MascotShapeId,
 } from "./BlobMascot";
+import { BLUE_MASCOT_COLOR } from "./mascot-palette";
 
 interface AvatarPickerModalProps {
   isOpen: boolean;
@@ -24,7 +26,7 @@ export default function AvatarPickerModal({
 }: AvatarPickerModalProps) {
   const initial = persona
     ? getMascotConfigForPersona(persona.slug, persona.profile)
-    : { shape: "hexagon" as MascotShapeId, color: "#1683FF", image: undefined };
+    : { shape: "hexagon" as MascotShapeId, color: BLUE_MASCOT_COLOR, image: undefined };
 
   const [tab, setTab] = useState<"bot" | "upload">("bot");
   const [shape, setShape] = useState<MascotShapeId>(initial.shape);
@@ -35,7 +37,7 @@ export default function AvatarPickerModal({
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen || !persona) return null;
+  if (!persona) return null;
 
   const handleRandomize = () => {
     const nextShape =
@@ -83,219 +85,210 @@ export default function AvatarPickerModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-xs animate-fade-in"
-      onClick={onClose}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="sm"
+      title={`定制 ${persona.name} 形象`}
+      description="移动鼠标看看角色眼神变化"
+      bodyClassName="p-0"
     >
-      <div
-        className="w-full max-w-[390px] flex flex-col items-center gap-5 animate-msg-spring"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Top Live Preview Mascot (Tracks Pointer in Real Time) */}
-        <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center">
+        {/* Top Live Preview Mascot */}
+        <div className="py-4 flex flex-col items-center gap-1.5 bg-surface-raised/60 w-full border-b border-[var(--border-subtle)]">
           <BlobMascot
             shape={shape}
             color={color}
             image={tab === "upload" ? customImage : undefined}
-            size={88}
+            size={84}
             trackPointer
           />
-          <span className="text-xs font-medium text-white/90 drop-shadow">
-            移动鼠标看看 {persona.name} 的眼神变化
-          </span>
         </div>
 
-        {/* Clean White Grok Bot Picker Card */}
-        <div className="w-full rounded-[28px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card overflow-hidden">
-          {/* Card Header Tabs: Bot / 随机 / 上传  ---  重置 */}
-          <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between text-[13px]">
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setTab("bot")}
-                className={`px-3 py-1 rounded-full font-medium transition-colors ${
-                  tab === "bot"
-                    ? "bg-[var(--bg-secondary)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                Bot
-              </button>
-              <button
-                type="button"
-                onClick={handleRandomize}
-                className="px-3 py-1 rounded-full font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
-              >
-                随机
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("upload")}
-                className={`px-3 py-1 rounded-full font-medium transition-colors ${
-                  tab === "upload"
-                    ? "bg-[var(--bg-secondary)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                上传
-              </button>
-            </div>
-
+        {/* Tabs: Bot / 随机 / 上传  ---  重置 */}
+        <div className="w-full px-5 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between text-[13px]">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={handleReset}
-              className="px-2.5 py-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              onClick={() => setTab("bot")}
+              className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                tab === "bot"
+                  ? "bg-surface-raised text-primary"
+                  : "text-secondary hover:text-primary"
+              }`}
             >
-              重置
+              形象
+            </button>
+            <button
+              type="button"
+              onClick={handleRandomize}
+              className="px-3 py-1 rounded-full font-medium text-secondary hover:text-primary hover:bg-surface-raised transition-colors cursor-pointer"
+            >
+              随机
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("upload")}
+              className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                tab === "upload"
+                  ? "bg-surface-raised text-primary"
+                  : "text-secondary hover:text-primary"
+              }`}
+            >
+              上传
             </button>
           </div>
 
-          {tab === "bot" ? (
-            <div className="p-5 space-y-6">
-              {/* 13 Shapes Grid (5 + 5 + 3 centered) */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-5 gap-2 place-items-center">
-                  {MASCOT_SHAPES.slice(0, 10).map((s) => {
-                    const isSelected = shape === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          setCustomImage(undefined);
-                          setShape(s.id);
-                        }}
-                        title={s.label}
-                        className={`p-1.5 rounded-2xl transition-all ${
-                          isSelected
-                            ? "ring-2 ring-black/20 dark:ring-white/30 bg-[var(--bg-secondary)] scale-105"
-                            : "hover:scale-105"
-                        }`}
-                      >
-                        <BlobMascot
-                          shape={s.id}
-                          color={color}
-                          size={40}
-                          trackPointer={false}
-                          animated={false}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="px-2.5 py-1 rounded-full text-secondary hover:text-primary transition-colors cursor-pointer"
+          >
+            重置
+          </button>
+        </div>
 
-                <div className="flex items-center justify-center gap-3">
-                  {MASCOT_SHAPES.slice(10).map((s) => {
-                    const isSelected = shape === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          setCustomImage(undefined);
-                          setShape(s.id);
-                        }}
-                        title={s.label}
-                        className={`p-1.5 rounded-2xl transition-all ${
-                          isSelected
-                            ? "ring-2 ring-black/20 dark:ring-white/30 bg-[var(--bg-secondary)] scale-105"
-                            : "hover:scale-105"
-                        }`}
-                      >
-                        <BlobMascot
-                          shape={s.id}
-                          color={color}
-                          size={40}
-                          trackPointer={false}
-                          animated={false}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
+        {tab === "bot" ? (
+          <div className="p-5 space-y-5 w-full">
+            {/* 13 Shapes Grid (5 + 5 + 3 centered) */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-5 gap-2 place-items-center">
+                {MASCOT_SHAPES.slice(0, 10).map((s) => {
+                  const isSelected = shape === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setCustomImage(undefined);
+                        setShape(s.id);
+                      }}
+                      title={s.label}
+                      className={`p-1.5 rounded-[var(--r-lg)] transition-transform cursor-pointer ${
+                        isSelected
+                          ? "ring-2 ring-[var(--border-focus)] bg-surface-raised scale-105"
+                          : "hover:scale-105"
+                      }`}
+                    >
+                      <BlobMascot
+                        shape={s.id}
+                        color={color}
+                        size={40}
+                        trackPointer={false}
+                        animated={false}
+                      />
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* 11 Solid Matte Color Swatches (6 + 5 centered) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-3.5">
-                  {MASCOT_COLORS.slice(0, 6).map((c) => {
-                    const active = color === c;
-                    return (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        aria-label={`选择颜色 ${c}`}
-                        className={`w-8 h-8 rounded-full transition-transform ${
-                          active
-                            ? "ring-2 ring-offset-2 ring-black/25 dark:ring-white/40 ring-offset-[var(--bg-composer)] scale-105"
-                            : "hover:scale-110"
-                        }`}
-                        style={{ backgroundColor: c }}
+              <div className="flex items-center justify-center gap-3">
+                {MASCOT_SHAPES.slice(10).map((s) => {
+                  const isSelected = shape === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setCustomImage(undefined);
+                        setShape(s.id);
+                      }}
+                      title={s.label}
+                      className={`p-1.5 rounded-[var(--r-lg)] transition-transform cursor-pointer ${
+                        isSelected
+                          ? "ring-2 ring-[var(--border-focus)] bg-surface-raised scale-105"
+                          : "hover:scale-105"
+                      }`}
+                    >
+                      <BlobMascot
+                        shape={s.id}
+                        color={color}
+                        size={40}
+                        trackPointer={false}
+                        animated={false}
                       />
-                    );
-                  })}
-                </div>
-                <div className="flex items-center justify-center gap-3.5">
-                  {MASCOT_COLORS.slice(6).map((c) => {
-                    const active = color === c;
-                    return (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        aria-label={`选择颜色 ${c}`}
-                        className={`w-8 h-8 rounded-full transition-transform ${
-                          active
-                            ? "ring-2 ring-offset-2 ring-black/25 dark:ring-white/40 ring-offset-[var(--bg-composer)] scale-105"
-                            : "hover:scale-110"
-                        }`}
-                        style={{ backgroundColor: c }}
-                      />
-                    );
-                  })}
-                </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          ) : (
-            <div className="p-6 text-center space-y-4">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full py-8 rounded-2xl border-2 border-dashed border-[var(--border-strong)] hover:bg-[var(--bg-secondary)] text-xs text-[var(--text-secondary)] transition-colors"
-              >
-                {customImage ? "✓ 已选择图片，点击更换" : "点击上传本地图片作为头像"}
-              </button>
-            </div>
-          )}
 
-          {/* Footer */}
-          <div className="px-5 py-3.5 border-t border-[var(--border-subtle)] flex items-center justify-end gap-2 bg-[var(--bg-secondary)]/50">
+            {/* 11 Solid Matte Color Swatches (6 + 5 centered) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-center gap-3.5">
+                {MASCOT_COLORS.slice(0, 6).map((c) => {
+                  const active = color === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setColor(c)}
+                      aria-label={`选择颜色 ${c}`}
+                      className={`w-8 h-8 rounded-full transition-transform cursor-pointer ${
+                        active
+                          ? "ring-2 ring-offset-2 ring-[var(--border-focus)] ring-offset-[var(--surface-overlay)] scale-105"
+                          : "hover:scale-110"
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-center gap-3.5">
+                {MASCOT_COLORS.slice(6).map((c) => {
+                  const active = color === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setColor(c)}
+                      aria-label={`选择颜色 ${c}`}
+                      className={`w-8 h-8 rounded-full transition-transform cursor-pointer ${
+                        active
+                          ? "ring-2 ring-offset-2 ring-[var(--border-focus)] ring-offset-[var(--surface-overlay)] scale-105"
+                          : "hover:scale-110"
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 text-center space-y-4 w-full">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 rounded-full text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              onClick={() => fileRef.current?.click()}
+              className="w-full py-8 rounded-[var(--r-lg)] border-2 border-dashed border-[var(--border-strong)] hover:bg-surface-raised text-[12px] text-secondary transition-colors cursor-pointer"
             >
-              取消
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleConfirm}
-              className="px-5 py-1.5 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] text-xs font-semibold hover:opacity-90 transition-opacity"
-            >
-              {saving ? "保存中..." : "完成"}
+              {customImage ? "✓ 已选择图片，点击更换" : "点击上传本地图片作为头像"}
             </button>
           </div>
+        )}
+
+        {/* Footer */}
+        <div className="w-full px-5 py-3.5 border-t border-[var(--border-subtle)] flex items-center justify-end gap-2 bg-surface-raised/50">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            loading={saving}
+            onClick={() => void handleConfirm()}
+          >
+            {saving ? "保存中..." : "完成"}
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

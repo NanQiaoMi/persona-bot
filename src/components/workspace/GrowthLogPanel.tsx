@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button, FieldTextarea } from "@/components/primitives";
 import type { LearnedItem, LearnedStatus } from "@/lib/persona/spec";
 
 interface GrowthLogPanelProps {
@@ -104,7 +105,7 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
 
   if (loading) {
     return (
-      <div className="p-4 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
+      <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center text-[12px] text-muted">
         正在翻成长日志...
       </div>
     );
@@ -118,37 +119,37 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
 
   return (
     <div className="space-y-3">
-      <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grid grid-cols-3 gap-2 text-center">
+      <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] grid grid-cols-3 gap-2 text-center">
         <div>
-          <div className="text-[15px] font-semibold text-[var(--text-primary)]">
+          <div className="text-[16px] font-semibold text-primary">
             {data?.averageQuality ?? "—"}
           </div>
-          <div className="text-[10.5px] text-[var(--text-muted)]">最近回复质量</div>
+          <div className="text-[11px] text-muted">最近回复质量</div>
         </div>
         <div>
-          <div className="text-[15px] font-semibold text-[var(--text-primary)]">
+          <div className="text-[16px] font-semibold text-primary">
             {counts.active + counts.locked}
           </div>
-          <div className="text-[10.5px] text-[var(--text-muted)]">在用的规则</div>
+          <div className="text-[11px] text-muted">在用的规则</div>
         </div>
         <div>
-          <div className="text-[15px] font-semibold text-[var(--text-primary)]">{counts.trial}</div>
-          <div className="text-[10.5px] text-[var(--text-muted)]">试用中</div>
+          <div className="text-[16px] font-semibold text-primary">{counts.trial}</div>
+          <div className="text-[11px] text-muted">试用中</div>
         </div>
       </div>
 
       {data && data.pendingSignals > 0 && (
-        <div className="px-3 py-2 rounded-xl bg-[var(--bg-secondary)] text-[11px] text-[var(--text-secondary)]">
+        <div className="px-3 py-2 rounded-[var(--r-md)] bg-surface-raised text-[11px] text-secondary">
           最近收到 {data.pendingSignals} 次不满意的反馈，再聊几句 TA 会复盘一下自己的说话方式
         </div>
       )}
 
       {error && (
-        <div className="px-3 py-2 rounded-xl bg-[#fde8e8] text-[11px] text-[#b42318]">{error}</div>
+        <div className="px-3 py-2 rounded-[var(--r-md)] bg-danger-soft text-[11px] text-danger">{error}</div>
       )}
 
       {learned.length === 0 && (
-        <div className="p-4 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
+        <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center text-[12px] text-muted">
           还没有学到新东西，多聊几轮或在聊天气泡上右键「不像 TA」
         </div>
       )}
@@ -164,8 +165,8 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
             <button
               type="button"
               onClick={() => group.status === "retired" && setShowRetired((v) => !v)}
-              className={`w-full flex items-baseline justify-between text-[11px] text-[var(--text-muted)] ${
-                group.status === "retired" ? "cursor-pointer hover:text-[var(--text-primary)]" : "cursor-default"
+              className={`w-full flex items-baseline justify-between text-[11px] text-muted ${
+                group.status === "retired" ? "cursor-pointer hover:text-primary" : "cursor-default"
               }`}
             >
               <span>
@@ -181,12 +182,12 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
                 return (
                   <div
                     key={item.id}
-                    className={`p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-1.5 ${
+                    className={`p-3 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-1.5 ${
                       item.status === "retired" ? "opacity-60" : ""
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--text-muted)]">
-                      <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted">
+                      <span className="px-1.5 py-0.5 rounded-[var(--r-sm)] bg-surface-raised text-secondary">
                         {KIND_LABEL[item.kind]}
                       </span>
                       <span>{SOURCE_LABEL[item.source]}</span>
@@ -200,39 +201,39 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
 
                     {editing ? (
                       <div className="space-y-1.5">
-                        <textarea
+                        <FieldTextarea
                           value={editText}
                           onChange={(e) => setEditText(e.target.value)}
                           rows={2}
                           autoFocus
-                          className="w-full p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
+                          className="text-[12px]"
                         />
                         <div className="flex gap-1.5 justify-end">
-                          <button
-                            type="button"
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setEditingId(null)}
-                            className="px-2.5 py-1 rounded-full text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-hover)] cursor-pointer"
                           >
                             取消
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
                             disabled={busy || editText.trim().length < 2}
                             onClick={() => void act(item.id, "edit", editText)}
-                            className="px-2.5 py-1 rounded-full text-[11px] bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white cursor-pointer"
                           >
                             保存并锁定
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[12.5px] leading-relaxed text-[var(--text-primary)]">
+                      <div className="text-[13px] leading-relaxed text-primary">
                         {item.text}
                       </div>
                     )}
 
                     {item.status === "retired" && item.retiredReason && (
-                      <div className="text-[10.5px] text-[var(--text-muted)]">撤下原因：{item.retiredReason}</div>
+                      <div className="text-[11px] text-muted">撤下原因：{item.retiredReason}</div>
                     )}
 
                     {!editing && (
@@ -292,7 +293,7 @@ function ActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="px-2.5 py-1 rounded-full text-[11px] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] disabled:opacity-40 transition-colors cursor-pointer"
+      className="px-2.5 py-1 rounded-full text-[11px] bg-surface-raised hover:bg-[var(--bg-hover)] text-secondary disabled:opacity-40 transition-colors cursor-pointer"
     >
       {children}
     </button>

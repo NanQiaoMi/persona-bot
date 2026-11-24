@@ -51,7 +51,7 @@ export default function GrokComposer({
   onTriggerProactive,
   onOpenImport,
   personaName,
-  accentColor = "#18a999",
+  accentColor = "var(--brand)",
   personas = [],
   offlineMode = false,
   onOpenSettings,
@@ -266,10 +266,10 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={onToggleThink}
-                className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
+                className={`px-3 py-2 rounded-[var(--r-lg)] border text-[12px] font-medium flex items-center gap-2 transition-colors cursor-pointer ${
                   thinkMode
-                    ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
-                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                    ? "border-brand bg-brand-soft text-brand"
+                    : "border-[var(--border-subtle)] text-secondary hover:bg-surface-raised"
                 }`}
               >
                 <span>✦</span>
@@ -278,10 +278,10 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={onToggleDeepSearch}
-                className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
+                className={`px-3 py-2 rounded-[var(--r-lg)] border text-[12px] font-medium flex items-center gap-2 transition-colors cursor-pointer ${
                   deepSearch
-                    ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
-                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                    ? "border-[var(--sem-info)] bg-info-soft text-info"
+                    : "border-[var(--border-subtle)] text-secondary hover:bg-surface-raised"
                 }`}
               >
                 <span>🌐</span>
@@ -413,7 +413,7 @@ export default function GrokComposer({
                 type="button"
                 onClick={onOpenSettings}
                 title="模型服务暂时不可用，回复来自离线演示。点击检查连接"
-                className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer"
+                className="px-2.5 py-0.5 rounded-full bg-warning-soft border border-[var(--sem-warning)]/25 text-warning transition-colors cursor-pointer"
               >
                 离线演示 · 去检查连接
               </button>
@@ -422,7 +422,7 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
-                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                className="px-2.5 py-0.5 rounded-full bg-surface-raised border border-[var(--border-subtle)] text-secondary hover:text-primary transition-colors cursor-pointer"
               >
                 {modeSpec.badge} {modeSpec.shortLabel}
               </button>
@@ -431,7 +431,7 @@ export default function GrokComposer({
               <button
                 type="button"
                 onClick={onToggleDeepSearch}
-                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors cursor-pointer"
+                className="px-2.5 py-0.5 rounded-full bg-info-soft border border-[var(--sem-info)]/25 text-info transition-colors cursor-pointer"
               >
                 🌐 DeepSearch 已开启 ×
               </button>
@@ -441,7 +441,7 @@ export default function GrokComposer({
 
         {/* Floating "@" Bot Mention Picker (Grok Bot Style) */}
         {showMentionMenu && (
-          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
+          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 animate-popover-in">
             <div className="max-h-60 overflow-y-auto space-y-0.5">
               {filteredMentions.map((bot, idx) => {
                 const mascot = getMascotConfigForPersona(bot.slug, bot.profile);
@@ -452,7 +452,7 @@ export default function GrokComposer({
                     type="button"
                     onMouseEnter={() => setMentionIndex(idx)}
                     onClick={() => insertMentionBot(bot)}
-                    className={`w-full px-3 py-2 rounded-[13px] flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2 rounded-[var(--r-md)] flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
                       isSelected
                         ? "bg-[var(--bg-hover)]"
                         : "hover:bg-[var(--bg-hover)]"
@@ -467,11 +467,11 @@ export default function GrokComposer({
                         trackPointer={false}
                         animated={false}
                       />
-                      <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                      <span className="text-[13px] font-medium text-primary truncate">
                         {bot.name}
                       </span>
                     </div>
-                    <span className="text-[11px] text-[var(--text-muted)] shrink-0">
+                    <span className="text-[11px] text-muted shrink-0">
                       Bot
                     </span>
                   </button>
@@ -571,10 +571,10 @@ export default function GrokComposer({
           <button
             type="button"
             onClick={handleVoiceInput}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
               isRecording
-                ? "bg-rose-500/20 text-rose-500 animate-pulse"
-                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
+                ? "bg-danger-soft text-danger animate-pulse"
+                : "bg-surface-raised hover:bg-surface-sunken text-secondary hover:scale-105 active:scale-95"
             }`}
             title="语音输入"
           >

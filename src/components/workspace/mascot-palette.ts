@@ -87,6 +87,11 @@ export const MASCOT_SHAPES: Array<{
   },
 ];
 
+export const DEFAULT_MASCOT_COLOR = "#FA2D48";
+export const DARK_MASCOT_COLOR = "#0A0A0C";
+export const BLUE_MASCOT_COLOR = "#1683FF";
+export const IDLE_MASCOT_COLOR = "#3A3A3E";
+
 export const MASCOT_COLORS = [
   "#0A0A0C",
   "#9C6A3E",
