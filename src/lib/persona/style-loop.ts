@@ -178,16 +178,21 @@ export function analyzeUserChatStyle(
  */
 export function trimExcessiveEmojis(
   bursts: string[],
-  maxEmojiPerTurn: number
+  maxEmojiPerTurn: number,
+  allowedEmojis: string[] = []
 ): string[] {
-  const limit = Math.max(0, Math.min(1, Math.floor(maxEmojiPerTurn)));
+  const limit = Math.max(0, Math.min(3, Math.floor(maxEmojiPerTurn)));
+  const allowed = new Set(allowedEmojis.map((e) => e.replace(/\uFE0F/g, '')));
   let keptCount = 0;
 
   const cleaned = bursts
     .map((segment) => {
       let working = segment;
       if (limit <= 1) {
-        working = working.replace(OILY_EMOJI_REGEX, '');
+        // 本人常用的表情不算油腻，保留给后面的预算判断
+        working = working.replace(OILY_EMOJI_REGEX, (m) =>
+          allowed.has(m.replace(/\uFE0F/g, '')) ? m : ''
+        );
       }
 
       const emojiRegex = getEmojiRegex();
@@ -219,11 +224,24 @@ export function trimExcessiveEmojis(
 /**
  * 进一步把长篇/书面/感叹号过多的气泡打磨成当代年轻人日常微信松弛口语（保留代码块与列表）
  */
+export interface PolishOverrides {
+  /** 单轮 emoji 预算（来自本人/用户双指纹混合），覆盖用户画像推断的 0/1 */
+  maxEmoji?: number;
+  allowedEmojis?: string[];
+  usesTrailingPeriod?: boolean;
+}
+
 export function polishYoungAdultBursts(
   bursts: string[],
-  profile: UserChatStyleProfile
+  profile: UserChatStyleProfile,
+  overrides: PolishOverrides = {}
 ): string[] {
-  const emojiCleaned = trimExcessiveEmojis(bursts, profile.maxBotEmojiPerTurn);
+  const usesTrailingPeriod = overrides.usesTrailingPeriod ?? profile.usesTrailingPeriod;
+  const emojiCleaned = trimExcessiveEmojis(
+    bursts,
+    overrides.maxEmoji ?? profile.maxBotEmojiPerTurn,
+    overrides.allowedEmojis
+  );
 
   const polished = emojiCleaned
     .map((segment) => {
@@ -241,7 +259,7 @@ export function polishYoungAdultBursts(
 
       // Mirror casual young-adult WeChat punctuation: drop lone trailing 。 on short bubbles
       if (
-        !profile.usesTrailingPeriod &&
+        !usesTrailingPeriod &&
         working.length <= 28 &&
         !working.includes('\n') &&
         working.endsWith('。') &&

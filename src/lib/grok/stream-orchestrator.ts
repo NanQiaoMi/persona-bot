@@ -4,20 +4,18 @@ import {
   performDeepSearch,
   shouldAutoTriggerSearch,
 } from '@/lib/grok/deep-search';
-import {
-  isLocalGatewayUrl,
-  LOCAL_GATEWAY_BASE_URL,
-} from '@/lib/grok/image-generator';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
 import { maybeRunAutoEvolution } from '@/lib/persona/evolution';
 import { scoreReply, toMessageStyleMetrics } from '@/lib/persona/eval/scorer';
 import { fingerprintFromPersonaMd } from '@/lib/persona/fingerprint';
+import { blendStyle } from '@/lib/persona/style-blend';
 import {
   analyzeUserChatStyle,
   polishYoungAdultBursts,
 } from '@/lib/persona/style-loop';
+import { buildLlmHeaders, resolveLlmConfig } from '@/lib/llm/client';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import {
@@ -672,12 +670,7 @@ async function fetchBufferedUpstreamLLM(
   messages: ChatTurnRequest['messages'],
   temperature: number
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (apiKey && apiKey !== 'your-api-key') {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
+  const headers = buildLlmHeaders(apiKey);
 
   const reqStart = Date.now();
   const res = await fetch(endpoint, {
@@ -849,6 +842,15 @@ export async function executeGrokChatTurn(
 
   // Stage 3: Prompt Assembly & Streaming LLM Call
   const userStyleProfile = analyzeUserChatStyle(req.messages);
+  const blendedStyle = blendStyle(
+    fingerprintFromPersonaMd(persona.personaMd),
+    req.messages
+      .filter((m) => m.role === 'user' && typeof m.content === 'string')
+      .map((m) => m.content)
+      .filter((t) => t.trim() && !t.startsWith('[来自主控'))
+      .slice(-20),
+    activeMode
+  );
   const assembler = new PromptAssembler();
   const systemPrompt = assembler.assembleFromRecord(persona, {
     mode: activeMode,
@@ -857,6 +859,7 @@ export async function executeGrokChatTurn(
     lastUserMessage: lastUserText,
     hasImageAttachment: hasImage,
     userStyleProfile,
+    blendedStyle,
     emotionSummary: {
       emotion: updatedEmotion.primary,
       intensity: updatedEmotion.intensity,
@@ -865,19 +868,10 @@ export async function executeGrokChatTurn(
     },
   });
 
-  const apiKey = settings.llmApiKey || process.env.LLM_API_KEY || '';
-  const baseUrl = (
-    settings.llmBaseUrl ||
-    process.env.LLM_BASE_URL ||
-    LOCAL_GATEWAY_BASE_URL
-  ).replace(/\/$/, '');
-  const model =
-    req.modelId || settings.llmModel || process.env.LLM_MODEL || 'gpt-5.6';
+  const llm = resolveLlmConfig(settings, { model: req.modelId });
+  const { apiKey, model } = llm;
   const imageModel = settings.imageModel || process.env.IMAGE_MODEL || 'gpt-image-2.6';
-  const isVitest = Boolean(process.env.VITEST);
-  const canCallUpstream =
-    (Boolean(apiKey) && apiKey !== 'your-api-key') ||
-    (!isVitest && isLocalGatewayUrl(baseUrl));
+  const canCallUpstream = llm.canCall;
 
   let rawModelOutput = '';
   let nativeReasoning = '';
@@ -890,9 +884,7 @@ export async function executeGrokChatTurn(
       text: `${persona.name} 正在输入...`,
     });
     try {
-      const endpoint = baseUrl.endsWith('/chat/completions')
-        ? baseUrl
-        : `${baseUrl}/chat/completions`;
+      const endpoint = llm.endpoint;
 
       const temperature =
         activeMode === 'fun' ? 0.9 : activeMode === 'analytical' ? 0.5 : 0.78;
@@ -945,13 +937,20 @@ export async function executeGrokChatTurn(
   const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
   const emojiTrimmedBursts = polishYoungAdultBursts(
     sanitizedBursts,
-    userStyleProfile
+    userStyleProfile,
+    blendedStyle.anchored
+      ? {
+          maxEmoji: blendedStyle.emojiBudget,
+          allowedEmojis: blendedStyle.allowedEmojis,
+          usesTrailingPeriod: blendedStyle.usesTrailingPeriod,
+        }
+      : {}
   );
   const segments = splitIntoNaturalMessages(emojiTrimmedBursts);
   parsed.bursts = segments;
   parsed.cleanReply = segments.join('\n\n');
   const styleMetrics = toMessageStyleMetrics(
-    scoreReply(segments, fingerprintFromPersonaMd(persona.personaMd))
+    scoreReply(segments, blendedStyle.self)
   );
 
   if (parsed.mood) {

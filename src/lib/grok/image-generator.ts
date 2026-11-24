@@ -14,11 +14,7 @@ export const GENERATED_MEDIA_DIR = path.join(
   'generated-media'
 );
 
-export function isLocalGatewayUrl(url: string): boolean {
-  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(
-    url.trim()
-  );
-}
+export { isLocalGatewayUrl } from '@/lib/llm/client';
 
 /**
  * 为「贴纸表情包」与「情境照片」分别构造风格稳定的文生图 Prompt
