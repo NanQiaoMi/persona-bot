@@ -51,7 +51,7 @@ export function blendStyle(
   const userFp = userLines.length
     ? buildFingerprintFromLines(userLines, 'user')
     : { ...DEFAULT_YOUNG_ADULT_FINGERPRINT, source: 'user' as const };
-  const userWeight = userLines.length ? MIRROR_WEIGHTS[mode].user : 0;
+  const userWeight = userLines.length ? (MIRROR_WEIGHTS[mode] ?? MIRROR_WEIGHTS.authentic).user : 0;
   const w = 1 - userWeight;
 
   const selfLen = hasReliableLength(selfFp) ? selfFp.avgBubbleLen : DEFAULT_YOUNG_ADULT_FINGERPRINT.avgBubbleLen;
