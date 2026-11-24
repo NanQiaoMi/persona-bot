@@ -45,23 +45,23 @@ export function generateProactiveGreeting(
   let intimacyChange = 1;
 
   if (isLongIdle) {
-    if (mode === 'fun' || persona.slug === 'grok-ella') {
-      thought = `这家伙失联了 ${Math.round(hoursSinceLastChat)} 个小时，我得先损他两句，再把刚刷到的热搜甩过去。`;
+    if (mode === 'fun' || persona.slug === 'chen-ye') {
+      thought = `这家伙失联了 ${Math.round(hoursSinceLastChat)} 个小时，我得先损他两句，再把刚刷到的好玩事甩过去。`;
       bursts = [
-        `哟，失踪人口回归了？我都快以为你被外星人抓去写代码了`,
-        `刚刷到好几个离谱热搜，本来想忍住不跟你说，算了还是赏你听听吧 ⚡`,
+        `哟，失踪人口回归了？我都快以为你搬去深山老林闭关了`,
+        `刚路过几家有意思的小店跟热搜，本来想忍住不跟你说，算了还是赏你听听吧 ⚡`,
       ];
       moodLabel = '抱臂挑眉中 ⚡';
       pleasureDelta = 0.08;
-    } else if (persona.slug === 'lin-wan' || mode === 'authentic') {
+    } else if (persona.slug === 'xia-you' || mode === 'authentic') {
       thought = `居然隔了 ${Math.round(hoursSinceLastChat)} 小时没理我……绝不能直接说想他，随便找个借口敲他一下。`;
       bursts = [
-        `刚才年糕踩到我手机屏幕，不小心点开你头像了而已`,
+        `刚才点排行榜不小心误触你头像了而已，别误会`,
         `……你今天到底在忙什么呀，半天没动静`,
       ];
       moodLabel = '嘴硬小赌气 🌙';
       pleasureDelta = -0.05;
-    } else if (mode === 'companion' || persona.slug === 'su-nian') {
+    } else if (mode === 'companion' || persona.slug === 'shen-zhi') {
       thought = `好几个小时没收到消息了，不知道是不是今天太累了，主动发句关心让他安心。`;
       bursts = [
         `今天是不是忙坏啦？好几个小时没见你冒泡泡`,

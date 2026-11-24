@@ -26,7 +26,7 @@ interface GrokWorkspaceProps {
 export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   const [activeSlug, setActiveSlug] = useState<string>(
-    initialSlug || "grok-ella"
+    initialSlug || "lu-xi"
   );
   const [activePersona, setActivePersona] = useState<PersonaRecord | null>(
     null

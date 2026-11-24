@@ -1,6 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { BUILTIN_PRESETS } from '@/lib/persona/presets';
+import {
+  BUILTIN_PRESET_SCENE_ASSETS,
+  BUILTIN_PRESETS,
+} from '@/lib/persona/presets';
 import {
   ensurePersonaSpec,
   inferStyleDimension,
@@ -180,6 +183,14 @@ export class UnifiedStorageRepository {
       const metaPath = path.join(dir, 'meta.json');
       if (!(await fileExists(metaPath))) {
         await this.savePersona(preset);
+      }
+
+      const defaultAssets = BUILTIN_PRESET_SCENE_ASSETS[preset.slug];
+      if (defaultAssets && defaultAssets.length > 0) {
+        const assetsPath = path.join(dir, 'assets.json');
+        if (!(await fileExists(assetsPath))) {
+          await this.saveSceneAssets(preset.slug, defaultAssets);
+        }
       }
     }
 

@@ -126,10 +126,10 @@ export function getMascotConfigForPersona(
 
   const presetMap: Record<string, { shape: MascotShapeId; color: string }> = {
     "master-bot": { shape: "circle", color: "#0A0A0C" },
-    "grok-ella": { shape: "cloud", color: "#12B59C" },
-    "lin-wan": { shape: "clover", color: "#8B5CF6" },
-    "su-nian": { shape: "scallop", color: "#F43F9E" },
-    "zero-arch": { shape: "hexagon", color: "#1683FF" },
+    "lu-xi": { shape: "cloud", color: "#12B59C" },
+    "xia-you": { shape: "clover", color: "#8B5CF6" },
+    "shen-zhi": { shape: "scallop", color: "#F43F9E" },
+    "chen-ye": { shape: "hexagon", color: "#F97316" },
   };
 
   const preset = presetMap[slug];

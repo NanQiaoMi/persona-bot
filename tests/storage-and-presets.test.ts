@@ -25,10 +25,15 @@ describe('UnifiedStorageRepository & Builtin Presets', () => {
     const personas = await repo.listPersonas();
     expect(personas.length).toBe(BUILTIN_PRESETS.length);
     const slugs = personas.map((p) => p.slug);
-    expect(slugs).toContain('grok-ella');
-    expect(slugs).toContain('lin-wan');
-    expect(slugs).toContain('su-nian');
-    expect(slugs).toContain('zero-arch');
+    expect(slugs).toContain('lu-xi');
+    expect(slugs).toContain('xia-you');
+    expect(slugs).toContain('shen-zhi');
+    expect(slugs).toContain('chen-ye');
+
+    for (const presetSlug of ['lu-xi', 'xia-you', 'shen-zhi', 'chen-ye']) {
+      const assets = await repo.getSceneAssets(presetSlug);
+      expect(assets).toHaveLength(2);
+    }
   });
 
   it('saves, reads, updates emotion/intimacy, and deletes custom personas', async () => {
@@ -96,7 +101,7 @@ describe('UnifiedStorageRepository & Builtin Presets', () => {
 
   it('persists conversation messages and runtime settings', async () => {
     await repo.ensurePresetsSeeded();
-    await repo.appendMessages('grok-ella', [
+    await repo.appendMessages('lu-xi', [
       {
         id: 'm1',
         role: 'user',
@@ -112,7 +117,7 @@ describe('UnifiedStorageRepository & Builtin Presets', () => {
       },
     ]);
 
-    const history = await repo.getConversation('grok-ella');
+    const history = await repo.getConversation('lu-xi');
     expect(history).toHaveLength(2);
     expect(history[1].thought).toBe('先用热搜梗接住话题');
 

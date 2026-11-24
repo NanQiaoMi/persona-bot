@@ -68,9 +68,9 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(getTimePeriodInfo(2).period).toBe('late_night');
     expect(getTimePeriodInfo(9).period).toBe('morning');
 
-    const ella =
-      BUILTIN_PRESETS.find((p) => p.slug === 'grok-ella') || BUILTIN_PRESETS[0];
-    const idleGreeting = generateProactiveGreeting(ella, 12, 23);
+    const chenYe =
+      BUILTIN_PRESETS.find((p) => p.slug === 'chen-ye') || BUILTIN_PRESETS[0];
+    const idleGreeting = generateProactiveGreeting(chenYe, 12, 23);
     expect(idleGreeting.thought).toContain('12');
     expect(idleGreeting.bursts.length).toBeGreaterThanOrEqual(2);
   });
@@ -92,19 +92,19 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
   });
 
   it('synthesizes persona-aware fallback and assembles full multi-layer system prompt', () => {
-    const linWan =
-      BUILTIN_PRESETS.find((p) => p.slug === 'lin-wan') || BUILTIN_PRESETS[1];
+    const xiaYou =
+      BUILTIN_PRESETS.find((p) => p.slug === 'xia-you') || BUILTIN_PRESETS[1];
     const assembler = new PromptAssembler();
-    const prompt = assembler.assembleFromRecord(linWan, {
+    const prompt = assembler.assembleFromRecord(xiaYou, {
       mode: 'fun',
       thinkMode: true,
       lastUserMessage: '想你了',
     });
     expect(prompt).toContain('Grok 毒舌犀利');
-    expect(prompt).toContain('林晚');
+    expect(prompt).toContain('夏柚');
 
     const fallbackRaw = synthesizePersonaAwareFallback(
-      linWan,
+      xiaYou,
       '发张自拍看看你',
       'authentic',
       null,
@@ -117,7 +117,7 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(parsed.mediaCards.some((c) => c.type === 'photo')).toBe(true);
 
     const challengeRaw = synthesizePersonaAwareFallback(
-      linWan,
+      xiaYou,
       '你是AI机器人吧',
       'fun',
       null,
@@ -149,7 +149,7 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
         messages: [
           {
             role: 'user',
-            content: '请让 艾拉 和 Zero 一起调研下今天 AI 开源动态',
+            content: '请让 鹿汐 和 陈野 一起调研下今天 AI 开源动态',
           },
         ],
         mode: 'analytical',
@@ -225,10 +225,10 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
       content: '对了，洗完记得吹干头发再躺下',
     });
 
-    const ella =
-      BUILTIN_PRESETS.find((p) => p.slug === 'grok-ella') || BUILTIN_PRESETS[0];
+    const luXi =
+      BUILTIN_PRESETS.find((p) => p.slug === 'lu-xi') || BUILTIN_PRESETS[0];
     const assembler = new PromptAssembler();
-    const systemPrompt = assembler.assembleFromRecord(ella, {
+    const systemPrompt = assembler.assembleFromRecord(luXi, {
       mode: 'fun',
       thinkMode: true,
       lastUserMessage: '发张随手拍看看',
@@ -326,7 +326,7 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     const streamedEvents: StreamEvent[] = [];
     const finalMsg = await executeGrokChatTurn(
       {
-        slug: 'grok-ella',
+        slug: 'lu-xi',
         messages: [{ role: 'user', content: '今天工作累麻了，哄哄我' }],
         mode: 'fun',
         thinkMode: true,

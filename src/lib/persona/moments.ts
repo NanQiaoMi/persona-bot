@@ -85,10 +85,10 @@ function buildSeededMoments(
   const peer1 = peerPair[0];
   const peer2 = peerPair[1];
 
-  const isCool = /Zero|陆凛|沈清|极客|冷静/.test(
+  const isCool = /陈野|行动派|极客|冷静|毒舌/.test(
     `${persona.name} ${persona.profile.personalityTags.join(' ')}`
   );
-  const isSoft = /林晚|苏念|温柔|插画|文艺/.test(
+  const isSoft = /鹿汐|沈知意|温柔|旅拍|文艺/.test(
     `${persona.name} ${persona.profile.personalityTags.join(' ')}`
   );
 
@@ -682,14 +682,14 @@ export async function addUserMomentCommentAndReply(
 
   if (!replyText) {
     const isTease = /哈哈|笑|好看|漂亮|帅|带我|请客|厉害/.test(clean);
-    if (persona.slug === 'lin-wan') {
+    if (persona.slug === 'xia-you') {
       replyText = isTease
         ? '少贫嘴了，就你会挑好听的说'
-        : '嗯哼，下次有空一起去呀';
-    } else if (/Zero|陆凛/.test(persona.name)) {
+        : '嗯哼，下次有空一起双排呀';
+    } else if (/陈野/.test(persona.name)) {
       replyText = isTease
-        ? '那必须的，下回顺路带你一起'
-        : '收到，等有空再细聊';
+        ? '那必须的，下回顺路带你去吃好的'
+        : '收到，下回探店喊上你一起';
     } else {
       replyText = isTease
         ? '哈哈哈懂我！下回喊上你一起～'
