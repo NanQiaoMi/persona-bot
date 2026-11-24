@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import {
+  Button,
+  Card,
+  Chip,
+  Field,
+  FieldInput,
+  FieldTextarea,
+} from "@/components/primitives";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode } from "@/lib/storage/types";
 
@@ -72,12 +80,13 @@ export default function PersonaStudio() {
   ]);
   const [extraPersonality, setExtraPersonality] = useState("");
 
-  // Chat log import tab states
+  // 聊天记录导入状态
   const [chatLogText, setChatLogText] = useState("");
   const [fileName, setFileName] = useState("");
   const [targetSpeaker, setTargetSpeaker] = useState("");
+  const [dragActive, setDragActive] = useState(false);
 
-  // Distillation progress & preview
+  // 蒸馏进度与结果预览
   const [distilling, setDistilling] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [error, setError] = useState("");
@@ -90,9 +99,7 @@ export default function PersonaStudio() {
     );
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const applyUploadedFile = async (file: File) => {
     setFileName(file.name);
     const text = await file.text();
     setChatLogText(text);
@@ -102,9 +109,23 @@ export default function PersonaStudio() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await applyUploadedFile(file);
+  };
+
+  const handleDropLog = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await applyUploadedFile(file);
+  };
+
   const handleDistill = async () => {
     if (!name.trim()) {
-      setError("请先输入角色昵称或代号");
+      setError("请先输入角色昵称，再开始创建");
       return;
     }
     setError("");
@@ -144,7 +165,7 @@ export default function PersonaStudio() {
       clearInterval(timer);
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "角色蒸馏失败");
+        throw new Error(data.error || "角色生成失败，请检查内容后重试");
       }
 
       setStageIndex(5);
@@ -157,129 +178,122 @@ export default function PersonaStudio() {
       });
     } catch (err) {
       clearInterval(timer);
-      setError(err instanceof Error ? err.message : "蒸馏过程中出现异常");
+      setError(err instanceof Error ? err.message : "生成过程中出现异常，请稍后再试");
     } finally {
       setDistilling(false);
     }
   };
 
   const STAGE_LABELS = [
-    "Stage 1 · 构建人物全息心理画像",
-    "Stage 2 · 解构语言指纹与口头禅",
-    "Stage 3 · 编译五层性格结构 (persona.md)",
-    "Stage 4 · 蒸馏共同记忆锚点 (memories.md)",
-    "Stage 5 · 注入 Grok 实时大脑与情绪状态机",
+    "步骤 1 · 构建人物全息心理画像",
+    "步骤 2 · 提取说话习惯与口头禅",
+    "步骤 3 · 编译五层性格结构",
+    "步骤 4 · 整理共同记忆锚点",
+    "步骤 5 · 装载实时对话与情绪状态",
   ];
 
-  return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
-      {/* Top Bar */}
-      <header className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]/80 backdrop-blur-md flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] hover:bg-white/10 border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
-          >
-            ← 返回 Grok 工作台
-          </Link>
-          <div>
-            <h1 className="text-base font-bold">
-              ✨ 角色灵魂蒸馏工作室 (Persona Studio)
-            </h1>
-            <p className="text-xs text-[var(--text-muted)]">
-              纯 TypeScript 五阶段蒸馏管线 · 生成五层人格结构与共同记忆并装配 Grok 大脑
-            </p>
-          </div>
-        </div>
+  const totalSteps = modeTab === "chatlog" ? 3 : 2;
+  const completedRatio = preview ? 100 : distilling ? stageIndex * 20 : 0;
 
-        <Link
-          href="/gallery"
-          className="px-3.5 py-1.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:text-emerald-300 transition-all"
-        >
-          🪐 角色引力场广场
-        </Link>
+  return (
+    <div className="min-h-screen bg-surface-base text-primary flex flex-col">
+      {/* Top Bar */}
+      <header className="sticky top-0 z-20 px-4 sm:px-6 py-4 border-b border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-xl">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/"
+              className="px-3 py-1.5 rounded-full bg-surface-raised hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[12px] text-secondary hover:text-primary transition-colors shrink-0"
+            >
+              ← 返回工作台
+            </Link>
+            <div className="min-w-0">
+              <h1 className="text-[16px] font-bold text-primary truncate">创建角色</h1>
+              <p className="text-[12px] text-muted truncate">
+                快速设定或导入真实聊天记录，生成带独立性格与共同记忆的对话角色
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/gallery"
+            className="px-4 py-1.5 rounded-full bg-surface-raised hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[12px] text-secondary hover:text-primary transition-colors shrink-0"
+          >
+            角色广场
+          </Link>
+        </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left 7 Cols: Creation Form */}
         <div className="lg:col-span-7 space-y-5">
           {/* Mode Switcher */}
-          <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+          <div className="grid grid-cols-2 gap-2 p-1.5 rounded-[var(--r-lg)] bg-surface-raised border border-[var(--border-subtle)]">
             <button
               type="button"
               onClick={() => setModeTab("quick")}
-              className={`py-2.5 px-4 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+              className={`py-2.5 px-4 rounded-[var(--r-md)] text-[13px] font-medium transition-colors cursor-pointer ${
                 modeTab === "quick"
-                  ? "bg-emerald-500 text-slate-950 shadow-md"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  ? "bg-brand text-white shadow-flat"
+                  : "text-secondary hover:text-primary"
               }`}
             >
-              <span>⚡</span>
-              <span>3 步极速设定蒸馏</span>
+              快速设定创建（2 步）
             </button>
             <button
               type="button"
               onClick={() => setModeTab("chatlog")}
-              className={`py-2.5 px-4 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+              className={`py-2.5 px-4 rounded-[var(--r-md)] text-[13px] font-medium transition-colors cursor-pointer ${
                 modeTab === "chatlog"
-                  ? "bg-emerald-500 text-slate-950 shadow-md"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  ? "bg-brand text-white shadow-flat"
+                  : "text-secondary hover:text-primary"
               }`}
             >
-              <span>📥</span>
-              <span>导入微信 / 聊天记录深度蒸馏</span>
+              导入聊天记录（3 步）
             </button>
           </div>
 
-          {/* Step 1: Identity & Grok Mode */}
-          <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-4">
-            <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-              STEP 1 · 角色代号、形象与默认 Grok 人格尺度
+          {/* Step 1: Identity & Mode */}
+          <Card variant="flat" padding="lg" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-brand">
+                第 1 / {totalSteps} 步 · 基础身份与说话尺度
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
-                  角色昵称 / 代号 *
-                </label>
-                <input
+              <Field label="角色昵称 *">
+                <FieldInput
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="例如：小美、阿杰、赛博搭子..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-sm focus:outline-none focus:border-emerald-500"
+                  className="!bg-surface-base"
                 />
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
-                  头像标识 Emoji
-                </label>
+              <Field label="角色标识符号">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {AVATAR_EMOJIS.map((emoji) => (
                     <button
                       key={emoji}
                       type="button"
                       onClick={() => setAvatarEmoji(emoji)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-base border transition-all ${
+                      className={`w-8 h-8 rounded-[var(--r-sm)] flex items-center justify-center text-[16px] border transition-colors cursor-pointer ${
                         avatarEmoji === emoji
-                          ? "border-emerald-500 bg-emerald-500/20 scale-105"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-primary)]"
+                          ? "border-brand bg-brand-soft"
+                          : "border-[var(--border-subtle)] bg-surface-base hover:bg-[var(--bg-hover)]"
                       }`}
                     >
                       {emoji}
                     </button>
                   ))}
                 </div>
-              </div>
+              </Field>
             </div>
 
-            {/* Default Grok Mode */}
-            <div>
-              <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
-                默认 Grok 人格尺度（对话中可随时切换）
-              </label>
+            <Field label="默认对话风格（对话中可随时切换）">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((mKey) => {
                   const spec = PERSONA_MODES[mKey];
@@ -289,31 +303,31 @@ export default function PersonaStudio() {
                       key={mKey}
                       type="button"
                       onClick={() => setDefaultMode(mKey)}
-                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                      className={`p-2.5 rounded-[var(--r-md)] border text-left transition-colors cursor-pointer ${
                         active
-                          ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
+                          ? "border-brand bg-brand-soft text-brand"
+                          : "border-[var(--border-subtle)] bg-surface-base text-secondary hover:text-primary"
                       }`}
                     >
-                      <div className="text-xs font-bold">
+                      <div className="text-[12px] font-semibold">
                         {spec.badge} {spec.shortLabel}
                       </div>
-                      <div className="text-[10px] opacity-75 line-clamp-1 mt-0.5">
+                      <div className="text-[11px] opacity-80 line-clamp-1 mt-0.5">
                         {spec.description}
                       </div>
                     </button>
                   );
                 })}
               </div>
-            </div>
-          </div>
+            </Field>
+          </Card>
 
           {/* Chat Log Upload Card (Only in chatlog mode) */}
           {modeTab === "chatlog" && (
-            <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-emerald-500/30 space-y-4 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                  STEP 2 · 上传或粘贴真实聊天记录（微信 / iMessage / 文本）
+            <Card variant="flat" padding="lg" className="space-y-4 border-brand/30 animate-fade-in">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-[12px] font-semibold text-brand">
+                  第 2 / 3 步 · 上传或粘贴聊天记录
                 </span>
                 <button
                   type="button"
@@ -324,29 +338,24 @@ export default function PersonaStudio() {
                       `2026-05-10 22:15:00 ${demoTarget}: 笑死，你今天居然这么早下班？\n2026-05-10 22:15:30 我: 刚忙完，累麻了\n2026-05-10 22:16:00 ${demoTarget}: 不是吧，那你还不好好歇着，快去点杯热奶茶犒劳一下自己\n2026-05-10 22:17:10 ${demoTarget}: 对了，上次你说周末一起去看展的事我可还记着呢，不许放鸽子啊`
                     );
                   }}
-                  className="text-xs text-emerald-400 hover:underline"
+                  className="text-[12px] text-brand hover:underline cursor-pointer"
                 >
                   填入示例聊天记录
                 </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-[var(--text-secondary)] mb-1">
-                    聊天记录中对方的发言昵称
-                  </label>
-                  <input
+                <Field label="聊天记录中对方的发言昵称">
+                  <FieldInput
                     type="text"
                     value={targetSpeaker}
                     onChange={(e) => setTargetSpeaker(e.target.value)}
                     placeholder={name || "例如：小美"}
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs"
+                    className="!bg-surface-base !text-[12px]"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs text-[var(--text-secondary)] mb-1">
-                    上传导出文件 (.txt / .csv / .html)
-                  </label>
+                </Field>
+
+                <Field label="拖拽或选择导出文件 (.txt / .csv / .html)">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -354,36 +363,42 @@ export default function PersonaStudio() {
                     onChange={handleFileUpload}
                     className="hidden"
                   />
-                  <button
-                    type="button"
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragActive(true);
+                    }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={(e) => void handleDropLog(e)}
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-2 px-3 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 text-xs text-emerald-300 truncate"
+                    className={`w-full py-2 px-3 rounded-[var(--r-md)] border border-dashed text-[12px] truncate cursor-pointer transition-colors text-center ${
+                      dragActive
+                        ? "border-brand bg-brand-soft text-brand"
+                        : "border-[var(--border-strong)] bg-surface-base hover:border-brand text-secondary"
+                    }`}
                   >
-                    {fileName ? `已加载: ${fileName}` : "📂 点击选择聊天记录文件"}
-                  </button>
-                </div>
+                    {fileName ? `已加载：${fileName}` : "拖拽文件到此处，或点击选择"}
+                  </div>
+                </Field>
               </div>
 
-              <div>
-                <label className="block text-xs text-[var(--text-secondary)] mb-1">
-                  或直接粘贴聊天记录片段（系统会自动识别口头禅、句长与原话样本）
-                </label>
-                <textarea
+              <Field label="或直接粘贴聊天记录片段（系统会自动识别口头禅、句长与原话样本）">
+                <FieldTextarea
                   value={chatLogText}
                   onChange={(e) => setChatLogText(e.target.value)}
                   rows={5}
                   placeholder={`2026-05-01 21:00:00 小美: 笑死，你今天怎么这么晚才回消息\n2026-05-01 21:01:00 我: 刚开完会\n2026-05-01 21:01:20 小美: 行吧，看在你这么可怜的份上原谅你了`}
-                  className="w-full p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs font-mono leading-relaxed focus:outline-none"
+                  className="!bg-surface-base !text-[12px] !font-mono"
                 />
-              </div>
-            </div>
+              </Field>
+            </Card>
           )}
 
           {/* Step 2/3: Story & Personality Fingerprint */}
-          <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                {modeTab === "chatlog" ? "STEP 3" : "STEP 2"} · 关系故事与性格基因
+          <Card variant="flat" padding="lg" className="space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[12px] font-semibold text-brand">
+                第 {modeTab === "chatlog" ? 3 : 2} / {totalSteps} 步 · 关系背景与性格特征
               </span>
               <button
                 type="button"
@@ -396,116 +411,114 @@ export default function PersonaStudio() {
                     "嘴上不饶人但极其护短，习惯连发短句，喜欢用“笑死”、“不是吧”、“随你便”"
                   );
                 }}
-                className="text-xs text-emerald-400 hover:underline"
+                className="text-[12px] text-brand hover:underline cursor-pointer"
               >
-                ✨ 一键填入灵感模板
+                填入灵感模板
               </button>
             </div>
 
-            <div>
-              <label className="block text-xs text-[var(--text-secondary)] mb-1">
-                你们的关系背景与共同故事
-              </label>
-              <textarea
+            <Field label="你们的关系背景与共同故事">
+              <FieldTextarea
                 value={basicInfo}
                 onChange={(e) => setBasicInfo(e.target.value)}
                 rows={2}
-                placeholder="例如：在一起三年 / 认识两年的深夜冲浪搭子 / 共同去过哪些地方、有什么专属暗号..."
-                className="w-full p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs leading-relaxed focus:outline-none"
+                placeholder="例如：认识两年的深夜搭子 / 共同去过哪些地方、有什么专属暗号..."
+                className="!bg-surface-base !text-[12px]"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
-                MBTI 人格基底
-              </label>
+            <Field label="性格类型 (MBTI)">
               <div className="flex flex-wrap gap-1.5">
                 {MBTI_LIST.map((mbti) => (
-                  <button
+                  <Chip
                     key={mbti}
-                    type="button"
+                    size="sm"
+                    selected={selectedMbti === mbti}
                     onClick={() => setSelectedMbti(mbti)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                      selectedMbti === mbti
-                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
-                    }`}
                   >
                     {mbti}
-                  </button>
+                  </Chip>
                 ))}
               </div>
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
-                核心性格标签（点击多选）
-              </label>
+            <Field label="核心性格标签（点击多选）">
               <div className="flex flex-wrap gap-1.5">
                 {QUICK_TAGS.map((tag) => {
                   const active = selectedTags.includes(tag);
                   return (
-                    <button
+                    <Chip
                       key={tag}
-                      type="button"
+                      size="sm"
+                      tone="info"
+                      selected={active}
                       onClick={() => toggleTag(tag)}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition-all ${
-                        active
-                          ? "border-purple-500 bg-purple-500/20 text-purple-300"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
-                      }`}
                     >
                       {active ? `✓ ${tag}` : tag}
-                    </button>
+                    </Chip>
                   );
                 })}
               </div>
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-xs text-[var(--text-secondary)] mb-1">
-                补充口头禅或小习惯（可选）
-              </label>
-              <input
+            <Field label="补充口头禅或小习惯（可选）">
+              <FieldInput
                 type="text"
                 value={extraPersonality}
                 onChange={(e) => setExtraPersonality(e.target.value)}
                 placeholder="例如：生气时不爱说话、喜欢喝冰美式、口头禅是“服了你了”..."
-                className="w-full px-3.5 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
+                className="!bg-surface-base !text-[12px]"
               />
-            </div>
+            </Field>
 
             {error && (
-              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+              <div
+                role="alert"
+                className="p-3 rounded-[var(--r-md)] bg-danger-soft border border-[var(--sem-danger)]/25 text-danger text-[12px]"
+              >
                 {error}
               </div>
             )}
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="lg"
               disabled={distilling}
+              loading={distilling}
               onClick={handleDistill}
-              className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all"
+              className="w-full"
             >
-              {distilling
-                ? "🧠 正在执行五阶段灵魂蒸馏..."
-                : "✨ 启动五阶段灵魂蒸馏并装配 Grok 大脑"}
-            </button>
-          </div>
+              {distilling ? "正在生成角色档案..." : "生成角色并进入对话"}
+            </Button>
+          </Card>
         </div>
 
         {/* Right 5 Cols: Live 5-Stage Progress & Persona Preview */}
         <div className="lg:col-span-5 space-y-5">
-          <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-4 sticky top-6">
+          <Card variant="flat" padding="lg" className="space-y-4 sticky top-24">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                五阶段蒸馏实时监视器
-              </h3>
+              <h2 className="text-[13px] font-semibold text-primary">
+                生成进度与档案预览
+              </h2>
               {preview && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
-                  ✓ 蒸馏完成
+                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-success-soft text-success font-medium">
+                  ✓ 已就绪
                 </span>
               )}
+            </div>
+
+            {/* Stage Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-brand transition-all duration-[var(--motion-slow)]"
+                  style={{ width: `${completedRatio}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] text-muted">
+                <span>{distilling ? "处理中..." : preview ? "全部完成" : "等待开始"}</span>
+                <span className="tabular-nums">{completedRatio}%</span>
+              </div>
             </div>
 
             {/* 5 Stage Checklist */}
@@ -517,12 +530,12 @@ export default function PersonaStudio() {
                 return (
                   <div
                     key={label}
-                    className={`px-3 py-2 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                    className={`px-3 py-2 rounded-[var(--r-md)] border text-[12px] flex items-center justify-between transition-colors ${
                       isDone
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                        ? "border-[var(--sem-success)]/30 bg-success-soft text-success"
                         : isCurrent
-                          ? "border-purple-500/40 bg-purple-500/15 text-purple-200 animate-pulse"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-primary)]/50 text-[var(--text-muted)]"
+                          ? "border-brand bg-brand-soft text-brand animate-pulse"
+                          : "border-[var(--border-subtle)] bg-surface-base text-muted"
                     }`}
                   >
                     <span>{label}</span>
@@ -534,15 +547,13 @@ export default function PersonaStudio() {
 
             {/* Chat Corpus Stats if parsed */}
             {preview?.chatStats && (
-              <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-emerald-500/30 text-xs space-y-1">
-                <div className="font-semibold text-emerald-300">
-                  📊 真实聊天语料特征提取报告
-                </div>
-                <div className="text-[var(--text-secondary)]">
-                  共解析 {preview.chatStats.totalCount} 条对话，锁定目标角色发言{" "}
+              <div className="p-3 rounded-[var(--r-md)] bg-surface-base border border-brand/30 text-[12px] space-y-1">
+                <div className="font-semibold text-brand">语料提取结果</div>
+                <div className="text-secondary">
+                  共解析 {preview.chatStats.totalCount} 条对话，锁定目标发言{" "}
                   {preview.chatStats.targetCount} 条
                 </div>
-                <div className="text-[11px] text-[var(--text-muted)]">
+                <div className="text-[11px] text-muted">
                   高频口头禅：{preview.chatStats.topCatchphrases.join(" / ")}
                 </div>
               </div>
@@ -551,7 +562,7 @@ export default function PersonaStudio() {
             {/* Preview Tabs */}
             {preview ? (
               <div className="space-y-3 pt-2 animate-fade-in">
-                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11px]">
+                <div className="grid grid-cols-3 gap-1 p-1 rounded-[var(--r-md)] bg-surface-base border border-[var(--border-subtle)] text-[11px]">
                   {[
                     { id: "persona", label: "五层人格" },
                     { id: "memories", label: "共同记忆" },
@@ -565,10 +576,10 @@ export default function PersonaStudio() {
                           t.id as "persona" | "memories" | "profile"
                         )
                       }
-                      className={`py-1 rounded-lg font-medium ${
+                      className={`py-1.5 rounded-[var(--r-sm)] font-medium cursor-pointer transition-colors ${
                         previewTab === t.id
-                          ? "bg-[var(--bg-tertiary)] text-emerald-300"
-                          : "text-[var(--text-muted)]"
+                          ? "bg-surface-raised text-brand"
+                          : "text-muted hover:text-primary"
                       }`}
                     >
                       {t.label}
@@ -576,7 +587,7 @@ export default function PersonaStudio() {
                   ))}
                 </div>
 
-                <pre className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-[11px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                <pre className="p-3 rounded-[var(--r-md)] bg-surface-base border border-[var(--border-subtle)] max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-[12px] text-secondary leading-relaxed font-sans">
                   {previewTab === "persona"
                     ? preview.stages.persona
                     : previewTab === "memories"
@@ -584,22 +595,23 @@ export default function PersonaStudio() {
                       : preview.stages.aiProfile}
                 </pre>
 
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
+                  size="lg"
                   onClick={() => router.push(`/chat/${preview.slug}`)}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-400 hover:opacity-95 text-slate-950 font-bold text-sm shadow-lg"
+                  className="w-full"
                 >
-                  🚀 立即与「{preview.name}」开启 Grok 对话 →
-                </button>
+                  立即与「{preview.name}」开始对话 →
+                </Button>
               </div>
             ) : (
-              <div className="p-6 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-xs text-[var(--text-muted)]">
-                填写左侧设定或导入聊天记录后点击蒸馏，这里将实时呈现生成的五层人格结构与共同记忆文档。
+              <div className="p-5 rounded-[var(--r-md)] border border-dashed border-[var(--border-subtle)] text-center text-[12px] text-muted leading-relaxed">
+                填写左侧信息或上传聊天记录后点击生成，这里会逐步展示角色的人格结构与共同记忆。
               </div>
             )}
-          </div>
+          </Card>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

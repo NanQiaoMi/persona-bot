@@ -23,9 +23,13 @@ import RightInspector from "./RightInspector";
 
 interface GrokWorkspaceProps {
   initialSlug?: string;
+  initialInspectorOpen?: boolean;
 }
 
-export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
+export default function GrokWorkspace({
+  initialSlug,
+  initialInspectorOpen = false,
+}: GrokWorkspaceProps) {
   const { toast } = useFeedback();
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   const [activeSlug, setActiveSlug] = useState<string>(
@@ -57,7 +61,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (isNarrow) setMobileSidebarOpen(value);
     else setDesktopSidebarOpen(value);
   };
-  const [showInspector, setShowInspector] = useState(false);
+  const [showInspector, setShowInspector] = useState(Boolean(initialInspectorOpen));
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
