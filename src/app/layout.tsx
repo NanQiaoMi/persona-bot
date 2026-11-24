@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { FeedbackProvider } from "@/components/feedback/FeedbackProvider";
@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   title: "PersonaBot — Grok Bot 拟人桌面工作台",
   description:
     "将真实聊天记录蒸馏出五层人格与共同记忆，融合 Grok DeepSearch 实时联网、Think 内心潜台词与多档人格模式。",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

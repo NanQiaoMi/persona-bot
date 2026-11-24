@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconButton } from "@/components/primitives";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { capturePositions, playFlip } from "@/lib/motion/flip";
+import { shouldCloseLeftDrawerBySwipe } from "@/lib/responsive/gestures";
 import { PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
@@ -21,6 +22,9 @@ interface LeftSidebarProps {
   theme: "dark" | "light";
   onToggleTheme: () => void;
   onCollapse?: () => void;
+  collapsedRail?: boolean;
+  onExpandRail?: () => void;
+  onCloseDrawer?: () => void;
 }
 
 function formatSidebarTime(iso?: string): string {
@@ -65,12 +69,16 @@ export default function LeftSidebar({
   theme,
   onToggleTheme,
   onCollapse,
+  collapsedRail = false,
+  onExpandRail,
+  onCloseDrawer,
 }: LeftSidebarProps) {
   const router = useRouter();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const prevRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -108,10 +116,139 @@ export default function LeftSidebar({
       playFlip(container, prevRectsRef.current, { reducedMotion });
     }
     prevRectsRef.current = finalRects;
-  }, [subBotsOrderKey, reducedMotion]);
+  }, [subBotsOrderKey, collapsedRail, reducedMotion]);
+
+  if (collapsedRail) {
+    return (
+      <aside className="relative w-[72px] shrink-0 border-r border-[var(--border-subtle)] bg-surface-raised flex flex-col items-center h-full py-3 gap-3 select-none">
+        <IconButton
+          label="展开侧边栏"
+          size={36}
+          variant="secondary"
+          onClick={onExpandRail}
+          className="!rounded-full bg-surface-base shadow-[var(--pill-shadow)] text-[13px]"
+        >
+          ◨
+        </IconButton>
+
+        <button
+          type="button"
+          onClick={() => onSelectPersona(masterSlug)}
+          title={masterBot?.name || "猫咪的bot"}
+          className={`w-12 h-12 rounded-[var(--r-lg)] flex items-center justify-center transition-colors cursor-pointer ${
+            isMasterActive
+              ? "bg-surface-base grok-active-row ring-1 ring-[var(--border-subtle)]"
+              : "hover:bg-[var(--bg-hover)]"
+          }`}
+        >
+          <BlobMascot
+            shape={masterMascot.shape}
+            color={masterMascot.color}
+            image={masterMascot.image}
+            size={36}
+            showOnlineDot
+            trackPointer={false}
+            state={isMasterActive && isStreaming ? "working" : "idle"}
+          />
+        </button>
+
+        <div className="w-8 h-px bg-[var(--border-subtle)]" />
+
+        <div
+          ref={listRef}
+          className="flex-1 min-h-0 w-full overflow-y-auto flex flex-col items-center gap-1.5 px-2"
+        >
+          {subBots.map((p, index) => {
+            const isActive = p.slug === activeSlug;
+            const hasDraft = !isActive && Boolean((draftsBySlug[p.slug] || "").trim());
+            const mascotCfg = getMascotConfigForPersona(p.slug, p.profile, index);
+            return (
+              <button
+                key={p.slug}
+                data-flip-id={p.slug}
+                type="button"
+                onClick={() => onSelectPersona(p.slug)}
+                title={hasDraft ? `${p.name}（有未发送草稿）` : p.name}
+                className={`relative w-12 h-12 rounded-[var(--r-lg)] flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-surface-base grok-active-row ring-1 ring-[var(--border-subtle)]"
+                    : "hover:bg-[var(--bg-hover)]"
+                }`}
+              >
+                <BlobMascot
+                  shape={mascotCfg.shape}
+                  color={mascotCfg.color}
+                  image={mascotCfg.image}
+                  size={30}
+                  trackPointer={false}
+                  animated={false}
+                />
+                {hasDraft && (
+                  <span
+                    aria-label="有未发送草稿"
+                    className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-danger ring-2 ring-[var(--surface-raised)]"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col items-center gap-1.5 pt-2 border-t border-[var(--border-subtle)]">
+          <IconButton
+            label="创建新角色"
+            size={36}
+            variant="secondary"
+            onClick={onOpenCreateBot}
+            className="!rounded-full bg-surface-base"
+          >
+            +
+          </IconButton>
+          <IconButton
+            label={theme === "dark" ? "切换浅色模式" : "切换深色模式"}
+            size={36}
+            variant="secondary"
+            onClick={onToggleTheme}
+            className="!rounded-full bg-surface-base text-[13px]"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </IconButton>
+          <IconButton
+            label="打开设置"
+            size={36}
+            variant="secondary"
+            onClick={onOpenSettings}
+            className="!rounded-full bg-surface-base text-[13px]"
+          >
+            ⚙️
+          </IconButton>
+        </div>
+      </aside>
+    );
+  }
 
   return (
-    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-surface-raised flex flex-col h-screen select-none">
+    <aside
+      onTouchStart={(e) => {
+        if (!onCloseDrawer) return;
+        const touch = e.touches[0];
+        if (touch) {
+          swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (!onCloseDrawer || !swipeStartRef.current) return;
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        const dx = touch.clientX - swipeStartRef.current.x;
+        const dy = touch.clientY - swipeStartRef.current.y;
+        swipeStartRef.current = null;
+        if (shouldCloseLeftDrawerBySwipe(dx, dy)) {
+          onCloseDrawer();
+        }
+      }}
+      className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-surface-raised flex flex-col h-full select-none"
+    >
       {/* Top Action Row */}
       <div className="px-4 pt-4 pb-1 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
