@@ -815,7 +815,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
       {showInspector && (
         <RightInspector
-          key={activePersona?.slug || "inspector"}
+          key={`inspector-${activePersona?.slug || "default"}`}
           persona={activePersona}
           isStreaming={Boolean(streaming)}
           autoNudgeEnabled={autoNudgeEnabled}
@@ -846,7 +846,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       />
 
       <AvatarPickerModal
-        key={activePersona?.slug || "picker"}
+        key={`avatar-picker-${activePersona?.slug || "default"}`}
         isOpen={showAvatarPicker}
         persona={activePersona}
         onClose={() => setShowAvatarPicker(false)}
