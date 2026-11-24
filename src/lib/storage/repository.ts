@@ -12,6 +12,7 @@ import {
   ConversationMemoryState,
   ConversationMessage,
   CorrectionItem,
+  GroupChat,
   MomentPost,
   PersonaEmotionSnapshot,
   PersonaMode,
@@ -831,6 +832,121 @@ export class UnifiedStorageRepository {
       if (!exists) return next;
       await fs.writeFile(path.join(dir, 'memory-state.json'), JSON.stringify(next, null, 2), 'utf-8');
       return next;
+    });
+  }
+
+  // ---------------- 群聊（主 bot 发起） ----------------
+
+  private getGroupsDir(): string {
+    return path.join(this.dataDir, 'groups');
+  }
+
+  private getGroupDir(id: string): string {
+    return path.join(this.getGroupsDir(), sanitizeSlug(id));
+  }
+
+  async listGroups(): Promise<GroupChat[]> {
+    const parsed = await readJsonSafe<GroupChat[]>(
+      path.join(this.getGroupsDir(), 'groups.json'),
+      []
+    );
+    const list = Array.isArray(parsed) ? parsed : [];
+    return [...list].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  }
+
+  async getGroup(id: string): Promise<GroupChat | null> {
+    const safeId = sanitizeSlug(id);
+    const groups = await this.listGroups();
+    return groups.find((g) => g.id === safeId) || null;
+  }
+
+  private async writeGroupIndex(groups: GroupChat[]): Promise<void> {
+    await fs.mkdir(this.getGroupsDir(), { recursive: true });
+    await fs.writeFile(
+      path.join(this.getGroupsDir(), 'groups.json'),
+      JSON.stringify(groups.slice(0, 50), null, 2),
+      'utf-8'
+    );
+  }
+
+  async createGroup(input: {
+    name: string;
+    memberSlugs: string[];
+    topic?: string;
+  }): Promise<GroupChat> {
+    return this.withLock('groups:index', async () => {
+      const groups = await this.listGroups();
+      const nowIso = new Date().toISOString();
+      const group: GroupChat = {
+        id: `group-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        name: input.name.trim().slice(0, 30) || '新群聊',
+        topic: input.topic?.trim().slice(0, 120) || undefined,
+        memberSlugs: Array.from(new Set(input.memberSlugs.map((s) => sanitizeSlug(s)))).slice(0, 8),
+        pendingKickoff: true,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      await this.writeGroupIndex([group, ...groups]);
+      return group;
+    });
+  }
+
+  async updateGroup(
+    id: string,
+    patch: Partial<Pick<GroupChat, 'name' | 'topic' | 'memberSlugs' | 'pendingKickoff' | 'lastMessage'>>
+  ): Promise<GroupChat | null> {
+    const safeId = sanitizeSlug(id);
+    return this.withLock('groups:index', async () => {
+      const groups = await this.listGroups();
+      const idx = groups.findIndex((g) => g.id === safeId);
+      if (idx === -1) return null;
+      const next: GroupChat = { ...groups[idx], ...patch, updatedAt: new Date().toISOString() };
+      groups[idx] = next;
+      await this.writeGroupIndex(groups);
+      return next;
+    });
+  }
+
+  async deleteGroup(id: string): Promise<boolean> {
+    const safeId = sanitizeSlug(id);
+    return this.withLock('groups:index', async () => {
+      const groups = await this.listGroups();
+      const rest = groups.filter((g) => g.id !== safeId);
+      if (rest.length === groups.length) return false;
+      await this.writeGroupIndex(rest);
+      await fs.rm(this.getGroupDir(safeId), { recursive: true, force: true });
+      return true;
+    });
+  }
+
+  async getGroupConversation(id: string, limit = 100): Promise<ConversationMessage[]> {
+    const messages = await readJsonSafe<ConversationMessage[]>(
+      path.join(this.getGroupDir(id), 'conversations.json'),
+      []
+    );
+    const list = Array.isArray(messages) ? messages : [];
+    return limit > 0 ? list.slice(-limit) : list;
+  }
+
+  async saveGroupConversation(id: string, messages: ConversationMessage[]): Promise<void> {
+    const dir = this.getGroupDir(id);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, 'conversations.json'),
+      JSON.stringify(messages.slice(-300), null, 2),
+      'utf-8'
+    );
+  }
+
+  async appendGroupMessages(
+    id: string,
+    newMessages: ConversationMessage[]
+  ): Promise<ConversationMessage[]> {
+    return this.withLock(`group-conv:${sanitizeSlug(id)}`, async () => {
+      const existing = await this.getGroupConversation(id, 0);
+      const merged = [...existing, ...newMessages].slice(-300);
+      await this.saveGroupConversation(id, merged);
+      return merged;
     });
   }
 }
