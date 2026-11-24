@@ -127,6 +127,7 @@ export class UnifiedStorageRepository {
         name: persona.name,
         version: persona.version,
         isPreset: Boolean(persona.isPreset),
+        isMaster: Boolean(persona.isMaster),
         defaultMode: persona.defaultMode,
         profile: persona.profile,
         emotionState: persona.emotionState,
@@ -139,6 +140,7 @@ export class UnifiedStorageRepository {
     }
 
     summaries.sort((a, b) => {
+      if (Boolean(a.isMaster) !== Boolean(b.isMaster)) return a.isMaster ? -1 : 1;
       if (a.isPreset !== b.isPreset) return a.isPreset ? -1 : 1;
       return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
     });
@@ -184,6 +186,7 @@ export class UnifiedStorageRepository {
       name,
       version: String(meta.version || 'v2.0'),
       isPreset: Boolean(meta.isPreset),
+      isMaster: Boolean(meta.isMaster) || safeSlug === 'master-bot',
       defaultMode: (meta.defaultMode as PersonaMode) || 'authentic',
       profile: {
         mbti: (legacyProfile.mbti as string) || undefined,
@@ -209,6 +212,9 @@ export class UnifiedStorageRepository {
             : [],
         avatarEmoji: (legacyProfile.avatarEmoji as string) || '✨',
         accentColor: (legacyProfile.accentColor as string) || '#10B981',
+        avatarShape: (legacyProfile.avatarShape as string) || undefined,
+        avatarColor: (legacyProfile.avatarColor as string) || undefined,
+        avatarImage: (legacyProfile.avatarImage as string) || undefined,
         bio: (legacyProfile.bio as string) || undefined,
       },
       personaMd,
@@ -244,6 +250,7 @@ export class UnifiedStorageRepository {
       name: normalized.name,
       version: normalized.version,
       isPreset: Boolean(normalized.isPreset),
+      isMaster: Boolean(normalized.isMaster) || safeSlug === 'master-bot',
       defaultMode: normalized.defaultMode,
       intimacy: normalized.intimacy,
       profile: normalized.profile,

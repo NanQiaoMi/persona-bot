@@ -10,6 +10,9 @@ export interface PersonaProfile {
   occupation?: string;
   personalityTags: string[];
   avatarEmoji?: string;
+  avatarShape?: string;
+  avatarColor?: string;
+  avatarImage?: string;
   accentColor?: string;
   bio?: string;
 }
@@ -39,6 +42,7 @@ export interface PersonaRecord {
   name: string;
   version: string;
   isPreset?: boolean;
+  isMaster?: boolean;
   defaultMode: PersonaMode;
   profile: PersonaProfile;
   personaMd: string;
@@ -56,6 +60,7 @@ export interface PersonaSummary {
   name: string;
   version: string;
   isPreset: boolean;
+  isMaster?: boolean;
   defaultMode: PersonaMode;
   profile: PersonaProfile;
   emotionState: PersonaEmotionSnapshot;
@@ -64,6 +69,15 @@ export interface PersonaSummary {
   lastActive: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface InterBotReport {
+  slug: string;
+  name: string;
+  shape?: string;
+  color?: string;
+  summary: string;
+  timestamp: string;
 }
 
 export interface SearchResultItem {
@@ -80,14 +94,42 @@ export interface MediaCard {
   mood?: string;
 }
 
+export interface PageCardMetric {
+  value: string;
+  label: string;
+  detail: string;
+  tone?: 'neutral' | 'amber' | 'teal' | 'rose';
+}
+
+export interface PageArtifactCardData {
+  id: string;
+  title: string;
+  subtitle: string;
+  metrics: PageCardMetric[];
+  statusNotice: string;
+  footerLabel: string;
+  fullContent?: string;
+  sources?: SearchResultItem[];
+}
+
 export interface ConversationMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   thought?: string;
+  thoughtDurationMs?: number;
   searchQuery?: string;
   searchResults?: SearchResultItem[];
+  pageCard?: PageArtifactCardData;
+  interBotReports?: InterBotReport[];
+  fromBot?: {
+    slug: string;
+    name: string;
+    shape?: string;
+    color?: string;
+  };
+  workingStatus?: string;
   mode?: PersonaMode;
   mood?: string;
   intimacyChange?: number;

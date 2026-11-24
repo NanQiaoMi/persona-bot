@@ -10,7 +10,10 @@ import {
   PersonaSummary,
   SearchResultItem,
 } from "@/lib/storage/types";
+import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
+import CommandPalette from "./CommandPalette";
+import CreateBotModal from "./CreateBotModal";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
 
@@ -31,16 +34,22 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [thinkMode, setThinkMode] = useState(true);
   const [deepSearch, setDeepSearch] = useState(false);
   const [activeMode, setActiveMode] = useState<PersonaMode>("fun");
-  const [showInspector, setShowInspector] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showInspector, setShowInspector] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showCreateBot, setShowCreateBot] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   const [streaming, setStreaming] = useState<{
     isSearching: boolean;
     searchQuery?: string;
     searchResults?: SearchResultItem[];
+    statusText?: string;
     thought: string;
+    thoughtDurationMs?: number;
     isStreamingThought: boolean;
     reply: string;
   } | null>(null);
@@ -94,6 +103,26 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     };
   }, [activeSlug, loadPersonaList, loadActivePersonaDetail]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setShowCreateBot(true);
+      } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
+        const idx = Number(e.key) - 1;
+        if (personas[idx]) {
+          e.preventDefault();
+          setActiveSlug(personas[idx].slug);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [personas]);
+
   const handleToggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -102,31 +131,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   };
 
-  const handleSend = async (options?: {
-    imageUrl?: string;
-    requestPhoto?: boolean;
-  }) => {
-    const text =
-      input.trim() ||
-      (options?.requestPhoto ? "发张你那边的随手拍给我看看呗 📸" : "");
-    if (!text && !options?.imageUrl) return;
-    if (streaming) return;
+  const runStreamRequest = async (
+    historyToSend: ConversationMessage[],
+    modeToUse: PersonaMode,
+    options?: { requestPhoto?: boolean; deepSearchOverride?: boolean }
+  ) => {
+    const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
 
-    const userMsg: ConversationMessage = {
-      id: `msg_${Date.now()}_u`,
-      role: "user",
-      content: text || "[发送了一张图片]",
-      timestamp: new Date().toISOString(),
-      imageUrl: options?.imageUrl,
-      mode: activeMode,
-    };
-
-    const nextHistory = [...messages, userMsg];
-    setMessages(nextHistory);
-    setInput("");
     setStreaming({
-      isSearching: deepSearch,
+      isSearching: useDeepSearch,
       thought: "",
+      thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
       reply: "",
     });
@@ -137,15 +152,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug: activeSlug,
-          messages: nextHistory.map((m) => ({
+          messages: historyToSend.map((m) => ({
             role: m.role,
             content: m.content,
             imageUrl: m.imageUrl,
             timestamp: m.timestamp,
           })),
-          mode: activeMode,
+          mode: modeToUse,
           thinkMode,
-          deepSearch,
+          deepSearch: useDeepSearch,
           requestPhoto: options?.requestPhoto,
         }),
       });
@@ -175,7 +190,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
           try {
             const payload = JSON.parse(dataLine.slice(6));
-            if (payload.type === "search") {
+            if (payload.type === "status") {
+              setStreaming((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      statusText: payload.text,
+                    }
+                  : prev
+              );
+            } else if (payload.type === "search") {
               setStreaming((prev) =>
                 prev
                   ? {
@@ -193,6 +217,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       ...prev,
                       isSearching: false,
                       thought: payload.fullThought,
+                      thoughtDurationMs: payload.durationMs,
                       isStreamingThought: true,
                     }
                   : prev
@@ -236,6 +261,71 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     } finally {
       setStreaming(null);
     }
+  };
+
+  const handleSend = async (options?: {
+    imageUrl?: string;
+    requestPhoto?: boolean;
+  }) => {
+    const text =
+      input.trim() ||
+      (options?.requestPhoto ? "发张你那边的随手拍给我看看呗 📸" : "");
+    if (!text && !options?.imageUrl) return;
+    if (streaming) return;
+
+    const userMsg: ConversationMessage = {
+      id: `msg_${Date.now()}_u`,
+      role: "user",
+      content: text || "[发送了一张图片]",
+      timestamp: new Date().toISOString(),
+      imageUrl: options?.imageUrl,
+      mode: activeMode,
+    };
+
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+
+    await runStreamRequest(nextHistory, activeMode, {
+      requestPhoto: options?.requestPhoto,
+    });
+  };
+
+  const handleQuickSend = async (
+    text: string,
+    options?: { deepSearch?: boolean }
+  ) => {
+    if (!text.trim() || streaming) return;
+    if (options?.deepSearch) {
+      setDeepSearch(true);
+    }
+    const userMsg: ConversationMessage = {
+      id: `msg_${Date.now()}_u`,
+      role: "user",
+      content: text.trim(),
+      timestamp: new Date().toISOString(),
+      mode: activeMode,
+    };
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+    await runStreamRequest(nextHistory, activeMode, {
+      deepSearchOverride: options?.deepSearch,
+    });
+  };
+
+  const handleRegenerate = async (
+    msgIndex: number,
+    overrideMode?: PersonaMode
+  ) => {
+    if (streaming) return;
+    const modeToUse = overrideMode || activeMode;
+    if (overrideMode) {
+      setActiveMode(overrideMode);
+    }
+    const truncated = messages.slice(0, msgIndex);
+    setMessages(truncated);
+    await runStreamRequest(truncated, modeToUse);
   };
 
   const handleTriggerProactive = async (hoursIdle?: number) => {
@@ -336,20 +426,39 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     );
   };
 
+  const handleRelayToMaster = async (msg: ConversationMessage) => {
+    try {
+      await fetch("/api/chat/relay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSlug: activeSlug,
+          content: msg.content,
+        }),
+      });
+      await loadPersonaList();
+    } catch (err) {
+      console.error("Failed to relay message to master-bot:", err);
+    }
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      {/* Left Navigation & Persona Gravity List */}
-      <LeftSidebar
-        personas={personas}
-        activeSlug={activeSlug}
-        onSelectPersona={(slug) => setActiveSlug(slug)}
-        onOpenImport={() => setShowImport(true)}
-        onOpenSettings={() => setShowSettings(true)}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
+      {sidebarOpen && (
+        <LeftSidebar
+          personas={personas}
+          activeSlug={activeSlug}
+          isStreaming={Boolean(streaming)}
+          onSelectPersona={(slug) => setActiveSlug(slug)}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenCommandPalette={() => setShowCommandPalette(true)}
+          onOpenCreateBot={() => setShowCreateBot(true)}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          onCollapse={() => setSidebarOpen(false)}
+        />
+      )}
 
-      {/* Center Grok Stream Stage */}
       <ChatStage
         persona={activePersona}
         messages={messages}
@@ -357,9 +466,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         input={input}
         onChangeInput={setInput}
         onSend={handleSend}
+        onQuickSend={handleQuickSend}
         onTriggerProactive={handleTriggerProactive}
         onClearHistory={handleClearHistory}
         onQuickCorrect={handleQuickCorrect}
+        onRegenerate={handleRegenerate}
+        onRelayToMaster={handleRelayToMaster}
+        onSelectPersona={(slug) => setActiveSlug(slug)}
         thinkMode={thinkMode}
         onToggleThink={() => setThinkMode((v) => !v)}
         deepSearch={deepSearch}
@@ -368,20 +481,56 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onChangeMode={(m) => setActiveMode(m)}
         showInspector={showInspector}
         onToggleInspector={() => setShowInspector((v) => !v)}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onOpenImport={() => setShowImport(true)}
+        onOpenAvatarPicker={() => setShowAvatarPicker(true)}
       />
 
-      {/* Right Persona Soul & PAD Emotion Inspector */}
       {showInspector && (
         <RightInspector
+          key={activePersona?.slug || "inspector"}
           persona={activePersona}
+          isStreaming={Boolean(streaming)}
           onSavePersonaPatch={handleSavePersonaPatch}
           onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
           onTriggerProactive={handleTriggerProactive}
+          onOpenAvatarPicker={() => setShowAvatarPicker(true)}
           onClose={() => setShowInspector(false)}
         />
       )}
 
-      {/* Modals */}
+      <CreateBotModal
+        isOpen={showCreateBot}
+        onClose={() => setShowCreateBot(false)}
+        onCreated={async (created) => {
+          await loadPersonaList();
+          if (created?.slug) {
+            setActiveSlug(created.slug);
+          }
+        }}
+      />
+
+      <AvatarPickerModal
+        key={activePersona?.slug || "picker"}
+        isOpen={showAvatarPicker}
+        persona={activePersona}
+        onClose={() => setShowAvatarPicker(false)}
+        onSave={handleSavePersonaPatch}
+      />
+
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        personas={personas}
+        activeSlug={activeSlug}
+        onSelectPersona={(slug) => setActiveSlug(slug)}
+        onChangeMode={(m) => setActiveMode(m)}
+        onToggleTheme={handleToggleTheme}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenCreateBot={() => setShowCreateBot(true)}
+      />
+
       <ImportModal
         isOpen={showImport}
         onClose={() => setShowImport(false)}
