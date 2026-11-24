@@ -57,6 +57,78 @@ export function buildMediaGenerationPrompt(
     .join(' ');
 }
 
+export function buildReferenceAwarePrompt(
+  kind: 'photo' | 'sticker',
+  caption: string,
+  personaName: string,
+  personaStyle?: string,
+  appearanceAnchor?: string
+): string {
+  const cleanCaption = caption.trim() || '日常开心瞬间';
+  const anchorLine = appearanceAnchor?.trim()
+    ? `Maintain consistent traits: "${appearanceAnchor.trim()}".`
+    : '';
+  const styleHint = personaStyle ? ` (${personaStyle})` : '';
+
+  if (kind === 'sticker') {
+    return [
+      `Create a cute messaging chat sticker preserving the exact character identity and facial features from the reference image (${personaName}${styleHint}).`,
+      anchorLine,
+      `Expression and pose: "${cleanCaption}". Clean minimal off-white background, vector sticker style.`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return [
+    `Generate a natural candid photograph of the EXACT same person shown in the reference image (${personaName}${styleHint}), preserving her exact face, facial features, hairstyle, and identity.`,
+    anchorLine,
+    `New scene, pose, outfit and lighting: "${cleanCaption}".`,
+    'Realistic smartphone candid photography, natural skin texture, authentic lighting, no watermark, no text overlays.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+async function loadReferenceImageBuffer(
+  referenceImageUrl?: string
+): Promise<{ buffer: Buffer; filename: string; mimeType: string } | null> {
+  if (!referenceImageUrl || !referenceImageUrl.trim()) return null;
+  const trimmed = referenceImageUrl.trim();
+
+  if (trimmed.startsWith('/api/media/')) {
+    const rawName = trimmed.slice('/api/media/'.length).split('?')[0];
+    if (!/^[a-zA-Z0-9_-]+\.(png|jpg|jpeg|webp)$/i.test(rawName)) {
+      return null;
+    }
+    try {
+      const fullPath = path.join(GENERATED_MEDIA_DIR, rawName);
+      const buffer = await fs.readFile(fullPath);
+      const ext = normalizeExt(rawName);
+      const mimeType =
+        ext === 'jpg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+      return { buffer, filename: rawName, mimeType };
+    } catch {
+      return null;
+    }
+  }
+
+  const dataMatch = trimmed.match(
+    /^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i
+  );
+  if (dataMatch) {
+    const mimeType = dataMatch[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : dataMatch[1].toLowerCase();
+    const ext = normalizeExt(mimeType);
+    return {
+      buffer: Buffer.from(dataMatch[2], 'base64'),
+      filename: `reference.${ext}`,
+      mimeType,
+    };
+  }
+
+  return null;
+}
+
 function normalizeExt(mimeOrUrl: string): 'png' | 'jpg' | 'webp' {
   const lower = mimeOrUrl.toLowerCase();
   if (lower.includes('jpeg') || lower.includes('jpg')) return 'jpg';
@@ -84,6 +156,7 @@ export interface GenerateMediaParams {
   personaName: string;
   personaStyle?: string;
   appearanceAnchor?: string;
+  referenceImageUrl?: string;
   baseUrl: string;
   apiKey?: string;
   imageModel: string;
@@ -93,17 +166,80 @@ export interface GenerateMediaResult {
   imageUrl?: string;
   model: string;
   prompt: string;
+  usedReferenceImage?: boolean;
   errorHint?: string;
 }
 
+async function extractMediaResponse(
+  res: Response,
+  kind: 'photo' | 'sticker',
+  model: string,
+  prompt: string,
+  usedReferenceImage = false
+): Promise<GenerateMediaResult | null> {
+  const json = await res.json();
+  const first = json?.data?.[0];
+
+  if (first?.b64_json) {
+    const buf = Buffer.from(String(first.b64_json), 'base64');
+    const localUrl = await saveGeneratedMediaBuffer(
+      buf,
+      'png',
+      kind === 'sticker' ? 'sticker' : 'photo'
+    );
+    return { imageUrl: localUrl, model, prompt, usedReferenceImage };
+  }
+
+  if (first?.url) {
+    const remoteUrl = String(first.url);
+    if (remoteUrl.startsWith('data:image/')) {
+      const match = remoteUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        const ext = normalizeExt(match[1]);
+        const buf = Buffer.from(match[2], 'base64');
+        const localUrl = await saveGeneratedMediaBuffer(
+          buf,
+          ext,
+          kind === 'sticker' ? 'sticker' : 'photo'
+        );
+        return { imageUrl: localUrl, model, prompt, usedReferenceImage };
+      }
+    }
+
+    try {
+      const imgRes = await fetch(remoteUrl, {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (imgRes.ok) {
+        const contentType = imgRes.headers.get('content-type') || 'image/png';
+        const ext = normalizeExt(contentType);
+        const arrBuf = await imgRes.arrayBuffer();
+        const localUrl = await saveGeneratedMediaBuffer(
+          Buffer.from(arrBuf),
+          ext,
+          kind === 'sticker' ? 'sticker' : 'photo'
+        );
+        return { imageUrl: localUrl, model, prompt, usedReferenceImage };
+      }
+    } catch {
+      // Fallback to returning remoteUrl directly if binary download fails
+    }
+
+    return { imageUrl: remoteUrl, model, prompt, usedReferenceImage };
+  }
+
+  return null;
+}
+
 /**
- * 调用 OpenAI 兼容 `/images/generations` 接口生成图片或表情包并持久化落盘
+ * 调用 OpenAI 兼容接口生成图片或表情包：若存在人物参考图，优先走 `/images/edits` 保持人物一致性，失败自动回退 `/images/generations`
  */
 export async function generatePersonaMedia(
   params: GenerateMediaParams
 ): Promise<GenerateMediaResult> {
   const cleanBase = params.baseUrl.replace(/\/$/, '');
   const endpoint = `${cleanBase}/images/generations`;
+  const editsEndpoint = `${cleanBase}/images/edits`;
   const model = params.imageModel || 'gpt-image-2.6';
   const prompt = buildMediaGenerationPrompt(
     params.kind,
@@ -113,17 +249,64 @@ export async function generatePersonaMedia(
     params.appearanceAnchor
   );
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const authHeaders: Record<string, string> = {};
   if (params.apiKey && params.apiKey !== 'your-api-key') {
-    headers.Authorization = `Bearer ${params.apiKey}`;
+    authHeaders.Authorization = `Bearer ${params.apiKey}`;
+  }
+
+  // Try reference-guided /images/edits first when a reference image is configured
+  const refImg = await loadReferenceImageBuffer(params.referenceImageUrl);
+  if (refImg) {
+    try {
+      const refPrompt = buildReferenceAwarePrompt(
+        params.kind,
+        params.caption,
+        params.personaName,
+        params.personaStyle,
+        params.appearanceAnchor
+      );
+      const form = new FormData();
+      form.append('model', model);
+      form.append('prompt', refPrompt);
+      form.append('n', '1');
+      form.append('size', '1024x1024');
+      form.append(
+        'image',
+        new Blob([new Uint8Array(refImg.buffer)], { type: refImg.mimeType }),
+        refImg.filename
+      );
+
+      const editRes = await fetch(editsEndpoint, {
+        method: 'POST',
+        headers: authHeaders,
+        body: form,
+        signal: AbortSignal.timeout(120000),
+      });
+
+      if (editRes.ok) {
+        const extracted = await extractMediaResponse(
+          editRes,
+          params.kind,
+          model,
+          refPrompt,
+          true
+        );
+        if (extracted?.imageUrl) {
+          return extracted;
+        }
+      }
+    } catch {
+      // Fallback transparently to text-to-image /images/generations below
+    }
   }
 
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
       body: JSON.stringify({
         model,
         prompt,
@@ -150,56 +333,9 @@ export async function generatePersonaMedia(
       };
     }
 
-    const json = await res.json();
-    const first = json?.data?.[0];
-
-    if (first?.b64_json) {
-      const buf = Buffer.from(String(first.b64_json), 'base64');
-      const localUrl = await saveGeneratedMediaBuffer(
-        buf,
-        'png',
-        params.kind === 'sticker' ? 'sticker' : 'photo'
-      );
-      return { imageUrl: localUrl, model, prompt };
-    }
-
-    if (first?.url) {
-      const remoteUrl = String(first.url);
-      if (remoteUrl.startsWith('data:image/')) {
-        const match = remoteUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-        if (match) {
-          const ext = normalizeExt(match[1]);
-          const buf = Buffer.from(match[2], 'base64');
-          const localUrl = await saveGeneratedMediaBuffer(
-            buf,
-            ext,
-            params.kind === 'sticker' ? 'sticker' : 'photo'
-          );
-          return { imageUrl: localUrl, model, prompt };
-        }
-      }
-
-      // Download remote URL locally so chat history images never expire
-      try {
-        const imgRes = await fetch(remoteUrl, {
-          signal: AbortSignal.timeout(15000),
-        });
-        if (imgRes.ok) {
-          const contentType = imgRes.headers.get('content-type') || 'image/png';
-          const ext = normalizeExt(contentType);
-          const arrBuf = await imgRes.arrayBuffer();
-          const localUrl = await saveGeneratedMediaBuffer(
-            Buffer.from(arrBuf),
-            ext,
-            params.kind === 'sticker' ? 'sticker' : 'photo'
-          );
-          return { imageUrl: localUrl, model, prompt };
-        }
-      } catch {
-        // Fallback to returning remoteUrl directly if binary download fails
-      }
-
-      return { imageUrl: remoteUrl, model, prompt };
+    const extracted = await extractMediaResponse(res, params.kind, model, prompt, false);
+    if (extracted) {
+      return extracted;
     }
 
     return {

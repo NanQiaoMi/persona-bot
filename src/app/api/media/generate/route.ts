@@ -50,10 +50,29 @@ export async function POST(request: Request) {
       personaName: persona?.name || slug,
       personaStyle: persona?.profile.personalityTags?.slice(0, 3).join(', '),
       appearanceAnchor: persona?.profile.appearanceAnchor,
+      referenceImageUrl: persona?.profile.referenceImageUrl,
       baseUrl,
       apiKey,
       imageModel,
     });
+
+    let autoLockedReference = false;
+    if (
+      mediaType === 'photo' &&
+      mediaRes.imageUrl &&
+      persona &&
+      !persona.profile.referenceImageUrl
+    ) {
+      await storageRepo.savePersona({
+        ...persona,
+        profile: {
+          ...persona.profile,
+          referenceImageUrl: mediaRes.imageUrl,
+        },
+        updatedAt: new Date().toISOString(),
+      });
+      autoLockedReference = true;
+    }
 
     const updatedCard: MediaCard = {
       type: mediaType,
@@ -89,6 +108,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       card: updatedCard,
+      autoLockedReference,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Generation failed';

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { PersonaRecord } from "@/lib/storage/types";
+import { useEffect, useRef, useState } from "react";
+import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface RightInspectorProps {
@@ -12,6 +12,7 @@ interface RightInspectorProps {
   onSavePersonaPatch: (patch: Partial<PersonaRecord>) => Promise<void>;
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
+  onRefreshPersona?: () => Promise<void>;
   onOpenAvatarPicker: () => void;
   onClose: () => void;
 }
@@ -24,6 +25,7 @@ export default function RightInspector({
   onSavePersonaPatch,
   onAddCorrection,
   onTriggerProactive,
+  onRefreshPersona,
   onOpenAvatarPicker,
   onClose,
 }: RightInspectorProps) {
@@ -43,6 +45,38 @@ export default function RightInspector({
   );
   const [newCorrection, setNewCorrection] = useState("");
   const [saving, setSaving] = useState(false);
+  const [snapshots, setSnapshots] = useState<PersonaSnapshotMeta[]>([]);
+  const [snapshotsExpanded, setSnapshotsExpanded] = useState(false);
+  const [evolving, setEvolving] = useState(false);
+  const [rollingBackId, setRollingBackId] = useState<string | null>(null);
+  const [importingBundle, setImportingBundle] = useState(false);
+  const [uploadingRef, setUploadingRef] = useState(false);
+  const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
+  const bundleFileInputRef = useRef<HTMLInputElement>(null);
+  const refImageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const slug = persona?.slug;
+    if (!slug || section !== "library" || libraryTab !== "memories") return;
+
+    let cancelled = false;
+    fetch(`/api/personas/${encodeURIComponent(slug)}/evolve`, {
+      cache: "no-store",
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.success && Array.isArray(data.snapshots)) {
+          setSnapshots(data.snapshots as PersonaSnapshotMeta[]);
+        }
+      })
+      .catch(() => {
+        // Ignore snapshot fetch error
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [persona?.slug, section, libraryTab]);
 
   if (!persona) {
     return (
@@ -495,6 +529,106 @@ export default function RightInspector({
                         "未设定固定外貌特征；设定后每次自拍/生图都会自动保持同一人物外貌与画风。"}
                     </p>
                   )}
+
+                  {/* Reference Image Identity Lock */}
+                  <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-[var(--text-secondary)]">
+                        人物一致性参考图
+                      </span>
+                      {persona.profile.referenceImageUrl && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await onSavePersonaPatch({
+                              profile: {
+                                ...persona.profile,
+                                referenceImageUrl: undefined,
+                              },
+                            });
+                          }}
+                          className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
+                        >
+                          清除
+                        </button>
+                      )}
+                    </div>
+
+                    {persona.profile.referenceImageUrl ? (
+                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={persona.profile.referenceImageUrl}
+                          alt="人物参考图"
+                          className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[var(--border-strong)]"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium text-[#18a999]">
+                            ✓ 已锁定参考图底稿
+                          </div>
+                          <div className="text-[10px] text-[var(--text-muted)] truncate">
+                            后续发自拍将参考此图五官与形象
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10.5px] text-[var(--text-muted)]">
+                        尚未锁定参考图；发送首张自拍后会自动锁定，也可手动上传：
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={uploadingRef}
+                      onClick={() => refImageInputRef.current?.click()}
+                      className="w-full py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {uploadingRef
+                        ? "正在保存参考图..."
+                        : persona.profile.referenceImageUrl
+                          ? "📷 更换人物参考图"
+                          : "📷 上传人物参考图"}
+                    </button>
+                    <input
+                      ref={refImageInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setUploadingRef(true);
+                        try {
+                          const dataUrl = await new Promise<string>(
+                            (resolve, reject) => {
+                              const reader = new FileReader();
+                              reader.onload = () =>
+                                resolve(String(reader.result || ""));
+                              reader.onerror = () => reject(new Error("Read error"));
+                              reader.readAsDataURL(file);
+                            }
+                          );
+                          const res = await fetch("/api/media/reference", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              slug: persona.slug,
+                              dataUrl,
+                            }),
+                          });
+                          const data = await res.json();
+                          if (data?.success) {
+                            await onRefreshPersona?.();
+                          }
+                        } catch {
+                          // Ignore upload error
+                        } finally {
+                          setUploadingRef(false);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -606,6 +740,221 @@ export default function RightInspector({
                     {persona.memoriesMd}
                   </pre>
                 )}
+
+                {/* Evolution, Snapshots & Soul Bundle Card */}
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      ✨ 记忆自进化与灵魂备份
+                    </span>
+                    <span className="text-[10.5px] text-[var(--text-muted)]">
+                      每 4 轮自省学习
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={evolving}
+                    onClick={async () => {
+                      setEvolving(true);
+                      setEvolutionNotice(null);
+                      try {
+                        const res = await fetch(
+                          `/api/personas/${encodeURIComponent(persona.slug)}/evolve`,
+                          { method: "POST" }
+                        );
+                        const data = await res.json();
+                        if (data?.success) {
+                          if (Array.isArray(data.snapshots)) {
+                            setSnapshots(data.snapshots as PersonaSnapshotMeta[]);
+                          }
+                          setEvolutionNotice(
+                            data.summary || "记忆与习惯检查完成"
+                          );
+                          if (data.evolved) {
+                            await onRefreshPersona?.();
+                          }
+                        } else {
+                          setEvolutionNotice(data?.error || "整理失败");
+                        }
+                      } catch {
+                        setEvolutionNotice("网络异常，整理失败");
+                      } finally {
+                        setEvolving(false);
+                      }
+                    }}
+                    className="w-full py-2 px-3 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white font-semibold text-xs transition-all cursor-pointer"
+                  >
+                    {evolving
+                      ? "正在归纳记忆与习惯..."
+                      : "✨ 立即整理记忆与习惯"}
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <a
+                      href={`/api/personas/${encodeURIComponent(persona.slug)}/bundle`}
+                      download={`persona-soul-${persona.slug}.json`}
+                      className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-center text-[11px] font-medium text-[var(--text-primary)] transition-colors"
+                    >
+                      📦 导出灵魂包
+                    </a>
+                    <button
+                      type="button"
+                      disabled={importingBundle}
+                      onClick={() => bundleFileInputRef.current?.click()}
+                      className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {importingBundle ? "导入中..." : "📥 导入灵魂包"}
+                    </button>
+                    <input
+                      ref={bundleFileInputRef}
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setImportingBundle(true);
+                        setEvolutionNotice(null);
+                        try {
+                          const raw = await file.text();
+                          const parsed = JSON.parse(raw);
+                          const res = await fetch(
+                            `/api/personas/${encodeURIComponent(persona.slug)}/bundle`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(parsed),
+                            }
+                          );
+                          const data = await res.json();
+                          if (data?.success) {
+                            if (Array.isArray(data.snapshots)) {
+                              setSnapshots(
+                                data.snapshots as PersonaSnapshotMeta[]
+                              );
+                            }
+                            setEvolutionNotice(
+                              "已成功导入灵魂包并自动备份旧版快照"
+                            );
+                            await onRefreshPersona?.();
+                          } else {
+                            setEvolutionNotice(data?.error || "导入失败");
+                          }
+                        } catch {
+                          setEvolutionNotice("灵魂包 JSON 解析失败");
+                        } finally {
+                          setImportingBundle(false);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {evolutionNotice && (
+                    <div className="px-2.5 py-1.5 rounded-xl bg-[#18a999]/10 border border-[#18a999]/25 text-[11px] text-[#18a999] leading-relaxed">
+                      {evolutionNotice}
+                    </div>
+                  )}
+
+                  {/* Snapshot History Rollback */}
+                  <div className="pt-1 border-t border-[var(--border-subtle)]">
+                    <button
+                      type="button"
+                      onClick={() => setSnapshotsExpanded((v) => !v)}
+                      className="w-full flex items-center justify-between py-1 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                    >
+                      <span>历史版本快照 ({snapshots.length})</span>
+                      <span>{snapshotsExpanded ? "▲" : "▼"}</span>
+                    </button>
+
+                    {snapshotsExpanded && (
+                      <div className="mt-1.5 space-y-1.5 max-h-52 overflow-y-auto">
+                        {snapshots.length === 0 ? (
+                          <div className="p-2.5 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[11px] text-[var(--text-muted)]">
+                            暂无历史快照，整理记忆或导入备份后会自动存档
+                          </div>
+                        ) : (
+                          snapshots.map((snap) => (
+                            <div
+                              key={snap.id}
+                              className="p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-start justify-between gap-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-medium text-[var(--text-primary)] truncate">
+                                  {snap.reason}
+                                </div>
+                                {snap.summary && (
+                                  <div className="text-[10px] text-[var(--text-secondary)] truncate">
+                                    {snap.summary}
+                                  </div>
+                                )}
+                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                  {new Date(snap.createdAt).toLocaleString(
+                                    "zh-CN",
+                                    {
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    }
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={rollingBackId === snap.id}
+                                onClick={async () => {
+                                  setRollingBackId(snap.id);
+                                  setEvolutionNotice(null);
+                                  try {
+                                    const res = await fetch(
+                                      `/api/personas/${encodeURIComponent(persona.slug)}/snapshots/rollback`,
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                          snapshotId: snap.id,
+                                        }),
+                                      }
+                                    );
+                                    const data = await res.json();
+                                    if (data?.success) {
+                                      if (Array.isArray(data.snapshots)) {
+                                        setSnapshots(
+                                          data.snapshots as PersonaSnapshotMeta[]
+                                        );
+                                      }
+                                      setEvolutionNotice(
+                                        `已回退至「${snap.reason}」版本`
+                                      );
+                                      await onRefreshPersona?.();
+                                    } else {
+                                      setEvolutionNotice(
+                                        data?.error || "回退失败"
+                                      );
+                                    }
+                                  } catch {
+                                    setEvolutionNotice("回退请求失败");
+                                  } finally {
+                                    setRollingBackId(null);
+                                  }
+                                }}
+                                className="px-2 py-1 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] hover:border-[#18a999] text-[10.5px] font-medium text-[var(--text-primary)] shrink-0 cursor-pointer disabled:opacity-50"
+                              >
+                                {rollingBackId === snap.id
+                                  ? "回退中..."
+                                  : "一键回退"}
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 

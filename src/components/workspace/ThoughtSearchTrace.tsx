@@ -40,15 +40,15 @@ export default function ThoughtSearchTrace({
 
   let summaryText = "";
   if (isSearching) {
-    summaryText = `正在检索「${searchQuery || "全网动态"}」...`;
+    summaryText = `正在顺手翻下「${searchQuery || "最新消息"}」...`;
   } else if (isStreamingThought) {
-    summaryText = "正在思考潜台词...";
+    summaryText = "心里正嘀咕怎么回你...";
   } else if (hasThought && hasSearch) {
-    summaryText = `思考了 ${secondsLabel} · 查阅了 ${sourceCount} 个来源`;
+    summaryText = `翻了 ${sourceCount} 条资料 · 偷偷想了 ${secondsLabel}`;
   } else if (hasThought) {
-    summaryText = `思考了 ${secondsLabel}`;
+    summaryText = `偷偷想了 ${secondsLabel}`;
   } else {
-    summaryText = `已查阅 ${sourceCount} 个来源`;
+    summaryText = `顺手翻了 ${sourceCount} 条资料`;
   }
 
   return (
@@ -93,9 +93,9 @@ export default function ThoughtSearchTrace({
           {hasSearch && (
             <div className="space-y-1.5">
               <div className="text-[11px] text-[var(--text-secondary)]">
-                🌐 DeepSearch 检索词：
+                🌐 顺手搜了下：
                 <span className="font-medium text-[var(--text-primary)]">
-                  {searchQuery || "实时动态"}
+                  {searchQuery || "最近动态"}
                 </span>
               </div>
               {searchResults && searchResults.length > 0 && (
@@ -121,13 +121,19 @@ export default function ThoughtSearchTrace({
           )}
 
           {hasThought && (
-            <div className="space-y-0.5">
+            <div className="rounded-2xl bg-[var(--bg-secondary)]/75 border border-dashed border-[var(--border-strong)] px-3.5 py-2.5 space-y-1">
               <div className="text-[11px] text-[var(--text-muted)]">
-                💭 内心潜台词 (Inner OS)
+                💭 心里嘀咕
               </div>
-              <p className="text-xs text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
-                {thought || "正在组织潜台词..."}
-              </p>
+              <div className="space-y-1 text-xs italic text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                {(thought || "正在想怎么回你...")
+                  .split(/\n+/)
+                  .map((beat) => beat.trim())
+                  .filter(Boolean)
+                  .map((beat, idx) => (
+                    <p key={idx}>{beat}</p>
+                  ))}
+              </div>
             </div>
           )}
         </div>

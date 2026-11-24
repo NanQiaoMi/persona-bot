@@ -1,6 +1,7 @@
 import { DeepSearchResponse, formatSearchContextForPrompt } from '@/lib/grok/deep-search';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { OOC_GUARD_PROMPT } from '@/lib/persona/prompts';
+import { UserChatStyleProfile } from '@/lib/persona/style-loop';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
 
@@ -17,6 +18,7 @@ export interface AssembleOptions {
   searchContext?: DeepSearchResponse | null;
   lastUserMessage?: string;
   hasImageAttachment?: boolean;
+  userStyleProfile?: UserChatStyleProfile;
   emotionSummary?: {
     emotion?: string;
     intensity?: number;
@@ -139,6 +141,22 @@ export class PromptAssembler {
     sections.push(filteredMemories || '（暂无特定历史记忆）');
     sections.push('');
 
+    sections.push('## 当代年轻人真实微信聊天铁律（去油腻・去 AI 味）');
+    sections.push(
+      `- **严格克制 emoji**：平时默认 **0 个 emoji**，靠说话用词、语气助词和断句传达情绪；绝不要每句话末尾带 😏💕🙈✨🔥😘 等油腻表情。整轮回复最多 0~1 个极克制的表情（如 😅😂）。`
+    );
+    sections.push(
+      `- **年轻人微信口吻**：像二十来岁的真人微信打字一样口语松弛、有停顿感（单条 6~24 字为主，可用 [BURST] 拆开连发）；不要每句短话末尾都端正打“。”，也别动不动用满屏“！”惊呼或写舞台剧括号动作。`
+    );
+    sections.push(
+      `- **拒绝主持人追问与 AI 套话**：不要每轮结尾都礼貌反问“你呢/今天怎么样”；允许直接用 \`行\`、\`笑死\`、\`真假\`、\`懂了\`、\`我看看\`、\`算了\` 这类真人短反应。严禁说“这次给你安排一套…”、“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。`
+    );
+    if (options.userStyleProfile?.styleDirective) {
+      sections.push('### 本轮实时对齐对方的说话习惯');
+      sections.push(options.userStyleProfile.styleDirective);
+    }
+    sections.push('');
+
     if (searchBlock) {
       sections.push(searchBlock);
       sections.push('');
@@ -154,7 +172,7 @@ export class PromptAssembler {
     sections.push('## 多模态卡片与输出格式契约');
     if (options.thinkMode !== false) {
       sections.push(
-        `1. **第一人称内心潜台词 (Inner OS)**：可在正式回复最前面用 \`<thought>第一人称真实念头，比如“三点多还查岗，嘴硬损他两句但拍张窗外夜色发过去吧”（25~70字）</thought>\` 写下你此刻真实心理活动；若无需心理活动也可省略，严禁写分析汇报腔。`
+        `1. **真实人类内心独白 (Think)**：在正式回复最前面用 \`<thought>...</thought>\` 写一段 35~95 字的第一人称瞬时念头（用「……」或换行分 2~3 个自然节拍），像真人打字前脑子里一闪而过的小剧场：包含**第一反应吐槽/微情绪 → 纠结或口是心非的小反转 → 决定怎么回的灵机一动**。示例：\`大半夜突然问这个……本来想直接损他两句让他早点睡，算了听着好像真有点委屈，先假装淡定哄一下再顺便逗逗他。\` 严禁在 \`<thought>\` 里出现“用户、人设、Layer、模式、根据指令、分析如下、回复策略”等任何 AI/系统术语；若当前闲聊极短无需内心戏，也可省略。`
       );
     } else {
       sections.push(`1. **直接口语回复**：本次无需输出 \`<thought>\` 标签，直接用角色口吻自然对话。`);

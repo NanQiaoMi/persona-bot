@@ -45,6 +45,7 @@ interface ChatStageProps {
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
   onClearHistory: () => void;
+  onStopStreaming?: () => void;
   onQuickCorrect: (msgIndex: number, reason: string) => Promise<void>;
   onRegenerate: (msgIndex: number, overrideMode?: PersonaMode) => void;
   onRelayToMaster?: (msg: ConversationMessage) => Promise<void>;
@@ -61,6 +62,7 @@ interface ChatStageProps {
   onToggleSidebar: () => void;
   onOpenImport: () => void;
   onOpenAvatarPicker: () => void;
+  onSetReferencePhoto?: (imageUrl: string) => Promise<void>;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -122,6 +124,32 @@ function GrokMessageBody({
   );
 }
 
+function formatSmartImTimestamp(iso?: string): string {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  const timePart = date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400000;
+  const targetDayStart = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  ).getTime();
+
+  if (targetDayStart === todayStart) return `今天 ${timePart}`;
+  if (targetDayStart === yesterdayStart) return `昨天 ${timePart}`;
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+}
+
 export default function ChatStage({
   persona,
   personas = [],
@@ -133,9 +161,7 @@ export default function ChatStage({
   onQuickSend,
   onTriggerProactive,
   onClearHistory,
-  onQuickCorrect,
-  onRegenerate,
-  onRelayToMaster,
+  onStopStreaming,
   onSelectPersona,
   thinkMode,
   onToggleThink,
@@ -149,13 +175,17 @@ export default function ChatStage({
   onToggleSidebar,
   onOpenImport,
   onOpenAvatarPicker,
+  onSetReferencePhoto,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [correctingIndex, setCorrectingIndex] = useState<number | null>(null);
-  const [correctionText, setCorrectionText] = useState("");
+  const isNearBottomRef = useRef(true);
+  const dragCounterRef = useRef(0);
+  const confirmClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [droppedImage, setDroppedImage] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [relayedId, setRelayedId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{
@@ -165,13 +195,88 @@ export default function ChatStage({
   } | null>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    return () => {
+      if (confirmClearTimerRef.current) {
+        clearTimeout(confirmClearTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDraggingFile(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFile(false);
+    }
+  };
+
+  const handleDropFile = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDraggingFile(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setDroppedImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom <= 120;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollBottom(!nearBottom && messages.length > 0);
+  };
+
+  const scrollToBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = true;
+    setShowScrollBottom(false);
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: "smooth",
+    });
+  };
+
+  useEffect(() => {
+    if (scrollRef.current && isNearBottomRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior: "smooth",
       });
     }
   }, [messages, streaming]);
+
+  useEffect(() => {
+    if (!lightboxMedia) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxMedia(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxMedia]);
 
   const speakMessage = (id: string, text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -187,16 +292,6 @@ export default function ChatStage({
     utter.onerror = () => setSpeakingId(null);
     setSpeakingId(id);
     window.speechSynthesis.speak(utter);
-  };
-
-  const copyMessage = async (id: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1600);
-    } catch {
-      // Ignore clipboard error
-    }
   };
 
   const handleShare = async () => {
@@ -230,18 +325,23 @@ export default function ChatStage({
 
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
-  const firstTimestamp = messages[0]?.timestamp
-    ? new Date(messages[0].timestamp).toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : new Date().toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
 
   return (
-    <div className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden">
+    <div
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDropFile}
+      className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden"
+    >
+      {isDraggingFile && (
+        <div className="pointer-events-none absolute inset-3 z-40 rounded-3xl border-2 border-dashed border-[#18a999] bg-[var(--bg-elevated)]/85 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
+          <span className="text-3xl">🖼️</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            松手即可发送图片给 {persona.name}
+          </span>
+        </div>
+      )}
       {/* Subtle Ambient Mascot Glow behind Floating Header */}
       <div
         aria-hidden="true"
@@ -264,11 +364,31 @@ export default function ChatStage({
           {messages.length > 0 && (
             <button
               type="button"
-              onClick={onClearHistory}
-              className="px-3.5 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all"
-              title="清空当前对话"
+              onClick={() => {
+                if (!confirmClear) {
+                  setConfirmClear(true);
+                  if (confirmClearTimerRef.current) {
+                    clearTimeout(confirmClearTimerRef.current);
+                  }
+                  confirmClearTimerRef.current = setTimeout(() => {
+                    setConfirmClear(false);
+                  }, 3000);
+                  return;
+                }
+                if (confirmClearTimerRef.current) {
+                  clearTimeout(confirmClearTimerRef.current);
+                }
+                setConfirmClear(false);
+                onClearHistory();
+              }}
+              className={`px-3.5 py-1.5 rounded-full border grok-floating-pill text-[11.5px] font-medium hover:-translate-y-0.5 transition-all cursor-pointer ${
+                confirmClear
+                  ? "bg-rose-500/12 border-rose-500/40 text-rose-500"
+                  : "bg-[var(--bg-composer)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+              title={confirmClear ? "再次点击确认清空当前对话" : "清空当前对话"}
             >
-              新对话
+              {confirmClear ? "确认清空？" : "新对话"}
             </button>
           )}
         </div>
@@ -292,7 +412,15 @@ export default function ChatStage({
             {persona.name}
           </span>
           <span className="text-[11px] text-[var(--text-muted)]">
-            {showInspector ? "✕" : `♥ ${persona.intimacy}%`}
+            {showInspector ? (
+              "✕"
+            ) : streaming ? (
+              <span className="animate-text-shimmer font-medium">
+                对方正在输入...
+              </span>
+            ) : (
+              `♥ ${persona.intimacy}%`
+            )}
           </span>
         </button>
 
@@ -311,6 +439,7 @@ export default function ChatStage({
       {/* Scrollable Chat Stream */}
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-6"
       >
         <div className="max-w-3xl mx-auto">
@@ -400,8 +529,8 @@ export default function ChatStage({
                       {
                         icon: "📊",
                         badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
-                        title: "联网整理今日热搜清单",
-                        sub: "一键触发 DeepSearch + 内嵌「页面」卡片",
+                        title: "聊聊今天的热门新鲜事",
+                        sub: "实时翻一翻网上的最新动态给你锐评",
                         text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
                         enableSearch: true,
                       },
@@ -409,8 +538,8 @@ export default function ChatStage({
                         icon: "💭",
                         badgeBg:
                           "bg-purple-500/12 text-purple-600 dark:text-purple-300",
-                        title: "看看你此刻真实的内心 OS",
-                        sub: "触发 Think 潜台词时间轴推演",
+                        title: "说说你现在心里在想啥",
+                        sub: "听听 TA 没直说出口的真实小想法",
                         text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
                         enableSearch: false,
                       },
@@ -419,7 +548,7 @@ export default function ChatStage({
                         badgeBg:
                           "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
                         title: "发张你那边的随手拍",
-                        sub: "生成角色实时情境镜头卡片",
+                        sub: "看看 TA 此刻身边的日常画面",
                         text: "发张你现在手边的随手拍给我看看呗",
                         enableSearch: false,
                       },
@@ -428,7 +557,7 @@ export default function ChatStage({
                         badgeBg:
                           "bg-rose-500/12 text-rose-600 dark:text-rose-300",
                         title: "忙完了一天，求安慰",
-                        sub: "体验多段短句连发与情绪共鸣",
+                        sub: "听几句贴合 TA 脾气的连环宽慰",
                         text: "今天工作累麻了，快按你的脾气哄我两句",
                         enableSearch: false,
                       },
@@ -463,94 +592,86 @@ export default function ChatStage({
               </div>
             </div>
           ) : (
-            <div className="space-y-5">
-              {/* Centered Grok Bot Timestamp & Status Line */}
-              <div className="py-2 text-center space-y-1.5">
-                <div className="text-[11.5px] text-[var(--text-muted)]">
-                  今天 {firstTimestamp}
-                </div>
-                <div className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-muted)]">
-                  <span>已发消息给</span>
-                  <BlobMascot
-                    shape={mascotCfg.shape}
-                    color={mascotCfg.color}
-                    image={mascotCfg.image}
-                    size={16}
-                    animated={false}
-                    trackPointer={false}
-                  />
-                  <span className="font-medium text-[var(--text-secondary)]">
-                    {persona.name}
-                  </span>
-                </div>
-              </div>
-
+            <div className="space-y-5 pt-1">
               {messages.map((msg, idx) => {
                 const isUser = msg.role === "user";
                 const bursts =
                   !isUser && msg.bursts && msg.bursts.length > 0
                     ? msg.bursts
                     : [msg.content];
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const prevTs = prevMsg?.timestamp
+                  ? new Date(prevMsg.timestamp).getTime()
+                  : 0;
+                const currTs = msg.timestamp
+                  ? new Date(msg.timestamp).getTime()
+                  : 0;
+                const showTimeDivider =
+                  idx === 0 ||
+                  (prevTs > 0 &&
+                    currTs > 0 &&
+                    currTs - prevTs > 5 * 60 * 1000);
+
+                const timeDividerNode = showTimeDivider ? (
+                  <div className="w-full py-2 text-center">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] text-[var(--text-muted)]">
+                      {formatSmartImTimestamp(msg.timestamp)}
+                    </span>
+                  </div>
+                ) : null;
 
                 if (isUser) {
                   return (
-                    <div
-                      key={msg.id || `${msg.timestamp}-${idx}`}
-                      className="flex flex-col items-end animate-msg-user"
-                    >
-                      {msg.imageUrl && (
-                        <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={msg.imageUrl}
-                            alt="用户上传图片"
-                            className="w-full max-h-56 object-cover"
-                          />
+                    <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
+                      {timeDividerNode}
+                      <div className="flex flex-col items-end animate-msg-user">
+                        {msg.imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLightboxMedia({
+                                url: msg.imageUrl!,
+                                caption: "我发送的图片",
+                                kind: "photo",
+                              })
+                            }
+                            className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={msg.imageUrl}
+                              alt="用户上传图片"
+                              className="w-full max-h-56 object-cover"
+                            />
+                          </button>
+                        )}
+                        <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
+                          <p className="whitespace-pre-wrap break-words">
+                            {msg.content}
+                          </p>
                         </div>
-                      )}
-                      <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
-                        <p className="whitespace-pre-wrap break-words">
-                          {msg.content}
-                        </p>
                       </div>
-                    </div>
+                    </Fragment>
                   );
                 }
 
-                const altRewriteMode: PersonaMode =
-                  (msg.mode || activeMode) === "fun" ? "companion" : "fun";
-                const altRewriteLabel =
-                  altRewriteMode === "fun" ? "⚡ 毒舌重说" : "🌸 温柔重说";
-                const isMasterView =
-                  Boolean(persona.isMaster) || persona.slug === "master-bot";
                 const reports = msg.interBotReports || [];
                 const reportsOpen = expandedReportsId === msg.id;
-                const prevMsg = idx > 0 ? messages[idx - 1] : null;
-                const nextMsg =
-                  idx < messages.length - 1 ? messages[idx + 1] : null;
                 const isContinuation = Boolean(
-                  prevMsg &&
+                  !showTimeDivider &&
+                    prevMsg &&
                     prevMsg.role === "assistant" &&
                     (prevMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
                 );
-                const hasNextAssistant = Boolean(
-                  nextMsg &&
-                    nextMsg.role === "assistant" &&
-                    (nextMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
-                );
-                const isIntermediate =
-                  hasNextAssistant &&
-                  !msg.mediaCards?.length &&
-                  !msg.pageCard &&
-                  correctingIndex !== idx;
 
                 return (
-                  <div
-                    key={msg.id || `${msg.timestamp}-${idx}`}
-                    className={`group flex flex-col items-start animate-msg-ai w-full ${
-                      isContinuation ? "-mt-3" : ""
-                    }`}
-                  >
+                  <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
+                    {timeDividerNode}
+                    <div
+                      className={`group flex flex-col items-start animate-msg-ai w-full ${
+                        isContinuation ? "-mt-3" : ""
+                      }`}
+                    >
                     {/* Inter-Bot "N 条消息往来：" Compact Overlapping Chip Bar */}
                     {reports.length > 0 && (
                       <div className="w-full mb-2.5 flex flex-col items-center">
@@ -683,7 +804,7 @@ export default function ChatStage({
 
                     {/* Multimodal Sticker / Photo / Voice Cards */}
                     {msg.mediaCards && msg.mediaCards.length > 0 && (
-                      <div className="mt-2.5 space-y-2.5 w-full max-w-md">
+                      <div className="mt-2 space-y-2 w-full max-w-md">
                         {msg.mediaCards.map((card, cIdx) => {
                           if (card.type === "sticker") {
                             if (card.imageUrl) {
@@ -699,13 +820,13 @@ export default function ChatStage({
                                     })
                                   }
                                   title={card.caption}
-                                  className="group/sticker inline-block rounded-2xl overflow-hidden bg-[var(--bg-composer)] border border-[var(--border-subtle)] p-1.5 shadow-sm hover:scale-[1.03] transition-transform cursor-pointer"
+                                  className="group/sticker inline-block rounded-2xl overflow-hidden hover:scale-[1.03] transition-transform cursor-pointer"
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={card.imageUrl}
                                     alt={card.caption}
-                                    className="w-36 h-36 rounded-xl object-contain"
+                                    className="w-36 h-36 rounded-2xl object-contain"
                                   />
                                 </button>
                               );
@@ -715,17 +836,18 @@ export default function ChatStage({
                               return (
                                 <div
                                   key={cIdx}
-                                  className="w-40 h-36 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex flex-col items-center justify-center gap-2 p-3 text-center animate-fade-in"
+                                  className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-[18px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in"
                                 >
                                   <BlobMascot
                                     shape={mascotCfg.shape}
                                     color={mascotCfg.color}
-                                    size={30}
+                                    image={mascotCfg.image}
+                                    size={20}
                                     trackPointer={false}
                                     state="working"
                                   />
-                                  <span className="text-[11px] font-medium animate-text-shimmer">
-                                    正在绘制表情包...
+                                  <span className="text-[12px] font-medium animate-text-shimmer">
+                                    正在翻找表情包...
                                   </span>
                                 </div>
                               );
@@ -734,11 +856,11 @@ export default function ChatStage({
                             return (
                               <div
                                 key={cIdx}
-                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-xs"
+                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-bubble-ai)] text-xs"
                               >
-                                <div className="flex items-center gap-2 font-medium text-[var(--text-primary)]">
+                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                   <span>🎭</span>
-                                  <span>表情包：{card.caption}</span>
+                                  <span>[{card.caption}]</span>
                                 </div>
                                 {card.errorHint && (
                                   <span className="text-[11px] text-[var(--text-muted)]">
@@ -750,62 +872,59 @@ export default function ChatStage({
                           }
 
                           if (card.type === "photo") {
+                            if (card.imageUrl) {
+                              return (
+                                <button
+                                  key={cIdx}
+                                  type="button"
+                                  onClick={() =>
+                                    setLightboxMedia({
+                                      url: card.imageUrl!,
+                                      caption: card.caption,
+                                      kind: "photo",
+                                    })
+                                  }
+                                  className="block max-w-[300px] rounded-2xl overflow-hidden shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={card.imageUrl}
+                                    alt={card.caption}
+                                    className="w-full max-h-72 object-cover"
+                                  />
+                                </button>
+                              );
+                            }
+
+                            if (card.status === "generating") {
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className="inline-flex items-center gap-2.5 px-4 py-3 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in"
+                                >
+                                  <BlobMascot
+                                    shape={mascotCfg.shape}
+                                    color={mascotCfg.color}
+                                    image={mascotCfg.image}
+                                    size={22}
+                                    trackPointer={false}
+                                    state="working"
+                                  />
+                                  <span className="text-[12px] font-medium animate-text-shimmer">
+                                    {persona.name} 正在拍照...
+                                  </span>
+                                </div>
+                              );
+                            }
+
                             return (
                               <div
                                 key={cIdx}
-                                className="rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card overflow-hidden"
+                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-bubble-ai)] text-xs text-[var(--text-muted)]"
                               >
-                                {card.imageUrl ? (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setLightboxMedia({
-                                        url: card.imageUrl!,
-                                        caption: card.caption,
-                                        kind: "photo",
-                                      })
-                                    }
-                                    className="block w-full overflow-hidden bg-black/5 cursor-pointer"
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={card.imageUrl}
-                                      alt={card.caption}
-                                      className="w-full max-h-72 object-cover hover:scale-[1.02] transition-transform"
-                                    />
-                                  </button>
-                                ) : card.status === "generating" ? (
-                                  <div className="h-44 w-full bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-2.5 animate-fade-in">
-                                    <BlobMascot
-                                      shape={mascotCfg.shape}
-                                      color={mascotCfg.color}
-                                      size={34}
-                                      trackPointer={false}
-                                      state="working"
-                                    />
-                                    <span className="text-xs font-medium animate-text-shimmer">
-                                      正在使用 {card.model || "gpt-image-2.6"} 生成实拍图...
-                                    </span>
-                                  </div>
-                                ) : null}
-                                <div className="p-3.5 space-y-1">
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-semibold text-[var(--text-primary)]">
-                                      📸 {persona.name} 的情境实拍
-                                    </span>
-                                    <span className="text-[10px] text-[var(--text-muted)]">
-                                      {card.model || "MOMENT"}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-[var(--text-secondary)] italic leading-relaxed">
-                                    &ldquo;{card.caption}&rdquo;
-                                  </p>
-                                  {card.errorHint && !card.imageUrl && (
-                                    <p className="text-[11px] text-[var(--text-muted)] pt-0.5">
-                                      {card.errorHint}
-                                    </p>
-                                  )}
-                                </div>
+                                <span>
+                                  📸 {card.errorHint || "照片没发过来，稍后再拍给你"}
+                                </span>
                               </div>
                             );
                           }
@@ -840,119 +959,8 @@ export default function ChatStage({
                         })}
                       </div>
                     )}
-
-                    {/* Subtle Hover Action Row */}
-                    <div
-                      className={
-                        isIntermediate
-                          ? "h-0 overflow-hidden opacity-0 group-hover:h-auto group-hover:mt-1.5 group-hover:opacity-100 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] transition-opacity"
-                          : "mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity"
-                      }
-                    >
-                      {msg.mood && <span>{msg.mood}</span>}
-                      {msg.isFollowup && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
-                          主动追发
-                        </span>
-                      )}
-                      {msg.modelUsed && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-mono">
-                          {msg.modelUsed}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => copyMessage(msg.id, msg.content)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
-                      >
-                        {copiedId === msg.id ? "✓ 已复制" : "复制"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onRegenerate(idx)}
-                        disabled={Boolean(streaming)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
-                      >
-                        ↻ 重说
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onRegenerate(idx, altRewriteMode)}
-                        disabled={Boolean(streaming)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
-                      >
-                        {altRewriteLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => speakMessage(msg.id, msg.content)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
-                      >
-                        {speakingId === msg.id ? "🔊 播报中" : "🔈 朗读"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCorrectingIndex(
-                            correctingIndex === idx ? null : idx
-                          );
-                          setCorrectionText("");
-                        }}
-                        className="hover:text-[var(--text-primary)] transition-colors"
-                      >
-                        ✎ 纠偏
-                      </button>
-                      {!isMasterView && onRelayToMaster && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await onRelayToMaster(msg);
-                            setRelayedId(msg.id);
-                            setTimeout(() => setRelayedId(null), 2000);
-                          }}
-                          className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                        >
-                          {relayedId === msg.id ? "✓ 已汇报给主 Bot" : "↗ 汇报给主 Bot"}
-                        </button>
-                      )}
                     </div>
-
-                    {/* Inline Correction Popover */}
-                    {correctingIndex === idx && (
-                      <div className="mt-2 p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] grok-floating-card w-full max-w-md space-y-2 animate-msg-spring">
-                        <div className="text-xs font-semibold text-[var(--text-primary)]">
-                          纠正 {persona.name} 的表达偏差：
-                        </div>
-                        <input
-                          type="text"
-                          value={correctionText}
-                          onChange={(e) => setCorrectionText(e.target.value)}
-                          placeholder="例如：她不会这么客气，应该先损我一句..."
-                          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setCorrectingIndex(null)}
-                            className="px-2.5 py-1 text-xs text-[var(--text-muted)]"
-                          >
-                            取消
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!correctionText.trim()) return;
-                              await onQuickCorrect(idx, correctionText.trim());
-                              setCorrectingIndex(null);
-                            }}
-                            className="px-3 py-1 rounded-full bg-[#18a999] text-white font-semibold text-xs"
-                          >
-                            永久记住
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  </Fragment>
                 );
               })}
 
@@ -1056,8 +1064,23 @@ export default function ChatStage({
               alt={lightboxMedia.caption}
               className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
             />
-            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
-              <span className="max-w-md truncate">{lightboxMedia.caption}</span>
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span className="max-w-xs truncate">{lightboxMedia.caption}</span>
+              {lightboxMedia.kind === "photo" && onSetReferencePhoto && (
+                <button
+                  type="button"
+                  onClick={() => void onSetReferencePhoto(lightboxMedia.url)}
+                  className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                    persona.profile.referenceImageUrl === lightboxMedia.url
+                      ? "bg-[#18a999] text-white"
+                      : "bg-white/15 hover:bg-white/25 text-white"
+                  }`}
+                >
+                  {persona.profile.referenceImageUrl === lightboxMedia.url
+                    ? "✓ 已设为人物参考图"
+                    : "⭐ 设为参考图"}
+                </button>
+              )}
               <a
                 href={lightboxMedia.url}
                 download
@@ -1077,6 +1100,19 @@ export default function ChatStage({
         </div>
       )}
 
+      {/* Scroll-to-Bottom Floating Pill */}
+      {showScrollBottom && (
+        <div className="pointer-events-none absolute bottom-[88px] inset-x-0 z-20 flex justify-center animate-fade-in">
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="pointer-events-auto px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all cursor-pointer"
+          >
+            ↓ 回到最新消息
+          </button>
+        </div>
+      )}
+
       {/* Floating Bottom Capsule Composer */}
       <GrokComposer
         personaName={persona.name}
@@ -1085,6 +1121,9 @@ export default function ChatStage({
         value={input}
         onChange={onChangeInput}
         onSend={onSend}
+        onStop={onStopStreaming}
+        externalImage={droppedImage}
+        onClearExternalImage={() => setDroppedImage(null)}
         disabled={Boolean(streaming)}
         thinkMode={thinkMode}
         onToggleThink={onToggleThink}

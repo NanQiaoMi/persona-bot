@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
@@ -14,6 +14,9 @@ interface GrokComposerProps {
     requestSticker?: boolean;
     mentionedSlug?: string;
   }) => void;
+  onStop?: () => void;
+  externalImage?: string | null;
+  onClearExternalImage?: () => void;
   disabled?: boolean;
   thinkMode: boolean;
   onToggleThink: () => void;
@@ -32,6 +35,9 @@ export default function GrokComposer({
   value,
   onChange,
   onSend,
+  onStop,
+  externalImage,
+  onClearExternalImage,
   disabled,
   thinkMode,
   onToggleThink,
@@ -54,7 +60,57 @@ export default function GrokComposer({
     string | undefined
   >(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const plusBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [value]);
+
+  useEffect(() => {
+    textInputRef.current?.focus();
+  }, [personaName]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        popoverRef.current?.contains(target) ||
+        plusBtnRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setMenuOpen(false);
+    };
+    window.addEventListener("mousedown", handleOutside);
+    return () => window.removeEventListener("mousedown", handleOutside);
+  }, [menuOpen]);
+
+  const handlePasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            setImagePreview(reader.result);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -100,12 +156,14 @@ export default function GrokComposer({
     setTimeout(() => textInputRef.current?.focus(), 0);
   };
 
+  const activeImagePreview = imagePreview || externalImage || null;
+
   const handleSubmit = (
     requestPhoto = false,
     requestSticker = false
   ) => {
     if (disabled) return;
-    if (!value.trim() && !imagePreview && !requestPhoto && !requestSticker) return;
+    if (!value.trim() && !activeImagePreview && !requestPhoto && !requestSticker) return;
     const matchedInText = personas.find((p) =>
       value.includes(`@${p.name}`)
     )?.slug;
@@ -118,12 +176,13 @@ export default function GrokComposer({
         ? selectedMentionSlug
         : undefined);
     onSend({
-      imageUrl: imagePreview || undefined,
+      imageUrl: activeImagePreview || undefined,
       requestPhoto,
       requestSticker,
       mentionedSlug: resolvedMentionSlug,
     });
     setImagePreview(null);
+    onClearExternalImage?.();
     setSelectedMentionSlug(undefined);
     setMenuOpen(false);
   };
@@ -173,7 +232,7 @@ export default function GrokComposer({
     }
   };
 
-  const hasContent = Boolean(value.trim()) || Boolean(imagePreview);
+  const hasContent = Boolean(value.trim()) || Boolean(activeImagePreview);
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
@@ -181,7 +240,10 @@ export default function GrokComposer({
       <div className="relative max-w-3xl mx-auto">
         {/* Floating "+" Toolbox Popover */}
         {menuOpen && (
-          <div className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in">
+          <div
+            ref={popoverRef}
+            className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in"
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--text-primary)]">
                 Grok 能力与人格工具箱
@@ -312,19 +374,22 @@ export default function GrokComposer({
         )}
 
         {/* Active Image Attachment Preview */}
-        {imagePreview && (
+        {activeImagePreview && (
           <div className="mb-2.5 px-4 py-2 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center gap-3 animate-fade-in">
             <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-[var(--border-strong)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imagePreview}
+                src={activeImagePreview}
                 alt="上传预览"
                 className="w-full h-full object-cover"
               />
               <button
                 type="button"
-                onClick={() => setImagePreview(null)}
-                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/75 text-white text-[10px] flex items-center justify-center"
+                onClick={() => {
+                  setImagePreview(null);
+                  onClearExternalImage?.();
+                }}
+                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/75 text-white text-[10px] flex items-center justify-center cursor-pointer"
               >
                 ×
               </button>
@@ -338,29 +403,22 @@ export default function GrokComposer({
         {/* Subtle Active Mode & Search Chips */}
         {(deepSearch || activeMode !== "authentic") && (
           <div className="mb-2 px-2 flex items-center gap-1.5 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              {modeSpec.badge} {modeSpec.shortLabel}
-            </button>
+            {activeMode !== "authentic" && (
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                {modeSpec.badge} {modeSpec.shortLabel}
+              </button>
+            )}
             {deepSearch && (
               <button
                 type="button"
                 onClick={onToggleDeepSearch}
-                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors"
+                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors cursor-pointer"
               >
                 🌐 DeepSearch 已开启 ×
-              </button>
-            )}
-            {thinkMode && (
-              <button
-                type="button"
-                onClick={onToggleThink}
-                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                ✦ Think
               </button>
             )}
           </div>
@@ -409,7 +467,7 @@ export default function GrokComposer({
         )}
 
         {/* Main Floating Grok Bot Pill Capsule */}
-        <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
+        <div className="flex items-end gap-2 px-2.5 py-2 rounded-[26px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
           <input
             ref={fileInputRef}
             type="file"
@@ -419,6 +477,7 @@ export default function GrokComposer({
           />
 
           <button
+            ref={plusBtnRef}
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="打开功能菜单"
@@ -444,16 +503,18 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          <input
+          <textarea
             ref={textInputRef}
-            type="text"
+            rows={1}
             value={value}
             onChange={(e) => {
               setDismissedAtValue(null);
               setMentionIndex(0);
               onChange(e.target.value);
             }}
+            onPaste={handlePasteImage}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
               if (showMentionMenu) {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
@@ -488,8 +549,8 @@ export default function GrokComposer({
               }
             }}
             disabled={disabled}
-            placeholder={`给 ${personaName || "PersonaBot"} 发消息（输入 @ 可唤起其他 Bot）`}
-            className="flex-1 bg-transparent px-2 text-[14px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+            placeholder={`给 ${personaName || "TA"} 发消息...`}
+            className="flex-1 max-h-32 overflow-y-auto resize-none bg-transparent px-2 py-1.5 text-[14px] leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
 
           <button
@@ -517,24 +578,34 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          {/* Animated Active-Bot Color Waveform / Send Button */}
+          {/* Animated Active-Bot Color Waveform / Send / Stop Button */}
           <button
             type="button"
             onClick={() => {
-              if (hasContent) {
+              if (disabled) {
+                onStop?.();
+              } else if (hasContent) {
                 handleSubmit(false);
               } else {
                 onTriggerProactive();
               }
             }}
-            disabled={disabled}
-            aria-label={hasContent ? "发送消息" : "语音/主动破冰"}
+            disabled={disabled && !onStop}
+            aria-label={
+              disabled ? "停止回复" : hasContent ? "发送消息" : "语音/主动破冰"
+            }
             className="w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
             style={{ backgroundColor: accentColor }}
-            title={hasContent ? "发送消息 (Enter)" : "让 TA 主动开口破冰"}
+            title={
+              disabled
+                ? "停止当前回复"
+                : hasContent
+                  ? "发送消息 (Enter)"
+                  : "让 TA 主动开口破冰"
+            }
           >
             {disabled ? (
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              <span className="w-3 h-3 rounded-[3px] bg-white" />
             ) : hasContent ? (
               <svg
                 className="w-4 h-4"
