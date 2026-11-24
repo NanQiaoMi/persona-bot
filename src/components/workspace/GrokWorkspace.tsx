@@ -5,6 +5,7 @@ import ImportModal from "@/components/ImportModal";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
   ConversationMessage,
+  MediaCard,
   PersonaMode,
   PersonaRecord,
   PersonaSummary,
@@ -52,6 +53,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     thoughtDurationMs?: number;
     isStreamingThought: boolean;
     reply: string;
+    bursts?: string[];
+    mediaCards?: MediaCard[];
   } | null>(null);
 
   const loadPersonaList = useCallback(async () => {
@@ -134,7 +137,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const runStreamRequest = async (
     historyToSend: ConversationMessage[],
     modeToUse: PersonaMode,
-    options?: { requestPhoto?: boolean; deepSearchOverride?: boolean }
+    options?: {
+      requestPhoto?: boolean;
+      requestSticker?: boolean;
+      deepSearchOverride?: boolean;
+    }
   ) => {
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
 
@@ -144,6 +151,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
       reply: "",
+      bursts: [],
+      mediaCards: [],
     });
 
     try {
@@ -162,6 +171,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           thinkMode,
           deepSearch: useDeepSearch,
           requestPhoto: options?.requestPhoto,
+          requestSticker: options?.requestSticker,
         }),
       });
 
@@ -232,6 +242,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                     }
                   : prev
               );
+            } else if (payload.type === "media" && Array.isArray(payload.mediaCards)) {
+              setStreaming((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      statusText: undefined,
+                      mediaCards: payload.mediaCards as MediaCard[],
+                    }
+                  : prev
+              );
             } else if (payload.type === "reply") {
               setStreaming((prev) =>
                 prev
@@ -240,6 +260,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       isSearching: false,
                       isStreamingThought: false,
                       reply: payload.fullReply,
+                      bursts: Array.isArray(payload.bursts)
+                        ? payload.bursts
+                        : prev.bursts,
                     }
                   : prev
               );
@@ -254,6 +277,61 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
       if (finalMessage) {
         setMessages((prev) => [...prev, finalMessage!]);
+
+        // Trigger non-blocking background image/sticker generation for any pending cards
+        const pendingCards = finalMessage.mediaCards || [];
+        pendingCards.forEach((card, cardIndex) => {
+          if (
+            (card.type === "sticker" || card.type === "photo") &&
+            card.status === "generating"
+          ) {
+            const targetMessageId = finalMessage!.id;
+            const targetSlug = activeSlug;
+            void fetch("/api/media/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                slug: targetSlug,
+                messageId: targetMessageId,
+                cardIndex,
+                kind: card.type,
+                caption: card.caption,
+              }),
+            })
+              .then((r) => r.json())
+              .then((resData) => {
+                if (resData?.success && resData.card) {
+                  setMessages((prevMsgs) =>
+                    prevMsgs.map((m) => {
+                      if (m.id !== targetMessageId) return m;
+                      const updated = [...(m.mediaCards || [])];
+                      updated[cardIndex] = {
+                        ...updated[cardIndex],
+                        ...resData.card,
+                      };
+                      return { ...m, mediaCards: updated };
+                    })
+                  );
+                }
+              })
+              .catch(() => {
+                setMessages((prevMsgs) =>
+                  prevMsgs.map((m) => {
+                    if (m.id !== targetMessageId) return m;
+                    const updated = [...(m.mediaCards || [])];
+                    if (updated[cardIndex]) {
+                      updated[cardIndex] = {
+                        ...updated[cardIndex],
+                        status: "error",
+                        errorHint: "图片生成超时，已保留描述卡片",
+                      };
+                    }
+                    return { ...m, mediaCards: updated };
+                  })
+                );
+              });
+          }
+        });
       }
       await loadPersonaList();
     } catch (error) {
@@ -266,10 +344,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const handleSend = async (options?: {
     imageUrl?: string;
     requestPhoto?: boolean;
+    requestSticker?: boolean;
   }) => {
     const text =
       input.trim() ||
-      (options?.requestPhoto ? "发张你那边的随手拍给我看看呗 📸" : "");
+      (options?.requestSticker
+        ? "发个适合现在氛围的表情包给我看看～"
+        : options?.requestPhoto
+          ? "发张你那边的随手拍给我看看呗 📸"
+          : "");
     if (!text && !options?.imageUrl) return;
     if (streaming) return;
 
@@ -288,6 +371,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
     await runStreamRequest(nextHistory, activeMode, {
       requestPhoto: options?.requestPhoto,
+      requestSticker: options?.requestSticker,
     });
   };
 

@@ -9,8 +9,15 @@ import {
 import { generateProactiveGreeting, getTimePeriodInfo } from '@/lib/grok/proactive-engine';
 import {
   parseStructuredModelOutput,
+  splitLiveBursts,
   synthesizePersonaAwareFallback,
 } from '@/lib/grok/stream-orchestrator';
+import {
+  buildMediaGenerationPrompt,
+  generatePersonaMedia,
+  LOCAL_CHAT_MODELS,
+  LOCAL_IMAGE_MODELS,
+} from '@/lib/grok/image-generator';
 import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
 import { analyzeChatLogCorpus } from '@/lib/persona/distiller';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
@@ -147,5 +154,48 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(events).toContain('done');
     expect(result.interBotReports && result.interBotReports.length).toBeGreaterThanOrEqual(2);
     expect(result.content).toContain('已交回本轮执行结果');
+  });
+
+  it('parses [STICKER] tags, builds sticker/photo prompts, and degrades gracefully when gateway is offline', async () => {
+    const sample = `<thought>他求安慰了，配一个摸摸头的表情包。</thought>
+[MOOD: 嘴硬心软 🐾]
+好啦好啦别丧啦 [BURST] 给你摸摸头，歇五分钟再继续！
+[STICKER: 歪头举着小花说辛苦了的可爱表情包]`;
+
+    const parsed = parseStructuredModelOutput(sample);
+    expect(parsed.mediaCards.some((c) => c.type === 'sticker')).toBe(true);
+    expect(parsed.mediaCards.find((c) => c.type === 'sticker')?.caption).toContain('辛苦了');
+
+    const stickerPrompt = buildMediaGenerationPrompt(
+      'sticker',
+      '歪头吐舌头嘲笑你熬夜',
+      '艾拉 Ella',
+      '毒舌幽默'
+    );
+    expect(stickerPrompt).toContain('chat sticker illustration');
+
+    const photoPrompt = buildMediaGenerationPrompt(
+      'photo',
+      '凌晨书桌旁的冰美式和机械键盘',
+      '艾拉 Ella'
+    );
+    expect(photoPrompt).toContain('candid lifestyle smartphone photograph');
+
+    expect(LOCAL_CHAT_MODELS).toContain('gpt-5.6');
+    expect(LOCAL_IMAGE_MODELS).toContain('gpt-image-2.6');
+
+    const offlineRes = await generatePersonaMedia({
+      kind: 'sticker',
+      caption: '开心比耶',
+      personaName: '艾拉 Ella',
+      baseUrl: 'http://127.0.0.1:18699/v1',
+      imageModel: 'gpt-image-2.6',
+    });
+    expect(offlineRes.imageUrl).toBeUndefined();
+    expect(offlineRes.errorHint).toBeTruthy();
+
+    const rawStream = `<thought>内部思考</thought>\n[MOOD: 开心]\n\n\n第一句气泡\n\n\n\n[BURST]\n\n第二句气泡\n[STICKER: 得意`;
+    const bursts = splitLiveBursts(rawStream);
+    expect(bursts).toEqual(['第一句气泡', '第二句气泡']);
   });
 });

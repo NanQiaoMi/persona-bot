@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import {
   ConversationMessage,
+  MediaCard,
   PersonaMode,
   PersonaRecord,
   SearchResultItem,
@@ -23,6 +24,8 @@ interface StreamingState {
   thoughtDurationMs?: number;
   isStreamingThought: boolean;
   reply: string;
+  bursts?: string[];
+  mediaCards?: MediaCard[];
 }
 
 interface ChatStageProps {
@@ -31,7 +34,11 @@ interface ChatStageProps {
   streaming: StreamingState | null;
   input: string;
   onChangeInput: (val: string) => void;
-  onSend: (options?: { imageUrl?: string; requestPhoto?: boolean }) => void;
+  onSend: (options?: {
+    imageUrl?: string;
+    requestPhoto?: boolean;
+    requestSticker?: boolean;
+  }) => void;
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
   onClearHistory: () => void;
@@ -77,11 +84,19 @@ function renderInlineMarkdown(text: string) {
   });
 }
 
-function GrokMessageBody({ content }: { content: string }) {
-  const blocks = content.split(/(```[\s\S]*?```)/g);
+function GrokMessageBody({
+  content,
+  showCursor = false,
+}: {
+  content: string;
+  showCursor?: boolean;
+}) {
+  const normalized = content.replace(/\n{3,}/g, "\n\n").trim();
+  const blocks = normalized.split(/(```[\s\S]*?```)/g).filter(Boolean);
   return (
-    <div className="space-y-2 text-[14px] leading-[1.68] text-[var(--text-primary)]">
+    <div className="space-y-1.5 text-[14px] leading-[1.6] text-[var(--text-primary)]">
       {blocks.map((block, bIdx) => {
+        const isLast = bIdx === blocks.length - 1;
         if (block.startsWith("```") && block.endsWith("```")) {
           const inner = block.slice(3, -3).replace(/^[a-zA-Z]+\n/, "");
           return (
@@ -96,6 +111,7 @@ function GrokMessageBody({ content }: { content: string }) {
         return (
           <p key={bIdx} className="whitespace-pre-wrap break-words">
             {renderInlineMarkdown(block)}
+            {showCursor && isLast && <span className="grok-cursor" />}
           </p>
         );
       })}
@@ -138,6 +154,11 @@ export default function ChatStage({
   const [relayedId, setRelayedId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
+  const [lightboxMedia, setLightboxMedia] = useState<{
+    url: string;
+    caption: string;
+    kind: "photo" | "sticker";
+  } | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -615,45 +636,158 @@ export default function ChatStage({
                       searchResults={msg.searchResults}
                     />
 
-                    {/* Soft Gray Rounded Grok Bot Reply Card */}
-                    <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 space-y-2.5">
+                    {/* Multi-Bubble IM Style Grok Bot Reply Stack */}
+                    <div className="flex flex-col items-start gap-1.5 w-full">
                       {bursts.map((burstText, bIdx) => (
-                        <GrokMessageBody key={bIdx} content={burstText} />
+                        <div
+                          key={bIdx}
+                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                        >
+                          <GrokMessageBody content={burstText} />
+                        </div>
                       ))}
                     </div>
 
                     {/* Elevated White Interactive "Page" Artifact Card */}
                     {msg.pageCard && <PageArtifactCard card={msg.pageCard} />}
 
-                    {/* Multimodal Photo / Voice Cards */}
+                    {/* Multimodal Sticker / Photo / Voice Cards */}
                     {msg.mediaCards && msg.mediaCards.length > 0 && (
-                      <div className="mt-2.5 space-y-2 w-full max-w-md">
-                        {msg.mediaCards.map((card, cIdx) =>
-                          card.type === "photo" ? (
-                            <div
-                              key={cIdx}
-                              className="p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card space-y-1.5"
-                            >
-                              <div className="flex items-center justify-between text-[11px]">
-                                <span className="font-semibold text-[var(--text-primary)]">
-                                  📸 {persona.name} 的情境实拍
-                                </span>
-                                <span className="text-[10px] text-[var(--text-muted)]">
-                                  MOMENT
-                                </span>
+                      <div className="mt-2.5 space-y-2.5 w-full max-w-md">
+                        {msg.mediaCards.map((card, cIdx) => {
+                          if (card.type === "sticker") {
+                            if (card.imageUrl) {
+                              return (
+                                <button
+                                  key={cIdx}
+                                  type="button"
+                                  onClick={() =>
+                                    setLightboxMedia({
+                                      url: card.imageUrl!,
+                                      caption: card.caption,
+                                      kind: "sticker",
+                                    })
+                                  }
+                                  title={card.caption}
+                                  className="group/sticker inline-block rounded-2xl overflow-hidden bg-[var(--bg-composer)] border border-[var(--border-subtle)] p-1.5 shadow-sm hover:scale-[1.03] transition-transform cursor-pointer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={card.imageUrl}
+                                    alt={card.caption}
+                                    className="w-36 h-36 rounded-xl object-contain"
+                                  />
+                                </button>
+                              );
+                            }
+
+                            if (card.status === "generating") {
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className="w-40 h-36 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex flex-col items-center justify-center gap-2 p-3 text-center animate-fade-in"
+                                >
+                                  <BlobMascot
+                                    shape={mascotCfg.shape}
+                                    color={mascotCfg.color}
+                                    size={30}
+                                    trackPointer={false}
+                                    state="working"
+                                  />
+                                  <span className="text-[11px] font-medium animate-text-shimmer">
+                                    正在绘制表情包...
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={cIdx}
+                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-xs"
+                              >
+                                <div className="flex items-center gap-2 font-medium text-[var(--text-primary)]">
+                                  <span>🎭</span>
+                                  <span>表情包：{card.caption}</span>
+                                </div>
+                                {card.errorHint && (
+                                  <span className="text-[11px] text-[var(--text-muted)]">
+                                    {card.errorHint}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-[var(--text-secondary)] italic leading-relaxed">
-                                &ldquo;{card.caption}&rdquo;
-                              </p>
-                            </div>
-                          ) : (
+                            );
+                          }
+
+                          if (card.type === "photo") {
+                            return (
+                              <div
+                                key={cIdx}
+                                className="rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card overflow-hidden"
+                              >
+                                {card.imageUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setLightboxMedia({
+                                        url: card.imageUrl!,
+                                        caption: card.caption,
+                                        kind: "photo",
+                                      })
+                                    }
+                                    className="block w-full overflow-hidden bg-black/5 cursor-pointer"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={card.imageUrl}
+                                      alt={card.caption}
+                                      className="w-full max-h-72 object-cover hover:scale-[1.02] transition-transform"
+                                    />
+                                  </button>
+                                ) : card.status === "generating" ? (
+                                  <div className="h-44 w-full bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-2.5 animate-fade-in">
+                                    <BlobMascot
+                                      shape={mascotCfg.shape}
+                                      color={mascotCfg.color}
+                                      size={34}
+                                      trackPointer={false}
+                                      state="working"
+                                    />
+                                    <span className="text-xs font-medium animate-text-shimmer">
+                                      正在使用 {card.model || "gpt-image-2.6"} 生成实拍图...
+                                    </span>
+                                  </div>
+                                ) : null}
+                                <div className="p-3.5 space-y-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-semibold text-[var(--text-primary)]">
+                                      📸 {persona.name} 的情境实拍
+                                    </span>
+                                    <span className="text-[10px] text-[var(--text-muted)]">
+                                      {card.model || "MOMENT"}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-[var(--text-secondary)] italic leading-relaxed">
+                                    &ldquo;{card.caption}&rdquo;
+                                  </p>
+                                  {card.errorHint && !card.imageUrl && (
+                                    <p className="text-[11px] text-[var(--text-muted)] pt-0.5">
+                                      {card.errorHint}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
                             <button
                               key={cIdx}
                               type="button"
                               onClick={() =>
                                 speakMessage(`${msg.id}-v-${cIdx}`, card.caption)
                               }
-                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5"
+                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5 cursor-pointer"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="w-7 h-7 rounded-full bg-[#18a999]/15 text-[#18a999] flex items-center justify-center text-xs shrink-0">
@@ -672,14 +806,19 @@ export default function ChatStage({
                                 点击播放
                               </span>
                             </button>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     )}
 
                     {/* Subtle Hover Action Row */}
                     <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity">
                       {msg.mood && <span>{msg.mood}</span>}
+                      {msg.modelUsed && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-mono">
+                          {msg.modelUsed}
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => copyMessage(msg.id, msg.content)}
@@ -788,11 +927,36 @@ export default function ChatStage({
                     searchResults={streaming.searchResults}
                   />
                   {streaming.reply ? (
-                    <div className="max-w-[660px] rounded-[20px] bg-[var(--bg-bubble-ai)] px-4 py-3 text-[14px] leading-[1.68] text-[var(--text-primary)]">
-                      <span className="whitespace-pre-wrap break-words">
-                        {streaming.reply}
-                      </span>
-                      <span className="grok-cursor" />
+                    <div className="flex flex-col items-start gap-1.5 w-full">
+                      {(streaming.bursts && streaming.bursts.length > 0
+                        ? streaming.bursts
+                        : [streaming.reply]
+                      ).map((bText, bIdx, arr) => (
+                        <div
+                          key={bIdx}
+                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                        >
+                          <GrokMessageBody
+                            content={bText}
+                            showCursor={bIdx === arr.length - 1}
+                          />
+                        </div>
+                      ))}
+                      {streaming.statusText && (
+                        <div className="py-1 flex items-center gap-2.5">
+                          <BlobMascot
+                            shape={mascotCfg.shape}
+                            color={mascotCfg.color}
+                            image={mascotCfg.image}
+                            size={22}
+                            trackPointer
+                            state="working"
+                          />
+                          <span className="text-[12.5px] font-medium animate-text-shimmer">
+                            {streaming.statusText}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="py-1.5 flex items-center gap-3">
@@ -818,6 +982,43 @@ export default function ChatStage({
           )}
         </div>
       </div>
+
+      {/* Image / Sticker Lightbox Preview */}
+      {lightboxMedia && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm p-6 animate-fade-in"
+          onClick={() => setLightboxMedia(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxMedia.url}
+              alt={lightboxMedia.caption}
+              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+            />
+            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span className="max-w-md truncate">{lightboxMedia.caption}</span>
+              <a
+                href={lightboxMedia.url}
+                download
+                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 font-medium"
+              >
+                下载原图
+              </a>
+              <button
+                type="button"
+                onClick={() => setLightboxMedia(null)}
+                className="px-2 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Bottom Capsule Composer */}
       <GrokComposer

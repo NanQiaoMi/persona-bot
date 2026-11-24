@@ -7,7 +7,11 @@ import { PersonaMode } from "@/lib/storage/types";
 interface GrokComposerProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: (options?: { imageUrl?: string; requestPhoto?: boolean }) => void;
+  onSend: (options?: {
+    imageUrl?: string;
+    requestPhoto?: boolean;
+    requestSticker?: boolean;
+  }) => void;
   disabled?: boolean;
   thinkMode: boolean;
   onToggleThink: () => void;
@@ -55,12 +59,16 @@ export default function GrokComposer({
     setMenuOpen(false);
   };
 
-  const handleSubmit = (requestPhoto = false) => {
+  const handleSubmit = (
+    requestPhoto = false,
+    requestSticker = false
+  ) => {
     if (disabled) return;
-    if (!value.trim() && !imagePreview && !requestPhoto) return;
+    if (!value.trim() && !imagePreview && !requestPhoto && !requestSticker) return;
     onSend({
       imageUrl: imagePreview || undefined,
       requestPhoto,
+      requestSticker,
     });
     setImagePreview(null);
     setMenuOpen(false);
@@ -187,11 +195,11 @@ export default function GrokComposer({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
+            <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors"
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
               >
                 <span>🖼️</span>
                 <span>传图点评</span>
@@ -200,11 +208,24 @@ export default function GrokComposer({
                 type="button"
                 onClick={() => {
                   if (!value.trim()) {
+                    onChange("发个适合现在氛围的表情包给我看看～");
+                  }
+                  handleSubmit(false, true);
+                }}
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <span>🎭</span>
+                <span>要表情包</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!value.trim()) {
                     onChange("发张你那边的随手拍给我看看呗 📸");
                   }
-                  handleSubmit(true);
+                  handleSubmit(true, false);
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors"
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
               >
                 <span>📸</span>
                 <span>索要自拍</span>
@@ -215,7 +236,7 @@ export default function GrokComposer({
                   setMenuOpen(false);
                   onOpenImport();
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors"
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
               >
                 <span>📥</span>
                 <span>导入记录</span>

@@ -101,11 +101,21 @@ export const MASCOT_COLORS = [
   "#8E8E93",
 ];
 
+function hashSlug(slug: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < slug.length; i += 1) {
+    h ^= slug.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
 export function getMascotConfigForPersona(
   slug: string,
   profile?: Partial<PersonaProfile>,
-  index = 0
+  _index = 0
 ): { shape: MascotShapeId; color: string; image?: string } {
+  void _index;
   if (profile?.avatarImage) {
     return {
       shape: (profile.avatarShape as MascotShapeId) || "circle",
@@ -123,10 +133,10 @@ export function getMascotConfigForPersona(
   };
 
   const preset = presetMap[slug];
-  const fallbackShape =
-    MASCOT_SHAPES[(slug.length + index) % MASCOT_SHAPES.length].id;
+  const h = hashSlug(slug || "bot");
+  const fallbackShape = MASCOT_SHAPES[h % MASCOT_SHAPES.length].id;
   const fallbackColor =
-    MASCOT_COLORS[(slug.length + index + 6) % MASCOT_COLORS.length];
+    MASCOT_COLORS[((h >> 4) % MASCOT_COLORS.length + MASCOT_COLORS.length) % MASCOT_COLORS.length];
 
   return {
     shape: (profile?.avatarShape as MascotShapeId) || preset?.shape || fallbackShape,
