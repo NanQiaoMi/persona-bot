@@ -18,6 +18,7 @@ interface CommandPaletteProps {
   onToggleTheme: () => void;
   onOpenSettings: () => void;
   onOpenCreateBot?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export default function CommandPalette({
@@ -30,6 +31,7 @@ export default function CommandPalette({
   onToggleTheme,
   onOpenSettings,
   onOpenCreateBot,
+  onOpenShortcuts,
 }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -216,6 +218,23 @@ export default function CommandPalette({
               <span className="w-7 text-center">🌓</span>
               <span>切换外观主题（浅色 / 深色）</span>
             </button>
+
+            {onOpenShortcuts && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenShortcuts();
+                }}
+                className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center justify-between gap-3 text-secondary hover:text-primary cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-7 text-center">⌨️</span>
+                  <span>快捷键速查表</span>
+                </div>
+                <span className="text-[11px] text-muted font-mono">?</span>
+              </button>
+            )}
 
             <button
               type="button"

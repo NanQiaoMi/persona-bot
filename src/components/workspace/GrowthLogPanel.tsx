@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Button, FieldTextarea } from "@/components/primitives";
+import { Button, FieldTextarea, Skeleton } from "@/components/primitives";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { capturePositions, playFlip } from "@/lib/motion/flip";
 import type { LearnedItem, LearnedStatus } from "@/lib/persona/spec";
@@ -131,8 +131,10 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
 
   if (loading) {
     return (
-      <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center text-[12px] text-muted">
-        正在翻成长日志...
+      <div className="space-y-3" aria-label="正在加载成长日志">
+        <Skeleton variant="card" className="h-16 w-full" />
+        <Skeleton variant="card" className="h-24 w-full" />
+        <Skeleton variant="line" className="w-3/4" />
       </div>
     );
   }
@@ -175,8 +177,11 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
       )}
 
       {learned.length === 0 && (
-        <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center text-[12px] text-muted">
-          还没有学到新东西，多聊几轮或在聊天气泡上右键「不像 TA」
+        <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center space-y-1">
+          <div className="text-[12px] font-medium text-primary">成长日志暂时还是空的</div>
+          <p className="text-[11px] text-muted leading-relaxed">
+            TA 会在这里记录从日常聊天和反馈里自省总结出的说话习惯与禁忌。多聊几轮或在气泡上右键点「不像 TA」，就会看到新规则先进入「试用中」，再逐步转正。
+          </p>
         </div>
       )}
 

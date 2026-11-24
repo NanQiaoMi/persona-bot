@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, FieldTextarea, IconButton } from "@/components/primitives";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { Button, FieldTextarea, IconButton, Skeleton } from "@/components/primitives";
 import { BottomSheetSnap, resolveBottomSheetSnap } from "@/lib/responsive/gestures";
 import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
@@ -37,6 +38,7 @@ export default function RightInspector({
   onClose,
   mobileSheet = false,
 }: RightInspectorProps) {
+  const { toast } = useFeedback();
   const [section, setSection] = useState<"activity" | "library">("activity");
   const [libraryTab, setLibraryTab] = useState<LibraryTab>("emotion");
   const [routineEnabled, setRoutineEnabled] = useState(true);
@@ -115,13 +117,22 @@ export default function RightInspector({
   if (!persona) {
     return (
       <aside
+        aria-label="正在加载角色状态"
         className={
           mobileSheet
-            ? "w-full h-[50dvh] rounded-t-[var(--r-xl)] border-t border-[var(--border-subtle)] bg-surface-raised p-4 flex items-center justify-center text-[12px] text-muted"
-            : "w-[320px] shrink-0 border-l border-[var(--border-subtle)] bg-surface-raised p-4 flex items-center justify-center text-[12px] text-muted h-full"
+            ? "w-full h-[50dvh] rounded-t-[var(--r-xl)] border-t border-[var(--border-subtle)] bg-surface-raised p-4 space-y-3"
+            : "w-[320px] shrink-0 border-l border-[var(--border-subtle)] bg-surface-raised p-4 space-y-3 h-full"
         }
       >
-        正在加载角色状态...
+        <div className="flex items-center gap-3">
+          <Skeleton variant="circle" className="h-10 w-10 shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton variant="line" className="w-24" />
+            <Skeleton variant="line" className="w-36" />
+          </div>
+        </div>
+        <Skeleton variant="card" className="h-24 w-full" />
+        <Skeleton variant="card" className="h-28 w-full" />
       </aside>
     );
   }
@@ -833,10 +844,17 @@ export default function RightInspector({
                     rows={16}
                     className="!font-mono !text-[12px] !rounded-[var(--r-lg)]"
                   />
-                ) : (
+                ) : persona.memoriesMd?.trim() ? (
                   <pre className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[12px] text-secondary leading-relaxed font-sans">
                     {persona.memoriesMd}
                   </pre>
+                ) : (
+                  <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center space-y-1">
+                    <div className="text-[12px] font-medium text-primary">还没有沉淀共同记忆</div>
+                    <p className="text-[11px] text-muted leading-relaxed">
+                      这里会自动记录你们的约定、偏好与重要事件。多聊几轮后点击下方「立即整理记忆与习惯」，或点右上角「编辑记忆」手动补充。
+                    </p>
+                  </div>
                 )}
 
                 {/* Evolution, Snapshots & Soul Bundle Card */}
@@ -894,6 +912,7 @@ export default function RightInspector({
                     <a
                       href={`/api/personas/${encodeURIComponent(persona.slug)}/bundle`}
                       download={`persona-soul-${persona.slug}.json`}
+                      onClick={() => toast("已导出灵魂包", { tone: "success" })}
                       className="py-1.5 px-2.5 rounded-[var(--r-md)] bg-surface-raised hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-center text-[11px] font-medium text-primary transition-colors"
                     >
                       📦 导出灵魂包
@@ -971,8 +990,11 @@ export default function RightInspector({
                     {snapshotsExpanded && (
                       <div className="mt-1.5 space-y-1.5 max-h-52 overflow-y-auto">
                         {snapshots.length === 0 ? (
-                          <div className="p-2.5 rounded-[var(--r-md)] border border-dashed border-[var(--border-subtle)] text-center text-[11px] text-muted">
-                            暂无历史快照，整理记忆或导入备份后会自动存档
+                          <div className="p-3 rounded-[var(--r-md)] border border-dashed border-[var(--border-subtle)] text-center space-y-1">
+                            <div className="text-[11px] font-medium text-primary">暂无历史快照</div>
+                            <p className="text-[11px] text-muted leading-relaxed">
+                              每次整理记忆、导入灵魂包或重大修改前会自动存档，方便随时一键回退。
+                            </p>
                           </div>
                         ) : (
                           snapshots.map((snap) => (
@@ -1101,8 +1123,11 @@ export default function RightInspector({
                     已生效纠偏记录 ({persona.corrections?.length || 0})
                   </div>
                   {!persona.corrections || persona.corrections.length === 0 ? (
-                    <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center text-muted">
-                      暂无纠偏记录，也可以在聊天气泡上右键选「不像 TA」
+                    <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center space-y-1">
+                      <div className="text-[12px] font-medium text-primary">还没有永久纠偏规则</div>
+                      <p className="text-[11px] text-muted leading-relaxed">
+                        当你觉得某句回复偏离人物设定时，可在气泡右键（移动端长按）点「不像 TA」，或在上方输入一条永久约束。
+                      </p>
                     </div>
                   ) : (
                     persona.corrections.map((item) => (
