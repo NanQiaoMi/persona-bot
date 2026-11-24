@@ -133,9 +133,6 @@ export default function ChatStage({
   onQuickSend,
   onTriggerProactive,
   onClearHistory,
-  onQuickCorrect,
-  onRegenerate,
-  onRelayToMaster,
   onSelectPersona,
   thinkMode,
   onToggleThink,
@@ -151,11 +148,7 @@ export default function ChatStage({
   onOpenAvatarPicker,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [correctingIndex, setCorrectingIndex] = useState<number | null>(null);
-  const [correctionText, setCorrectionText] = useState("");
   const [speakingId, setSpeakingId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [relayedId, setRelayedId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{
@@ -187,16 +180,6 @@ export default function ChatStage({
     utter.onerror = () => setSpeakingId(null);
     setSpeakingId(id);
     window.speechSynthesis.speak(utter);
-  };
-
-  const copyMessage = async (id: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1600);
-    } catch {
-      // Ignore clipboard error
-    }
   };
 
   const handleShare = async () => {
@@ -517,28 +500,14 @@ export default function ChatStage({
                   );
                 }
 
-                const isMasterView =
-                  Boolean(persona.isMaster) || persona.slug === "master-bot";
                 const reports = msg.interBotReports || [];
                 const reportsOpen = expandedReportsId === msg.id;
                 const prevMsg = idx > 0 ? messages[idx - 1] : null;
-                const nextMsg =
-                  idx < messages.length - 1 ? messages[idx + 1] : null;
                 const isContinuation = Boolean(
                   prevMsg &&
                     prevMsg.role === "assistant" &&
                     (prevMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
                 );
-                const hasNextAssistant = Boolean(
-                  nextMsg &&
-                    nextMsg.role === "assistant" &&
-                    (nextMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
-                );
-                const isIntermediate =
-                  hasNextAssistant &&
-                  !msg.mediaCards?.length &&
-                  !msg.pageCard &&
-                  correctingIndex !== idx;
 
                 return (
                   <div
@@ -832,99 +801,6 @@ export default function ChatStage({
                             </button>
                           );
                         })}
-                      </div>
-                    )}
-
-                    {/* Subtle Hover Action Row */}
-                    <div
-                      className={
-                        isIntermediate
-                          ? "h-0 overflow-hidden opacity-0 group-hover:h-auto group-hover:mt-1.5 group-hover:opacity-100 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] transition-opacity duration-200"
-                          : "mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                      }
-                    >
-                      <button
-                        type="button"
-                        onClick={() => copyMessage(msg.id, msg.content)}
-                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                      >
-                        {copiedId === msg.id ? "✓ 已复制" : "复制"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onRegenerate(idx)}
-                        disabled={Boolean(streaming)}
-                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                      >
-                        ↻ 重说
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => speakMessage(msg.id, msg.content)}
-                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                      >
-                        {speakingId === msg.id ? "🔊 播报中" : "🔈 朗读"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCorrectingIndex(
-                            correctingIndex === idx ? null : idx
-                          );
-                          setCorrectionText("");
-                        }}
-                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                      >
-                        ✎ 纠偏
-                      </button>
-                      {!isMasterView && onRelayToMaster && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await onRelayToMaster(msg);
-                            setRelayedId(msg.id);
-                            setTimeout(() => setRelayedId(null), 2000);
-                          }}
-                          className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                        >
-                          {relayedId === msg.id ? "✓ 已汇报" : "↗ 汇报"}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Inline Correction Popover */}
-                    {correctingIndex === idx && (
-                      <div className="mt-2 p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] grok-floating-card w-full max-w-md space-y-2 animate-msg-spring">
-                        <div className="text-xs font-semibold text-[var(--text-primary)]">
-                          纠正 {persona.name} 的表达偏差：
-                        </div>
-                        <input
-                          type="text"
-                          value={correctionText}
-                          onChange={(e) => setCorrectionText(e.target.value)}
-                          placeholder="例如：她不会这么客气，应该先损我一句..."
-                          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setCorrectingIndex(null)}
-                            className="px-2.5 py-1 text-xs text-[var(--text-muted)]"
-                          >
-                            取消
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!correctionText.trim()) return;
-                              await onQuickCorrect(idx, correctionText.trim());
-                              setCorrectingIndex(null);
-                            }}
-                            className="px-3 py-1 rounded-full bg-[#18a999] text-white font-semibold text-xs"
-                          >
-                            永久记住
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>

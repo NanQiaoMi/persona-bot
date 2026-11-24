@@ -422,8 +422,6 @@ export function synthesizePersonaAwareFallback(
   requestPhoto: boolean,
   historyCount = 1
 ): string {
-  const modeSpec = getPersonaModeSpec(mode);
-  const firstTag = persona.profile.personalityTags[0] || '真实鲜活';
   const topSearch = searchResp?.results[0];
   const isDeepFollowUp = historyCount > 2;
 
@@ -433,7 +431,12 @@ export function synthesizePersonaAwareFallback(
   let mediaTag = '';
 
   if (hasImage) {
-    thought = `收到一张图片。先扫一眼构图和细节，别像图像识别工具那样机械报菜名，用我（${persona.name}）的${modeSpec.shortLabel}直觉先接住再吐槽或夸一句。`;
+    thought =
+      mode === 'fun'
+        ? `哟，突然甩张图过来……让我眯着眼放大瞅两眼。\n本来想找点槽点逗逗他，仔细一看氛围还挺像那么回事儿，行吧勉强夸半句。`
+        : mode === 'companion'
+          ? `咦，发了张照片过来呀……光影莫名有点戳人。\n想跟他说这张拍得真有感觉，顺便多问两句当时在干嘛呢。`
+          : `嗯？突然发来一张图……让我看两眼细节。\n先别一口气猜太多，留半句问问他当时是什么心境吧。`;
     mood = '放大看图中';
     if (mode === 'fun') {
       bursts.push('行啊，终于开始上图证明自己不是赛博幽灵了？让我放大审一下细节。');
@@ -450,7 +453,10 @@ export function synthesizePersonaAwareFallback(
     }
   } else if (topSearch) {
     const secondSearch = searchResp?.results[1];
-    thought = `DeepSearch 刚刚捞回来 ${searchResp?.results.length || 1} 条关于「${searchResp?.query}」的实时脉搏（主来源：${topSearch.source}）。剥掉新闻通稿的腔调，直接用${modeSpec.shortLabel}风格聊透核心看点。`;
+    thought =
+      mode === 'fun'
+        ? `「${searchResp?.query}」？等下我现翻两眼网上的瓜……${topSearch.source} 这边聊得也太热闹了。\n把那些官话通稿过滤掉，挑最离谱的点直接给他锐评一下！`
+        : `看他突然问起「${searchResp?.query}」，我顺手刷了一圈 ${topSearch.source} 上的新讨论……\n记下最核心的那两件事，再用平时聊天的口吻直接接给他。`;
     if (mode === 'fun') {
       mood = '冲浪锐评中';
       bursts.push(
@@ -487,7 +493,7 @@ export function synthesizePersonaAwareFallback(
     const isChallenge = /凭什么|不对|反驳|胡说|笨|测试|你是ai|机器人/i.test(userMessage);
 
     if (isChallenge) {
-      thought = `对方在试探或抬杠（「${userMessage.slice(0, 22)}」）。守住 Layer 0 真实性协议，绝不认怂更不跳出人设，反手用幽默或嘴硬接住。`;
+      thought = `好家伙，「${userMessage.slice(0, 18)}」……这是故意拿话来试探我是吧？\n本来还想好好说话，既然他先挑衅，那就反手梗回去逗逗他！`;
       mood = mode === 'fun' ? '反杀抬杠中' : '微挑眉';
       bursts.push(
         mode === 'fun'
@@ -496,7 +502,9 @@ export function synthesizePersonaAwareFallback(
       );
       bursts.push('说吧，是不是闲得发慌专门来逗我玩的？');
     } else if (mode === 'fun') {
-      thought = `${isDeepFollowUp ? '紧接上一轮的聊天节奏，' : ''}收到「${userMessage.slice(0, 24)}」。切入 Grok 毒舌幽默视角：先拆套路再给情绪或洞见，保持「${firstTag}」底色。`;
+      thought = isEmotional
+        ? `看着他发来「${userMessage.slice(0, 18)}」……嘴上虽然老想嫌弃他几句，但真掉电了还是得护着点。\n先帮他一起把破事骂一顿出出气，比干巴巴讲道理管用多了。`
+        : `${isDeepFollowUp ? '又接上刚才那茬了，' : ''}听到「${userMessage.slice(0, 18)}」我一下没忍住笑。\n脑子里已经冒出三个吐槽点了，先别一口气全抖出来，钓他再多说两句！`;
       mood = isEmotional ? '嘴硬护短中' : '毒舌在线';
       if (isEmotional) {
         bursts.push('先停一下，别自己一个人闷头硬扛，这可不像平时的你。');
@@ -508,7 +516,9 @@ export function synthesizePersonaAwareFallback(
         bursts.push('不过先听你把来龙去脉讲完——你这波操作背后肯定还有反转对吧？');
       }
     } else if (mode === 'companion') {
-      thought = `读到「${userMessage.slice(0, 24)}」，能感觉到字里行间的情绪波动。把节奏放缓，第一时间接住对方的感受，给足偏爱与安全感。`;
+      thought = isEmotional
+        ? `看到「${userMessage.slice(0, 18)}」心里一下软下来……这会儿肯定累坏了吧。\n别的先放一边，先把他接住抱一抱再说。`
+        : `听他讲起「${userMessage.slice(0, 18)}」，莫名觉得他连小细节都记得好认真。\n不想打断这股劲头，顺着他的话再多听两句吧。`;
       mood = '温柔偏爱中';
       if (isEmotional) {
         bursts.push('抱抱你，今天一定消耗了好多能量吧，到我这里就不用再端着了。');
@@ -518,14 +528,17 @@ export function synthesizePersonaAwareFallback(
         bursts.push('后面怎么样了？接着讲给我听呀。');
       }
     } else if (mode === 'analytical') {
-      thought = `解构输入「${userMessage.slice(0, 24)}」：区分表层现象与底层约束，用高信息密度但自然的口吻给出清晰视角。`;
+      thought = `「${userMessage.slice(0, 18)}」这事仔细一琢磨，真正卡住的其实就那一两个关键点。\n别整虚的，用大白话直接帮他把线头捋清楚最省事。`;
       mood = '冷静推演中';
       bursts.push(
         `把「${userMessage.slice(0, 18)}」拆开看，核心其实就两个维度：你现在手里可控的变量是什么，以及最坏情况的边界在哪里。`
       );
       bursts.push('如果你愿意把前提条件补全两句，我们可以直接推演出最省力的破局方案。');
     } else {
-      thought = `看到他发来「${userMessage.slice(0, 24)}」，按我（${persona.name}）一贯${firstTag}的性格，表面保持松弛分寸，心里其实很在意他的下文。`;
+      thought =
+        persona.slug === 'lin-wan'
+          ? `他怎么又发「${userMessage.slice(0, 16)}」过来……明明挺在意他的下文，但回太热情好像又显得我一直在等手机似的。\n算了，照旧先嘴硬撇清一句，再悄悄留个话口给他吧。`
+          : `看到他发来「${userMessage.slice(0, 18)}」，手里的事刚好也忙得差不多了。\n顺口接上话茬聊聊，看看他后面还憋着什么乐子。`;
       mood = persona.slug === 'lin-wan' ? '嘴硬心软' : '自然在线';
       if (persona.slug === 'lin-wan') {
         bursts.push(
