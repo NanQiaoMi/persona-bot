@@ -10,6 +10,13 @@ import { runPostTurnPipeline } from '@/lib/persona/evolution';
 import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { scoreReply, toMessageStyleMetrics } from '@/lib/persona/eval/scorer';
 import { fingerprintFromPersonaMd } from '@/lib/persona/fingerprint';
+import {
+  buildPresenceDirective,
+  computeReplyLatencyMs,
+  getPresenceState,
+  presenceStatusText,
+  typingSpeedFactor,
+} from '@/lib/persona/daily-rhythm';
 import { blendStyle } from '@/lib/persona/style-blend';
 import {
   analyzeUserChatStyle,
@@ -131,11 +138,12 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
 
   let followup: { delaySec: number; content: string } | undefined;
   const followupMatch = working.match(
-    /\[FOLLOWUP:\s*(\d{1,2})\s*[|｜]\s*([^\]]+)\]/i
+    /\[FOLLOWUP:\s*(\d{1,3})\s*[|｜]\s*([^\]]+)\]/i
   );
   if (followupMatch) {
     const rawSec = Number(followupMatch[1]);
-    const delaySec = Math.max(5, Math.min(30, Number.isFinite(rawSec) ? rawSec : 8));
+    // 忙碌时允许「忙完再补一句」，最长 120 秒
+    const delaySec = Math.max(5, Math.min(120, Number.isFinite(rawSec) ? rawSec : 8));
     const fContent = followupMatch[2].trim();
     if (fContent) {
       followup = { delaySec, content: fContent };
@@ -670,6 +678,29 @@ function buildPageCardIfRelevant(
 /**
  * 从兼容 OpenAI/xAI/DeepSeek 的上游接口完整缓冲拉取回复（避免生硬半截跳字，配合后端假流式匀速吐泡）
  */
+/**
+ * 合并上游流式片段。部分网关在长回复（尤其是联网检索后）会把「从头或从段首开始的完整快照」
+ * 当成增量重发，直接拼接会让同一段话重复出现几十遍。
+ * 规则：新片段如果以已有文本的某个结尾部分（至少 10 个字）开头，说明是快照，从重叠处接上而不是追加。
+ */
+export function mergeStreamDelta(current: string, delta: string): string {
+  if (!delta) return current;
+  if (!current) return delta;
+  const MIN_OVERLAP = 10;
+  const candidates = delta === delta.trimStart() ? [delta] : [delta, delta.trimStart()];
+  for (const d of candidates) {
+    if (d.length < MIN_OVERLAP) continue;
+    // 从最长重叠开始找：current.slice(p) 是 d 的前缀
+    const startP = Math.max(0, current.length - d.length);
+    for (let p = startP; p <= current.length - MIN_OVERLAP; p += 1) {
+      if (d.startsWith(current.slice(p))) {
+        return current.slice(0, p) + d;
+      }
+    }
+  }
+  return current + delta;
+}
+
 async function fetchBufferedUpstreamLLM(
   endpoint: string,
   apiKey: string,
@@ -753,7 +784,7 @@ async function fetchBufferedUpstreamLLM(
         }
 
         if (typeof delta.content === 'string' && delta.content) {
-          rawContent += delta.content;
+          rawContent = mergeStreamDelta(rawContent, delta.content);
           if (rawContent.includes('</thought>') && !thoughtEnd) {
             thoughtEnd = Date.now();
           }
@@ -779,6 +810,35 @@ async function fetchBufferedUpstreamLLM(
 /**
  * 执行一次完整的 Grok + Persona 多阶段对话编排（支持真·逐字流式 SSE 透传与平滑离线兜底）
  */
+type TurnInputMessage = ChatTurnRequest['messages'][number];
+
+/**
+ * 取出末尾连续的用户消息：真人连发几条后才等对方一起回，
+ * 这几条要合并成一轮处理，而不是只看最后一条。
+ */
+export function collectTrailingUserTurn(messages: ChatTurnRequest['messages']): TurnInputMessage[] {
+  const trailing: TurnInputMessage[] = [];
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role !== 'user') break;
+    trailing.unshift(messages[i]);
+  }
+  return trailing.length > 0 ? trailing.slice(-6) : [];
+}
+
+/** 过滤掉已经存过的用户消息（重新生成、重试时客户端会把同一条再带上来） */
+export function filterUnsavedUserTurns<T extends { content: string; timestamp?: string }>(
+  turns: T[],
+  stored: ConversationMessage[]
+): T[] {
+  const recent = stored.slice(-40).filter((m) => m.role === 'user');
+  return turns.filter(
+    (t) =>
+      !recent.some(
+        (m) => m.content === t.content && (!t.timestamp || !m.timestamp || m.timestamp === t.timestamp)
+      )
+  );
+}
+
 export async function executeGrokChatTurn(
   req: ChatTurnRequest,
   onEvent?: (event: StreamEvent) => void
@@ -809,12 +869,22 @@ export async function executeGrokChatTurn(
 
   const activeMode: PersonaMode = req.mode || persona.defaultMode || 'authentic';
   const thinkEnabled = req.thinkMode ?? settings.defaultThinkMode ?? true;
+  const turnStartMs = Date.now();
   const lastUserMsgObj = req.messages[req.messages.length - 1] || {
     role: 'user' as const,
     content: '你好',
   };
-  const lastUserText = lastUserMsgObj.content || '';
-  const hasImage = Boolean(lastUserMsgObj.imageUrl);
+  const trailingUserTurns = collectTrailingUserTurn(req.messages);
+  // 连发的几条一起理解：情绪、检索、记忆都基于合并后的整段话
+  const lastUserText =
+    trailingUserTurns.length > 1
+      ? trailingUserTurns
+          .map((m) => m.content || '')
+          .filter((t) => t.trim())
+          .join('\n')
+      : lastUserMsgObj.content || '';
+  const hasImage = trailingUserTurns.some((m) => Boolean(m.imageUrl)) || Boolean(lastUserMsgObj.imageUrl);
+  const presence = persona.isMaster || persona.slug === 'master-bot' ? null : getPresenceState(persona);
 
   // Stage 1: DeepSearch
   let searchResp: DeepSearchResponse | null = null;
@@ -875,7 +945,7 @@ export async function executeGrokChatTurn(
       attitude: turnEmotion.description,
       intimacy: newIntimacy,
     },
-  });
+  }) + (presence ? `\n\n${buildPresenceDirective(presence)}` : '');
 
   const llm = resolveLlmConfig(settings, { model: req.modelId });
   const { apiKey, model } = llm;
@@ -1036,6 +1106,18 @@ export async function executeGrokChatTurn(
   }
 
   const baseTs = Date.now();
+  const buildUserRecordsToSave = async (): Promise<ConversationMessage[]> => {
+    const source = trailingUserTurns.length > 0 ? trailingUserTurns : [lastUserMsgObj];
+    const stored = await storageRepo.getConversation(channelPersona.slug, 60);
+    return filterUnsavedUserTurns(source, stored).map((m, i) => ({
+      id: `msg_${baseTs}_user${source.length > 1 ? `_${i}` : ''}`,
+      role: 'user' as const,
+      content: m.content || '[图片]',
+      timestamp: m.timestamp || new Date(baseTs).toISOString(),
+      imageUrl: m.imageUrl,
+      mode: activeMode,
+    }));
+  };
   const modelLabel = isDemoMode ? '离线演示' : model;
 
   if (!onEvent) {
@@ -1061,14 +1143,7 @@ export async function executeGrokChatTurn(
       styleMetrics,
     };
 
-    const userMessageRecord: ConversationMessage = {
-      id: `msg_${baseTs}_user`,
-      role: 'user',
-      content: lastUserText,
-      timestamp: lastUserMsgObj.timestamp || new Date(baseTs).toISOString(),
-      imageUrl: lastUserMsgObj.imageUrl,
-      mode: activeMode,
-    };
+    const userMessageRecords = await buildUserRecordsToSave();
 
     await storageRepo.updateEmotionAndIntimacy(
     persona.slug,
@@ -1077,7 +1152,7 @@ export async function executeGrokChatTurn(
     relationshipState
   );
     await storageRepo.appendMessages(channelPersona.slug, [
-      userMessageRecord,
+      ...userMessageRecords,
       combinedMessage,
     ]);
     void runPostTurnPipeline({
@@ -1145,13 +1220,36 @@ export async function executeGrokChatTurn(
     intimacyChange: intimacyDelta,
   });
 
+  const typingFactor = presence
+    ? typingSpeedFactor({
+        availability: presence.availability,
+        hour: new Date().getHours(),
+        arousal: updatedEmotion.arousal,
+        intimacy: newIntimacy,
+      })
+    : 1;
+
   for (let i = 0; i < segments.length; i += 1) {
     const targetSegment = segments[i];
     const isLast = i === segments.length - 1;
 
     if (i === 0) {
+      // 「还没看到消息」：忙或睡着时先空等一会儿，已经花在模型上的时间算进去
+      if (presence) {
+        const latency = computeReplyLatencyMs({
+          availability: presence.availability,
+          intimacy: newIntimacy,
+        });
+        const remaining = latency - (Date.now() - turnStartMs);
+        const waitingText = presenceStatusText(persona.name, presence);
+        if (remaining > 0) {
+          if (waitingText) onEvent({ type: 'status', text: waitingText });
+          await sleepForSimulatedStream(remaining);
+          onEvent({ type: 'status', text: `${persona.name} 正在输入...` });
+        }
+      }
       await sleepForSimulatedStream(
-        computeRealisticTypingDelayMs(targetSegment, 0)
+        Math.round(computeRealisticTypingDelayMs(targetSegment, 0) * typingFactor)
       );
     } else {
       onEvent({
@@ -1159,7 +1257,7 @@ export async function executeGrokChatTurn(
         text: `${persona.name} 正在输入...`,
       });
       await sleepForSimulatedStream(
-        computeRealisticTypingDelayMs(targetSegment, i)
+        Math.round(computeRealisticTypingDelayMs(targetSegment, i) * typingFactor)
       );
     }
 
@@ -1189,14 +1287,7 @@ export async function executeGrokChatTurn(
   const finalAssistantMessage =
     assistantMessages[assistantMessages.length - 1];
 
-  const userMessageRecord: ConversationMessage = {
-    id: `msg_${baseTs}_user`,
-    role: 'user',
-    content: lastUserText,
-    timestamp: lastUserMsgObj.timestamp || new Date(baseTs).toISOString(),
-    imageUrl: lastUserMsgObj.imageUrl,
-    mode: activeMode,
-  };
+  const userMessageRecords = await buildUserRecordsToSave();
 
   await storageRepo.updateEmotionAndIntimacy(
     persona.slug,
@@ -1205,7 +1296,7 @@ export async function executeGrokChatTurn(
     relationshipState
   );
   await storageRepo.appendMessages(channelPersona.slug, [
-    userMessageRecord,
+    ...userMessageRecords,
     ...assistantMessages,
   ]);
   void runPostTurnPipeline({

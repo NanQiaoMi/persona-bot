@@ -69,7 +69,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
   const activeSlugRef = useRef(activeSlug);
+  // 连发合并：发出一条后先等一小会儿，期间再发的消息合并成同一轮让对方一起回
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const burstStartedAtRef = useRef<number>(0);
+  const [pendingBurst, setPendingBurst] = useState(false);
+  const messagesRef = useRef<ConversationMessage[]>([]);
+  const inputRef = useRef("");
   const streamAbortRef = useRef<AbortController | null>(null);
+  const runStreamRequestRef = useRef<
+    ((history: ConversationMessage[], mode: PersonaMode) => Promise<void>) | null
+  >(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -83,6 +92,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   useEffect(() => {
     activeSlugRef.current = activeSlug;
     idleNudgeCountRef.current = 0;
+    if (burstTimerRef.current) {
+      clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = null;
+      queueMicrotask(() => setPendingBurst(false));
+    }
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
     if (followupTimerRef.current) {
@@ -106,6 +120,35 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       }
     };
   }, [activeSlug]);
+
+  /**
+   * 安排「这一轮」真正发出去的时间：每来一条新消息就重新等 BURST_WINDOW_MS；
+   * 到点时如果还在输入框里打字，再多等一会儿，但总等待不超过 BURST_MAX_WAIT_MS。
+   */
+  const scheduleBurstFlush = useCallback((isFirstInBurst: boolean) => {
+    const BURST_WINDOW_MS = 1600;
+    const TYPING_EXTEND_MS = 1200;
+    const BURST_MAX_WAIT_MS = 7000;
+    if (isFirstInBurst) burstStartedAtRef.current = Date.now();
+    if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+    setPendingBurst(true);
+    const slugAtSchedule = activeSlugRef.current;
+
+    const tick = (delay: number) => {
+      burstTimerRef.current = setTimeout(() => {
+        if (activeSlugRef.current !== slugAtSchedule) return;
+        const waited = Date.now() - burstStartedAtRef.current;
+        if (inputRef.current.trim() && waited < BURST_MAX_WAIT_MS) {
+          tick(TYPING_EXTEND_MS);
+          return;
+        }
+        burstTimerRef.current = null;
+        setPendingBurst(false);
+        void runStreamRequestRef.current?.(messagesRef.current, activeMode);
+      }, delay);
+    };
+    tick(BURST_WINDOW_MS);
+  }, [activeMode]);
 
   const clearScheduledFollowup = useCallback(() => {
     if (followupTimerRef.current) {
@@ -234,6 +277,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       idleTimerRef.current = null;
     }
     if (!autoNudgeEnabled) return;
+    if (pendingBurst) return;
     if (streaming) return;
     if (followupTimerRef.current) return;
     if (input.trim().length > 0) return;
@@ -286,6 +330,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     };
   }, [
     autoNudgeEnabled,
+    pendingBurst,
     activeSlug,
     messages,
     streaming,
@@ -640,7 +685,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           const scheduledSlug = activeSlug;
           const scheduledFollowup = pendingFollowup;
           const delayMs =
-            Math.max(5, Math.min(30, scheduledFollowup.delaySec || 8)) * 1000;
+            Math.max(5, Math.min(120, scheduledFollowup.delaySec || 8)) * 1000;
           followupTimerRef.current = setTimeout(() => {
             followupTimerRef.current = null;
             if (activeSlugRef.current !== scheduledSlug) return;
@@ -709,16 +754,35 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       mode: activeMode,
     };
 
-    const nextHistory = [...messages, userMsg];
+    const nextHistory = [...messagesRef.current, userMsg];
+    messagesRef.current = nextHistory;
     setMessages(nextHistory);
     setInput("");
+    clearScheduledFollowup();
 
-    await runStreamRequest(nextHistory, activeMode, {
-      requestPhoto: options?.requestPhoto,
-      requestSticker: options?.requestSticker,
-      mentionedSlug: options?.mentionedSlug,
-    });
+    // 要照片 / 表情包 / @ 某人是明确指令，立刻发；普通聊天等一下看还有没有下一条
+    const isDirective =
+      options?.requestPhoto || options?.requestSticker || options?.mentionedSlug;
+    if (isDirective) {
+      if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = null;
+      setPendingBurst(false);
+      await runStreamRequest(nextHistory, activeMode, {
+        requestPhoto: options?.requestPhoto,
+        requestSticker: options?.requestSticker,
+        mentionedSlug: options?.mentionedSlug,
+      });
+      return;
+    }
+    scheduleBurstFlush(burstTimerRef.current ? false : true);
   };
+
+
+  useEffect(() => {
+    messagesRef.current = messages;
+    inputRef.current = input;
+    runStreamRequestRef.current = runStreamRequest;
+  });
 
   const handleQuickSend = async (
     text: string,
