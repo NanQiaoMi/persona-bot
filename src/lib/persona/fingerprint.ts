@@ -3,7 +3,14 @@
  * - 本人指纹：来自蒸馏时导入的原始聊天记录（或人设 Layer 2 中的示例原话），作为人格锚点，不随对话漂移。
  * - 用户指纹：来自用户近期发言，用于轻度镜像。
  */
+export type FingerprintSource = 'chatlog' | 'persona-md' | 'user' | 'default';
+
 export interface StyleFingerprint {
+  /**
+   * 指纹来源：chatlog=原始聊天记录（最可信）；persona-md=人设示例原话（多为口头禅短句，长度不可信）；
+   * user=用户近期发言；default=默认年轻人微信口吻
+   */
+  source?: FingerprintSource;
   sampleCount: number;
   /** 平均单条气泡字数 */
   avgBubbleLen: number;
@@ -24,6 +31,7 @@ export interface StyleFingerprint {
 }
 
 export const DEFAULT_YOUNG_ADULT_FINGERPRINT: StyleFingerprint = {
+  source: 'default',
   sampleCount: 0,
   avgBubbleLen: 14,
   emojiRate: 0.05,
@@ -72,7 +80,10 @@ const FILLER_CANDIDATES = [
 /**
  * 从若干条真实发言中构建风格指纹（纯 TS，确定性）
  */
-export function buildFingerprintFromLines(rawLines: string[]): StyleFingerprint {
+export function buildFingerprintFromLines(
+  rawLines: string[],
+  source: FingerprintSource = 'chatlog'
+): StyleFingerprint {
   const lines = rawLines
     .map((l) => (typeof l === 'string' ? l.trim() : ''))
     .filter((l) => l.length > 0 && l.length <= 400);
@@ -114,6 +125,7 @@ export function buildFingerprintFromLines(rawLines: string[]): StyleFingerprint 
     .slice(0, 8);
 
   return {
+    source,
     sampleCount: n,
     avgBubbleLen: Math.round(totalChars / n),
     emojiRate: round2(totalEmoji / n),
@@ -150,5 +162,15 @@ export function extractSampleLinesFromPersonaMd(personaMd: string): string[] {
 export function fingerprintFromPersonaMd(personaMd: string): StyleFingerprint {
   const lines = extractSampleLinesFromPersonaMd(personaMd);
   if (lines.length < 3) return { ...DEFAULT_YOUNG_ADULT_FINGERPRINT };
-  return buildFingerprintFromLines(lines);
+  return buildFingerprintFromLines(lines, 'persona-md');
+}
+
+/** 指纹里的气泡长度是否可信（人设示例原话多为口头禅短句，不能代表真实句长） */
+export function hasReliableLength(fp: StyleFingerprint): boolean {
+  return fp.source !== 'persona-md' && fp.sampleCount >= 3;
+}
+
+/** 是否拥有足够的本人样本作为风格锚点 */
+export function hasOwnFingerprint(fp: StyleFingerprint | undefined | null): fp is StyleFingerprint {
+  return Boolean(fp) && (fp!.source === 'chatlog' || fp!.source === 'persona-md') && fp!.sampleCount >= 3;
 }

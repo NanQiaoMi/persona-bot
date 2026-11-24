@@ -5,6 +5,7 @@ import {
   PERSONA_ANALYZER_PROMPT,
   PERSONA_BUILDER_PROMPT,
 } from './prompts';
+import { chatCompletion, resolveLlmConfig } from '@/lib/llm/client';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
 
@@ -140,9 +141,7 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
 
   const corpus = analyzeChatLogCorpus(input.chatLogText || '', input.targetSpeaker || name);
   const settings = await storageRepo.getSettings();
-  const apiKey = settings.llmApiKey || process.env.LLM_API_KEY || '';
-  const baseUrl = (settings.llmBaseUrl || process.env.LLM_BASE_URL || 'https://api.x.ai/v1').replace(/\/$/, '');
-  const model = settings.llmModel || process.env.LLM_MODEL || 'grok-3';
+  const llm = resolveLlmConfig(settings);
 
   const mbti =
     input.personalityInfo?.match(/([EI][NS][FT][JP])/i)?.[1]?.toUpperCase() || 'ENFP';
@@ -163,33 +162,18 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
   let memoriesMd = '';
   let isLiveLLM = false;
 
-  if (apiKey && apiKey !== 'your-api-key') {
+  if (llm.canCall) {
     try {
-      const endpoint = baseUrl.endsWith('/chat/completions')
-        ? baseUrl
-        : `${baseUrl}/chat/completions`;
-
-      const callLLM = async (system: string, user: string, temperature = 0.65): Promise<string> => {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: user },
-            ],
-            temperature,
-          }),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        return data.choices?.[0]?.message?.content || '';
-      };
+      // 蒸馏是 5 次串行长文本生成，单次超时放宽到 60s
+      const callLLM = (system: string, user: string, temperature = 0.65): Promise<string> =>
+        chatCompletion(
+          llm,
+          [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          { temperature, timeoutMs: 60000 }
+        );
 
       const corpusSummary =
         corpus.totalCount > 0

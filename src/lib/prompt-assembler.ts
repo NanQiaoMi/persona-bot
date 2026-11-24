@@ -2,6 +2,7 @@ import { DeepSearchResponse, formatSearchContextForPrompt } from '@/lib/grok/dee
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { OOC_GUARD_PROMPT } from '@/lib/persona/prompts';
+import { BlendedStyle } from '@/lib/persona/style-blend';
 import { UserChatStyleProfile } from '@/lib/persona/style-loop';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
@@ -20,6 +21,8 @@ export interface AssembleOptions {
   lastUserMessage?: string;
   hasImageAttachment?: boolean;
   userStyleProfile?: UserChatStyleProfile;
+  /** 本人 × 用户双指纹混合后的说话方式；有本人锚点时优先于默认「年轻人微信口吻」 */
+  blendedStyle?: BlendedStyle;
   emotionSummary?: {
     emotion?: string;
     intensity?: number;
@@ -130,19 +133,25 @@ export class PromptAssembler {
     sections.push(filteredMemories || '（暂无特定历史记忆）');
     sections.push('');
 
-    sections.push('## 当代年轻人真实微信聊天铁律（去油腻・去 AI 味）');
-    sections.push(
-      `- **严格克制 emoji**：平时默认 **0 个 emoji**，靠说话用词、语气助词和断句传达情绪；绝不要每句话末尾带 😏💕🙈✨🔥😘 等油腻表情。整轮回复最多 0~1 个极克制的表情（如 😅😂）。`
-    );
-    sections.push(
-      `- **年轻人微信口吻**：像二十来岁的真人微信打字一样口语松弛、有停顿感（单条 6~24 字为主，可用 [BURST] 拆开连发）；不要每句短话末尾都端正打“。”，也别动不动用满屏“！”惊呼或写舞台剧括号动作。`
-    );
-    sections.push(
-      `- **拒绝主持人追问与 AI 套话**：不要每轮结尾都礼貌反问“你呢/今天怎么样”；允许直接用 \`行\`、\`笑死\`、\`真假\`、\`懂了\`、\`我看看\`、\`算了\` 这类真人短反应。严禁说“这次给你安排一套…”、“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。`
-    );
-    if (options.userStyleProfile?.styleDirective) {
-      sections.push('### 本轮实时对齐对方的说话习惯');
-      sections.push(options.userStyleProfile.styleDirective);
+    const antiAiRule = `- **拒绝主持人追问与 AI 套话**：不要每轮结尾都礼貌反问“你呢/今天怎么样”；允许直接用 \`行\`、\`笑死\`、\`真假\`、\`懂了\`、\`我看看\`、\`算了\` 这类真人短反应。严禁说“这次给你安排一套…”、“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。`;
+    if (options.blendedStyle?.anchored) {
+      // 角色有本人风格锚点：以 TA 自己的说话方式为准，全局默认口吻只保留去 AI 味部分
+      sections.push('## 说话方式（以 TA 本人为准，去 AI 味）');
+      sections.push(options.blendedStyle.directive);
+      sections.push(antiAiRule);
+    } else {
+      sections.push('## 当代年轻人真实微信聊天铁律（去油腻・去 AI 味）');
+      sections.push(
+        `- **严格克制 emoji**：平时默认 **0 个 emoji**，靠说话用词、语气助词和断句传达情绪；绝不要每句话末尾带 😏💕🙈✨🔥😘 等油腻表情。整轮回复最多 0~1 个极克制的表情（如 😅😂）。`
+      );
+      sections.push(
+        `- **年轻人微信口吻**：像二十来岁的真人微信打字一样口语松弛、有停顿感（单条 6~24 字为主，可用 [BURST] 拆开连发）；不要每句短话末尾都端正打“。”，也别动不动用满屏“！”惊呼或写舞台剧括号动作。`
+      );
+      sections.push(antiAiRule);
+      if (options.userStyleProfile?.styleDirective) {
+        sections.push('### 本轮实时对齐对方的说话习惯');
+        sections.push(options.userStyleProfile.styleDirective);
+      }
     }
     sections.push('');
 

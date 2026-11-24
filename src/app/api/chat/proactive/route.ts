@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
-import {
-  isLocalGatewayUrl,
-  LOCAL_GATEWAY_BASE_URL,
-} from '@/lib/grok/image-generator';
 import { generateProactiveGreeting } from '@/lib/grok/proactive-engine';
 import { parseStructuredModelOutput } from '@/lib/grok/stream-orchestrator';
+import { chatCompletion, resolveLlmConfig } from '@/lib/llm/client';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import { ConversationMessage } from '@/lib/storage/types';
@@ -36,17 +33,8 @@ export async function POST(request: Request) {
     if (idleFollowup) {
       const settings = await storageRepo.getSettings();
       const history = await storageRepo.getConversation(slug, 8);
-      const apiKey = settings.llmApiKey || process.env.LLM_API_KEY || '';
-      const baseUrl = (
-        settings.llmBaseUrl ||
-        process.env.LLM_BASE_URL ||
-        LOCAL_GATEWAY_BASE_URL
-      ).replace(/\/$/, '');
-      const model = settings.llmModel || process.env.LLM_MODEL || 'gpt-5.6';
-      const isVitest = Boolean(process.env.VITEST);
-      const canCallUpstream =
-        (Boolean(apiKey) && apiKey !== 'your-api-key') ||
-        (!isVitest && isLocalGatewayUrl(baseUrl));
+      const llm = resolveLlmConfig(settings);
+      const canCallUpstream = llm.canCall;
 
       let rawNudge = '';
       let usedModel = '离线演示';
@@ -60,13 +48,6 @@ export async function POST(request: Request) {
             lastUserMessage: history[history.length - 1]?.content || '',
           });
 
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-          };
-          if (apiKey && apiKey !== 'your-api-key') {
-            headers.Authorization = `Bearer ${apiKey}`;
-          }
-
           const recentMsgs = history.slice(-6).map((m) => ({
             role: m.role,
             content: m.content,
@@ -77,29 +58,18 @@ export async function POST(request: Request) {
               ? `对方从刚刚开始一直没回复你（距今约 ${Math.round(idleSeconds)} 秒，这是第 ${nudgeCount} 次轻量敲一下）。请完全保持你的人设性格，自然发一句短关心、幽默吐槽或者自己正在干嘛的分享（最多 2 句，可用 [BURST] 拆分），别显得焦虑或像客服催单，不要输出 <thought> 标签。`
               : `对方看着屏幕已经超过 ${Math.round(idleSeconds)} 秒没回你上一条消息了（这是第 1 次自然追问）。请紧密结合你们上一句聊到的话题，完全按照你的人设口吻，用 1~2 句极其自然的话主动追问或轻敲对方（可用 [BURST] 拆分，不要重复上一句原话，不要输出 <thought> 标签）。`;
 
-          const res = await fetch(`${baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              model,
-              stream: false,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                ...recentMsgs,
-                { role: 'user', content: `[系统情境提示：${nudgeInstruction}]` },
-              ],
-              temperature: 0.85,
-            }),
-            signal: AbortSignal.timeout(20000),
-          });
-
-          if (res.ok) {
-            const json = await res.json();
-            const content = json?.choices?.[0]?.message?.content;
-            if (typeof content === 'string' && content.trim()) {
-              rawNudge = content.trim();
-              usedModel = model;
-            }
+          const content = await chatCompletion(
+            llm,
+            [
+              { role: 'system', content: systemPrompt },
+              ...recentMsgs,
+              { role: 'user', content: `[系统情境提示：${nudgeInstruction}]` },
+            ],
+            { temperature: 0.85, timeoutMs: 20000 }
+          );
+          if (content.trim()) {
+            rawNudge = content.trim();
+            usedModel = llm.model;
           }
         } catch {
           // Fall back to persona greeting engine below

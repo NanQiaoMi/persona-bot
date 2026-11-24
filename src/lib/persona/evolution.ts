@@ -1,4 +1,4 @@
-import { isLocalGatewayUrl, LOCAL_GATEWAY_BASE_URL } from '@/lib/grok/image-generator';
+import { chatCompletion, parseJsonFromLlmOutput, resolveLlmConfig } from '@/lib/llm/client';
 import {
   extractMemorableFactFromTurn,
   mergeMemoryIntoMarkdown,
@@ -176,41 +176,6 @@ export function pruneExpiredScheduleLines(
   };
 }
 
-function parseJsonFromLlmOutput(raw: string): {
-  memories?: string[];
-  habits?: string[];
-  styleRules?: string[];
-  summary?: string;
-} | null {
-  const stripped = raw
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-
-  try {
-    return JSON.parse(stripped) as {
-      memories?: string[];
-      habits?: string[];
-      styleRules?: string[];
-      summary?: string;
-    };
-  } catch {
-    const objMatch = stripped.match(/\{[\s\S]*\}/);
-    if (!objMatch) return null;
-    try {
-      return JSON.parse(objMatch[0]) as {
-        memories?: string[];
-        habits?: string[];
-        styleRules?: string[];
-        summary?: string;
-      };
-    } catch {
-      return null;
-    }
-  }
-}
-
 /**
  * 执行一次完整的记忆整理、习惯与说话方式自省循环及版本快照存档（支持本地网关 LLM 总结与纯 TS 规则兜底）
  */
@@ -243,18 +208,8 @@ export async function consolidatePersonaEvolution(
   ]);
 
   const userStyle = analyzeUserChatStyle(recentMessages);
-  const apiKey = settings.llmApiKey || process.env.LLM_API_KEY || '';
-  const baseUrl = (
-    settings.llmBaseUrl ||
-    process.env.LLM_BASE_URL ||
-    LOCAL_GATEWAY_BASE_URL
-  ).replace(/\/$/, '');
-  const model = settings.llmModel || process.env.LLM_MODEL || 'gpt-5.6';
-  const isVitest = Boolean(process.env.VITEST);
-  const canCallUpstream =
-    ((Boolean(apiKey) && apiKey !== 'your-api-key') ||
-      (!isVitest && isLocalGatewayUrl(baseUrl))) &&
-    recentMessages.length > 0;
+  const llm = resolveLlmConfig(settings);
+  const canCallUpstream = llm.canCall && recentMessages.length > 0;
 
   let candidateMemories: string[] = [];
   let candidateHabits: string[] = [];
@@ -264,17 +219,6 @@ export async function consolidatePersonaEvolution(
 
   if (canCallUpstream) {
     try {
-      const endpoint = baseUrl.endsWith('/chat/completions')
-        ? baseUrl
-        : `${baseUrl}/chat/completions`;
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (apiKey && apiKey !== 'your-api-key') {
-        headers.Authorization = `Bearer ${apiKey}`;
-      }
-
       const transcript = recentMessages
         .slice(-18)
         .map((m) => `${m.role === 'user' ? '用户' : persona.name}: ${m.content}`)
@@ -303,56 +247,38 @@ ${correctionsText || '无'}
 近期对话：
 ${transcript}`;
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          stream: false,
-          temperature: 0.3,
-          messages: [
-            {
-              role: 'system',
-              content: '你是结构化记忆与拟人口语自省蒸馏助手，只输出合法 JSON。',
-            },
-            { role: 'user', content: prompt },
-          ],
-        }),
-        signal: AbortSignal.timeout(35000),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        const content = json.choices?.[0]?.message?.content;
-        if (typeof content === 'string') {
-          const parsed = parseJsonFromLlmOutput(content);
-          if (parsed) {
-            usedLLM = true;
-            if (Array.isArray(parsed.memories)) {
-              candidateMemories = parsed.memories
+      const content = await chatCompletion(
+        llm,
+        [
+          {
+            role: 'system',
+            content: '你是结构化记忆与拟人口语自省蒸馏助手，只输出合法 JSON。',
+          },
+          { role: 'user', content: prompt },
+        ],
+        { temperature: 0.3, timeoutMs: 35000 }
+      );
+      const parsed = parseJsonFromLlmOutput<{
+        memories?: unknown[];
+        habits?: unknown[];
+        styleRules?: unknown[];
+        summary?: unknown;
+      }>(content);
+      if (parsed) {
+        usedLLM = true;
+        const cleanList = (list: unknown, max: number) =>
+          Array.isArray(list)
+            ? list
                 .filter((x): x is string => typeof x === 'string')
                 .map((x) => x.trim())
                 .filter((x) => x.length >= 4 && x.length <= 120)
-                .slice(0, 5);
-            }
-            if (Array.isArray(parsed.habits)) {
-              candidateHabits = parsed.habits
-                .filter((x): x is string => typeof x === 'string')
-                .map((x) => x.trim())
-                .filter((x) => x.length >= 4 && x.length <= 120)
-                .slice(0, 4);
-            }
-            if (Array.isArray(parsed.styleRules)) {
-              candidateStyleRules = parsed.styleRules
-                .filter((x): x is string => typeof x === 'string')
-                .map((x) => x.trim())
-                .filter((x) => x.length >= 4 && x.length <= 120)
-                .slice(0, 3);
-            }
-            if (typeof parsed.summary === 'string') {
-              llmSummary = parsed.summary.trim();
-            }
-          }
+                .slice(0, max)
+            : [];
+        candidateMemories = cleanList(parsed.memories, 5);
+        candidateHabits = cleanList(parsed.habits, 4);
+        candidateStyleRules = cleanList(parsed.styleRules, 3);
+        if (typeof parsed.summary === 'string') {
+          llmSummary = parsed.summary.trim();
         }
       }
     } catch {

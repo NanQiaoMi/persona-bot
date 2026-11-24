@@ -1,5 +1,6 @@
 import {
   DEFAULT_YOUNG_ADULT_FINGERPRINT,
+  hasReliableLength,
   StyleFingerprint,
 } from '@/lib/persona/fingerprint';
 import { MessageStyleMetrics } from '@/lib/storage/types';
@@ -39,7 +40,10 @@ export function scoreMetrics(
   metrics: ReplyMetrics,
   fingerprint: StyleFingerprint = DEFAULT_YOUNG_ADULT_FINGERPRINT
 ): ReplyScore {
-  const len = lengthCloseness(metrics.avgBubbleLen, fingerprint.avgBubbleLen);
+  const targetLen = hasReliableLength(fingerprint)
+    ? fingerprint.avgBubbleLen
+    : DEFAULT_YOUNG_ADULT_FINGERPRINT.avgBubbleLen;
+  const len = lengthCloseness(metrics.avgBubbleLen, targetLen);
   const emoji = rateCloseness(metrics.emojiPerBubble, fingerprint.emojiRate, 0.2);
   const period = rateCloseness(metrics.trailingPeriodRate, fingerprint.trailingPeriodRate, 0.3);
   const excl = rateCloseness(metrics.exclamationPerBubble, fingerprint.exclamationRate, 0.35);
