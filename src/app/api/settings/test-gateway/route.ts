@@ -134,7 +134,8 @@ export async function POST(request: Request) {
         success: true,
         reachable: false,
         authStatus: 'offline',
-        message: `无法连接到 ${baseUrl}（${msg}），请确认本地网关服务已启动`,
+        message: `${baseUrl} 没有响应`,
+        detail: msg,
       });
     }
   } catch (error) {

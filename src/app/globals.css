@@ -35,6 +35,17 @@
     0 0 0 1px rgba(0, 0, 0, 0.05);
   --active-row-shadow: 0 4px 14px rgba(0, 0, 0, 0.05),
     0 0 0 1px rgba(0, 0, 0, 0.04);
+  /* 语义色 / 层级阴影 / 动效节奏（全站统一） */
+  --color-success: #16a34a;
+  --color-info: #2563eb;
+  --color-warning: #d97706;
+  --color-danger: #e5484d;
+  --shadow-overlay: 0 18px 48px -12px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1.15);
 }
 
 /* Obsidian Dark Theme (Toggleable) */
@@ -64,6 +75,11 @@
     0 0 0 1px rgba(255, 255, 255, 0.08);
   --active-row-shadow: 0 4px 16px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.08);
+  --color-success: #22c55e;
+  --color-info: #60a5fa;
+  --color-warning: #f59e0b;
+  --color-danger: #f87171;
+  --shadow-overlay: 0 18px 48px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 body {
@@ -553,7 +569,63 @@ body {
   animation: pulse-dot 0.9s ease-in-out infinite;
 }
 
+@keyframes drawer-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-drawer-left {
+  animation: drawer-left var(--motion-slow) var(--ease-standard) both;
+}
+
+.animate-drawer-right {
+  animation: drawer-right var(--motion-slow) var(--ease-standard) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in var(--motion-base) var(--ease-emphasized) both;
+}
+
+.animate-toast-out {
+  animation: toast-out var(--motion-fast) var(--ease-standard) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .animate-drawer-left,
+  .animate-drawer-right,
+  .animate-toast-in,
+  .animate-toast-out,
   .animate-blob-breathe,
   .animate-blob-work,
   .animate-blob-think,

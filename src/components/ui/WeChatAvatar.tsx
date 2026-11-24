@@ -44,6 +44,7 @@ export const WeChatAvatar: React.FC<WeChatAvatarProps> = ({
     <div className={`relative inline-block ${className}`}>
       <div className={`${sizeStyles[size]} rounded-lg overflow-hidden`}>
         {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- 头像可能是 data URL / 本地生成图
           <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
         ) : (
           <div

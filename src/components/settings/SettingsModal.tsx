@@ -207,7 +207,7 @@ export default function SettingsModal({
     } catch {
       setGatewayTestResult({
         authStatus: "offline",
-        message: "检测请求失败，请确认开发服务运行正常",
+        message: "检测请求没有发出去，确认 npm run dev 还在运行",
       });
     } finally {
       setTestingGateway(false);
@@ -414,7 +414,25 @@ export default function SettingsModal({
                       : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-300"
                 }`}
               >
-                <div>{gatewayTestResult.message}</div>
+                <div className="font-medium">{gatewayTestResult.message}</div>
+                {gatewayTestResult.authStatus === "offline" && (
+                  <div className="mt-2 space-y-1.5 text-[var(--text-secondary)]">
+                    <p>暂时连不上模型服务，聊天会先用离线演示回复。可以这样排查：</p>
+                    <ol className="list-decimal pl-4 space-y-0.5">
+                      <li>打开本地网关客户端，确认它正在运行</li>
+                      <li>核对上面的地址和端口（默认 127.0.0.1:18630/v1）</li>
+                      <li>用的是云端服务的话，检查 API Key 是否填写</li>
+                    </ol>
+                    <button
+                      type="button"
+                      disabled={testingGateway}
+                      onClick={() => void handleTestGateway()}
+                      className="mt-1 rounded-full bg-[var(--bg-secondary)] px-3 py-1 font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-40 cursor-pointer"
+                    >
+                      {testingGateway ? "检测中…" : "重新检测"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

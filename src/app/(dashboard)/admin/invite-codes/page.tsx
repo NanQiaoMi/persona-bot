@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { describeRequestError, useFeedback } from '@/components/feedback/FeedbackProvider';
 
 interface InviteCode {
   id: string;
@@ -15,6 +16,7 @@ interface InviteCode {
 }
 
 export default function InviteCodesPage() {
+  const { toast, confirm } = useFeedback();
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -22,7 +24,7 @@ export default function InviteCodesPage() {
   const [newCodeMaxUses, setNewCodeMaxUses] = useState(10);
   const initialized = useRef(false);
 
-  const loadCodes = async () => {
+  const loadCodes = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/admin/invite-codes', {
@@ -34,18 +36,18 @@ export default function InviteCodesPage() {
         setCodes(data.codes || []);
       }
     } catch (error) {
-      console.error('Failed to load invite codes:', error);
+      toast('邀请码列表没加载出来', { tone: 'error', description: describeRequestError(error) });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
       loadCodes();
     }
-  }, []);
+  }, [loadCodes]);
 
   const handleCreate = async () => {
     setCreating(true);
@@ -70,14 +72,20 @@ export default function InviteCodesPage() {
         setNewCodeCount(1);
       }
     } catch (error) {
-      console.error('Failed to create invite codes:', error);
+      toast('生成邀请码失败', { tone: 'error', description: describeRequestError(error) });
     } finally {
       setCreating(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个邀请码吗？')) return;
+    const ok = await confirm({
+      title: '删除这个邀请码？',
+      description: '删除后，还没用过这个码的人将无法注册。',
+      confirmLabel: '删除',
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -87,13 +95,15 @@ export default function InviteCodesPage() {
       });
       await loadCodes();
     } catch (error) {
-      console.error('Failed to delete invite code:', error);
+      toast('删除邀请码失败', { tone: 'error', description: describeRequestError(error) });
     }
   };
 
   const copyToClipboard = (code: string) => {
-    navigator.clipboard.writeText(code);
-    alert('已复制到剪贴板');
+    navigator.clipboard
+      .writeText(code)
+      .then(() => toast('已复制邀请码', { tone: 'success' }))
+      .catch(() => toast('复制失败，请手动选中复制', { tone: 'error' }));
   };
 
   if (loading) {

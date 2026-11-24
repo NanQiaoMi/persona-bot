@@ -29,6 +29,9 @@ interface GrokComposerProps {
   personaName?: string;
   accentColor?: string;
   personas?: PersonaSummary[];
+  /** 最近一次回复走的是离线演示（模型服务不可用） */
+  offlineMode?: boolean;
+  onOpenSettings?: () => void;
 }
 
 export default function GrokComposer({
@@ -50,6 +53,8 @@ export default function GrokComposer({
   personaName,
   accentColor = "#18a999",
   personas = [],
+  offlineMode = false,
+  onOpenSettings,
 }: GrokComposerProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -401,8 +406,18 @@ export default function GrokComposer({
         )}
 
         {/* Subtle Active Mode & Search Chips */}
-        {(deepSearch || activeMode !== "authentic") && (
+        {(deepSearch || activeMode !== "authentic" || offlineMode) && (
           <div className="mb-2 px-2 flex items-center gap-1.5 text-[11px]">
+            {offlineMode && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="模型服务暂时不可用，回复来自离线演示。点击检查连接"
+                className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer"
+              >
+                离线演示 · 去检查连接
+              </button>
+            )}
             {activeMode !== "authentic" && (
               <button
                 type="button"

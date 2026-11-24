@@ -1,5 +1,6 @@
 "use client";
 
+import { toPlainPreview } from "@/lib/text/preview";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PersonaSummary } from "@/lib/storage/types";
@@ -201,9 +202,7 @@ export default function LeftSidebar({
           const isBotTyping = isActive && isStreaming;
           const draftText = !isActive ? (draftsBySlug[p.slug] || "").trim() : "";
           const mascotCfg = getMascotConfigForPersona(p.slug, p.profile, index);
-          const cleanLastMessage = (p.lastMessage || "")
-            .replace(/^\[来自主控\s*Bot[^\]]*\]\s*/i, "")
-            .trim();
+          const cleanLastMessage = toPlainPreview(p.lastMessage);
           const snippet = isBotTyping
             ? "正在输入..."
             : draftText ||
