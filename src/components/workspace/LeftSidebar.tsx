@@ -2,8 +2,10 @@
 
 import { toPlainPreview } from "@/lib/text/preview";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconButton } from "@/components/primitives";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { capturePositions, playFlip } from "@/lib/motion/flip";
 import { PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
@@ -67,6 +69,9 @@ export default function LeftSidebar({
   const router = useRouter();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!accountMenuOpen) return;
@@ -93,6 +98,17 @@ export default function LeftSidebar({
   const subBots = personas.filter(
     (p) => !p.isMaster && p.slug !== "master-bot"
   );
+  const subBotsOrderKey = subBots.map((b) => b.slug).join("|");
+
+  useLayoutEffect(() => {
+    const container = listRef.current;
+    if (!container) return;
+    const finalRects = capturePositions(container);
+    if (prevRectsRef.current.size > 0) {
+      playFlip(container, prevRectsRef.current, { reducedMotion });
+    }
+    prevRectsRef.current = finalRects;
+  }, [subBotsOrderKey, reducedMotion]);
 
   return (
     <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-surface-raised flex flex-col h-screen select-none">
@@ -201,7 +217,7 @@ export default function LeftSidebar({
       </div>
 
       {/* Sub-Bots Clean 2-Line List */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-1">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-3 space-y-1">
         {subBots.map((p, index) => {
           const isActive = p.slug === activeSlug;
           const isBotTyping = isActive && isStreaming;
@@ -220,6 +236,7 @@ export default function LeftSidebar({
           return (
             <button
               key={p.slug}
+              data-flip-id={p.slug}
               type="button"
               onClick={() => onSelectPersona(p.slug)}
               className={`group relative w-full text-left px-3 py-2.5 rounded-[var(--r-lg)] transition-colors duration-[var(--motion-base)] flex items-center gap-3 cursor-pointer ${
@@ -286,7 +303,7 @@ export default function LeftSidebar({
       {/* Bottom Dock: User Popover Avatar + Floating "连接应用" Pill */}
       <div className="relative p-3.5 flex items-center gap-2.5" ref={menuRef}>
         {accountMenuOpen && (
-          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 animate-popover-in">
+          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 origin-bottom-left animate-popover-in">
             <button
               type="button"
               onClick={() => {

@@ -511,7 +511,7 @@ export default function PersonaStudio() {
             <div className="space-y-1.5">
               <div className="h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-brand transition-all duration-[var(--motion-slow)]"
+                  className="h-full rounded-full bg-brand transition-[width] duration-[var(--motion-slow)]"
                   style={{ width: `${completedRatio}%` }}
                 />
               </div>

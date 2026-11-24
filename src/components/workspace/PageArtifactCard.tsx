@@ -88,7 +88,7 @@ export default function PageArtifactCard({ card }: PageArtifactCardProps) {
               </div>
             </div>
           </div>
-          <span className="text-[11px] font-medium text-muted group-hover/card:text-brand group-hover/card:translate-x-0.5 transition-all shrink-0">
+          <span className="text-[11px] font-medium text-muted group-hover/card:text-brand group-hover/card:translate-x-0.5 transition-[transform,color] duration-[var(--motion-fast)] shrink-0">
             展开阅读 →
           </span>
         </div>
