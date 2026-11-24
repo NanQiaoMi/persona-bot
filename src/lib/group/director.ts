@@ -5,6 +5,12 @@
  * - 决定角色之间要不要互相接话（限制连锁轮数，防止刷屏）
  * - 把群聊记录转换成某个角色视角下的对话上下文
  */
+import {
+  extractOpener,
+  findEchoedOpener,
+  openerKey,
+  WATCHED_PHRASES,
+} from '@/lib/persona/repetition-guard';
 import type { ConversationMessage, PersonaMode, PersonaProfile } from '@/lib/storage/types';
 
 export interface GroupMemberLite {
@@ -274,4 +280,126 @@ export function buildGroupSystemDirective(params: {
     lines.push('- 群刚建好，你被拉了进来：自然地打个招呼或直接就话题说第一句，别客套。');
   }
   return lines.filter(Boolean).join('\n');
+}
+
+/** 群里其他角色发过的一条气泡 */
+export interface GroupPeerBubble {
+  name: string;
+  text: string;
+  /** 是不是本轮（用户这次发言之后）刚发的 */
+  thisRound: boolean;
+}
+
+const PEER_WINDOW = 8;
+
+/**
+ * 收集当前发言人「看得到、容易被带跑」的群友气泡：
+ * 本轮已经发出的全部算上，再加最近约 8 条其他角色的消息（不含自己、不含用户）。
+ */
+export function collectGroupPeerBubbles(
+  history: ConversationMessage[],
+  speakerSlug: string,
+  thisRoundIds: Iterable<string>,
+  options: { window?: number } = {}
+): GroupPeerBubble[] {
+  const roundIds = new Set(thisRoundIds);
+  const window = options.window ?? PEER_WINDOW;
+  const peers = history.filter(
+    (m) => m.role === 'assistant' && m.fromBot?.slug && m.fromBot.slug !== speakerSlug && (m.content || '').trim()
+  );
+  const recent = peers.slice(-window);
+  const picked = peers.filter((m) => roundIds.has(m.id) || recent.includes(m));
+  return picked.map((m) => ({
+    name: m.fromBot?.name || '群友',
+    text: m.content.trim(),
+    thisRound: roundIds.has(m.id),
+  }));
+}
+
+/** 本轮群友已经用过的短开头（用于兜底去重） */
+export function collectRoundOpeners(peers: GroupPeerBubble[]): string[] {
+  const seen = new Map<string, string>();
+  for (const p of peers) {
+    if (!p.thisRound) continue;
+    const opener = extractOpener(p.text);
+    const key = opener ? openerKey(opener) : null;
+    if (opener && key && !seen.has(key)) seen.set(key, opener);
+  }
+  return [...seen.values()];
+}
+
+/**
+ * 群聊防撞词：群友刚用过的开头、口头禅，提醒当前发言人别跟着复读。
+ * 没有可撞的内容时返回空字符串（不往提示词里塞废话）。
+ */
+export function buildGroupAntiEchoDirective(params: { peers: GroupPeerBubble[] }): string {
+  const peers = params.peers.filter((p) => p.text.trim());
+  if (peers.length === 0) return '';
+
+  // 1. 开头：本轮的排前面，同一个起手只记一次
+  const openers: Array<{ text: string; key: string; names: Set<string>; thisRound: boolean }> = [];
+  const ordered = [...peers.filter((p) => p.thisRound), ...peers.filter((p) => !p.thisRound)];
+  for (const p of ordered) {
+    const opener = extractOpener(p.text);
+    const key = opener ? openerKey(opener) : null;
+    if (!opener || !key) continue;
+    const hit = openers.find((o) => o.key === key || findEchoedOpener(p.text, [o.text]));
+    if (hit) {
+      hit.names.add(p.name);
+      continue;
+    }
+    openers.push({ text: opener, key, names: new Set([p.name]), thisRound: p.thisRound });
+  }
+
+  // 2. 口头禅：本轮出现过一次就算，最近消息里出现 ≥2 次才算
+  const phrases: string[] = [];
+  for (const phrase of WATCHED_PHRASES) {
+    if (phrase.length < 2) continue;
+    const inRound = peers.some((p) => p.thisRound && p.text.includes(phrase));
+    const recentCount = peers.filter((p) => p.text.includes(phrase)).length;
+    if (!inRound && recentCount < 2) continue;
+    if (openers.some((o) => o.key.includes(phrase) || phrase.includes(o.key))) continue;
+    if (phrases.some((x) => x.includes(phrase) || phrase.includes(x))) continue;
+    phrases.push(phrase);
+  }
+
+  const roundOpeners = openers.filter((o) => o.thisRound).slice(0, 4);
+  const recentOpeners = openers.filter((o) => !o.thisRound).slice(0, 3);
+  if (roundOpeners.length === 0 && recentOpeners.length === 0 && phrases.length === 0) return '';
+
+  const fmt = (list: typeof openers) =>
+    list.map((o) => `「${o.text}」（${[...o.names].join('、')}）`).join('、');
+  const lines = ['## 别跟群友撞词'];
+  if (roundOpeners.length > 0) {
+    lines.push(`- 群里刚才已经有人用 ${fmt(roundOpeners)} 开头了，你换个开头，别跟别人一个起手。`);
+  }
+  if (recentOpeners.length > 0) {
+    lines.push(`- 前面几条群友也用过 ${fmt(recentOpeners)} 开头，尽量别再用。`);
+  }
+  if (phrases.length > 0) {
+    lines.push(`- ${phrases.slice(0, 4).map((p) => `「${p}」`).join('')}这些词群里刚有人说过，你别跟着复读，用你自己的说法。`);
+  }
+  lines.push('- 真人群聊里每个人说话习惯不一样，不会一个接一个地用同一个词开场。');
+  return lines.join('\n');
+}
+
+/**
+ * 兜底：第一条气泡仍以本轮群友刚用过的短开头起手时，把这个开头去掉。
+ * 保守处理——去掉后剩下的实质内容不足 4 个字就原样返回，绝不把整句删光。
+ */
+export function stripEchoedOpener(bubble: string, roundOpeners: string[]): string {
+  if (!bubble || roundOpeners.length === 0) return bubble;
+  const echoed = findEchoedOpener(bubble, roundOpeners);
+  if (!echoed) return bubble;
+  const opener = extractOpener(bubble);
+  if (!opener || opener.length > 4) return bubble;
+  const trimmed = bubble.trim();
+  const start = trimmed.indexOf(opener);
+  if (start < 0) return bubble;
+  const rest = trimmed
+    .slice(start + opener.length)
+    .replace(/^[\s…。.，,！!？?~～、]+/, '');
+  const substance = rest.replace(/[\s\p{P}\p{S}]/gu, '');
+  if (substance.length < 4) return bubble;
+  return rest;
 }
