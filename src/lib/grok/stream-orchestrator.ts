@@ -11,6 +11,7 @@ import {
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
+import { maybeRunAutoEvolution } from '@/lib/persona/evolution';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import {
@@ -1055,9 +1056,9 @@ export async function executeGrokChatTurn(
       userMessageRecord,
       combinedMessage,
     ]);
-    void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
-      () => {}
-    );
+    void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply)
+      .then(() => maybeRunAutoEvolution(persona.slug))
+      .catch(() => {});
 
     return combinedMessage;
   }
@@ -1173,9 +1174,9 @@ export async function executeGrokChatTurn(
     userMessageRecord,
     ...assistantMessages,
   ]);
-  void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
-    () => {}
-  );
+  void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply)
+    .then(() => maybeRunAutoEvolution(persona.slug))
+    .catch(() => {});
 
   const pendingFollowup: PendingFollowup | undefined = parsed.followup
     ? {

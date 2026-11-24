@@ -773,6 +773,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           onSavePersonaPatch={handleSavePersonaPatch}
           onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
           onTriggerProactive={handleTriggerProactive}
+          onRefreshPersona={async () => {
+            await Promise.all([
+              loadActivePersonaDetail(activeSlug),
+              loadPersonaList(),
+            ]);
+          }}
           onOpenAvatarPicker={() => setShowAvatarPicker(true)}
           onClose={() => setShowInspector(false)}
         />

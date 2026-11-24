@@ -174,3 +174,36 @@ export interface RuntimeSettings {
   autoVoicePlayback: boolean;
   theme: 'dark' | 'light';
 }
+
+export interface PersonaSnapshot {
+  id: string;
+  createdAt: string;
+  reason: string;
+  summary?: string;
+  personaMd: string;
+  memoriesMd: string;
+  aiProfileMd: string;
+  profile: PersonaProfile;
+  corrections: CorrectionItem[];
+  intimacy: number;
+  emotionState: PersonaEmotionSnapshot;
+}
+
+export interface PersonaSnapshotMeta {
+  id: string;
+  createdAt: string;
+  reason: string;
+  summary?: string;
+  intimacy: number;
+  memoriesLength: number;
+  personaLength: number;
+  correctionsCount: number;
+}
+
+export interface PersonaSoulBundle {
+  schemaVersion: 1;
+  exportedAt: string;
+  persona: PersonaRecord;
+  conversations: ConversationMessage[];
+  snapshots?: PersonaSnapshot[];
+}

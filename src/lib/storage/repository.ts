@@ -7,6 +7,9 @@ import {
   PersonaEmotionSnapshot,
   PersonaMode,
   PersonaRecord,
+  PersonaSnapshot,
+  PersonaSnapshotMeta,
+  PersonaSoulBundle,
   PersonaSummary,
   RuntimeSettings,
 } from './types';
@@ -95,6 +98,10 @@ export class UnifiedStorageRepository {
 
   private getPersonaDir(slug: string): string {
     return path.join(this.baseDir, sanitizeSlug(slug));
+  }
+
+  private getSnapshotsDir(slug: string): string {
+    return path.join(this.getPersonaDir(slug), 'snapshots');
   }
 
   async ensurePresetsSeeded(): Promise<void> {
@@ -351,6 +358,207 @@ export class UnifiedStorageRepository {
     const merged = [...existing, ...newMessages].slice(-200);
     await this.saveConversation(slug, merged);
     return merged;
+  }
+
+  private async readSnapshotFiles(slug: string): Promise<PersonaSnapshot[]> {
+    const snapDir = this.getSnapshotsDir(slug);
+    const entries = await fs.readdir(snapDir).catch(() => []);
+    const snapshots: PersonaSnapshot[] = [];
+
+    for (const entry of entries) {
+      if (!entry.endsWith('.json')) continue;
+      const parsed = await readJsonSafe<PersonaSnapshot | null>(
+        path.join(snapDir, entry),
+        null
+      );
+      if (parsed && parsed.id && parsed.createdAt) {
+        snapshots.push(parsed);
+      }
+    }
+
+    snapshots.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return snapshots;
+  }
+
+  async createSnapshot(
+    slug: string,
+    reason: string,
+    summary?: string
+  ): Promise<PersonaSnapshot | null> {
+    const persona = await this.getPersona(slug);
+    if (!persona) return null;
+
+    const snapDir = this.getSnapshotsDir(slug);
+    await fs.mkdir(snapDir, { recursive: true });
+
+    const id = `snap_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const snapshot: PersonaSnapshot = {
+      id,
+      createdAt: new Date().toISOString(),
+      reason: reason.trim() || '自动存档',
+      summary: summary?.trim() || undefined,
+      personaMd: persona.personaMd,
+      memoriesMd: persona.memoriesMd,
+      aiProfileMd: persona.aiProfileMd,
+      profile: persona.profile,
+      corrections: persona.corrections || [],
+      intimacy: persona.intimacy,
+      emotionState: persona.emotionState,
+    };
+
+    await fs.writeFile(
+      path.join(snapDir, `${id}.json`),
+      JSON.stringify(snapshot, null, 2),
+      'utf-8'
+    );
+
+    const all = await this.readSnapshotFiles(slug);
+    if (all.length > 10) {
+      await Promise.all(
+        all.slice(10).map((old) =>
+          fs.unlink(path.join(snapDir, `${old.id}.json`)).catch(() => {})
+        )
+      );
+    }
+
+    return snapshot;
+  }
+
+  async listSnapshots(slug: string): Promise<PersonaSnapshotMeta[]> {
+    const all = await this.readSnapshotFiles(slug);
+    return all.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      reason: s.reason,
+      summary: s.summary,
+      intimacy: s.intimacy,
+      memoriesLength: (s.memoriesMd || '').length,
+      personaLength: (s.personaMd || '').length,
+      correctionsCount: (s.corrections || []).length,
+    }));
+  }
+
+  async rollbackSnapshot(
+    slug: string,
+    snapshotId: string
+  ): Promise<PersonaRecord | null> {
+    if (!/^[a-zA-Z0-9_-]+$/.test(snapshotId)) {
+      throw new Error('Invalid snapshotId');
+    }
+
+    const persona = await this.getPersona(slug);
+    if (!persona) return null;
+
+    const snapPath = path.join(this.getSnapshotsDir(slug), `${snapshotId}.json`);
+    const snap = await readJsonSafe<PersonaSnapshot | null>(snapPath, null);
+    if (!snap) return null;
+
+    await this.createSnapshot(
+      slug,
+      '回滚前自动备份',
+      `回滚至 ${new Date(snap.createdAt).toLocaleString('zh-CN')} (${snap.reason})`
+    );
+
+    const restored: PersonaRecord = {
+      ...persona,
+      personaMd: snap.personaMd,
+      memoriesMd: snap.memoriesMd,
+      aiProfileMd: snap.aiProfileMd ?? persona.aiProfileMd,
+      profile: snap.profile || persona.profile,
+      corrections: Array.isArray(snap.corrections)
+        ? snap.corrections
+        : persona.corrections,
+      intimacy:
+        typeof snap.intimacy === 'number' ? snap.intimacy : persona.intimacy,
+      emotionState: snap.emotionState || persona.emotionState,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return this.savePersona(restored);
+  }
+
+  async exportSoulBundle(slug: string): Promise<PersonaSoulBundle | null> {
+    const persona = await this.getPersona(slug);
+    if (!persona) return null;
+
+    const [conversations, snapshots] = await Promise.all([
+      this.getConversation(slug, 200),
+      this.readSnapshotFiles(slug),
+    ]);
+
+    return {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      persona,
+      conversations,
+      snapshots: snapshots.slice(0, 10),
+    };
+  }
+
+  async importSoulBundle(
+    targetSlug: string,
+    bundle: Partial<PersonaSoulBundle>
+  ): Promise<PersonaRecord> {
+    if (
+      !bundle ||
+      !bundle.persona ||
+      typeof bundle.persona.name !== 'string' ||
+      typeof bundle.persona.personaMd !== 'string' ||
+      typeof bundle.persona.memoriesMd !== 'string'
+    ) {
+      throw new Error('无效的灵魂包格式：缺少必要的人格字段');
+    }
+
+    const safeTarget = sanitizeSlug(targetSlug);
+    const existing = await this.getPersona(safeTarget);
+    if (existing) {
+      await this.createSnapshot(
+        safeTarget,
+        '导入灵魂包前自动备份',
+        `导入来源：${bundle.persona.name}`
+      );
+    }
+
+    const incoming = bundle.persona;
+    const saved = await this.savePersona({
+      slug: safeTarget,
+      name: incoming.name.trim() || existing?.name || safeTarget,
+      version: incoming.version || existing?.version || '2.0',
+      isPreset: existing?.isPreset ?? Boolean(incoming.isPreset),
+      isMaster: existing?.isMaster ?? (Boolean(incoming.isMaster) || safeTarget === 'master-bot'),
+      defaultMode: (incoming.defaultMode || existing?.defaultMode || 'authentic') as PersonaMode,
+      profile: {
+        ...(existing?.profile || {}),
+        ...(incoming.profile || {}),
+        personalityTags: Array.isArray(incoming.profile?.personalityTags)
+          ? incoming.profile.personalityTags
+          : existing?.profile?.personalityTags || [],
+      },
+      personaMd: incoming.personaMd,
+      memoriesMd: incoming.memoriesMd,
+      aiProfileMd:
+        typeof incoming.aiProfileMd === 'string'
+          ? incoming.aiProfileMd
+          : existing?.aiProfileMd || '',
+      emotionState: incoming.emotionState || existing?.emotionState || defaultEmotionSnapshot(),
+      intimacy:
+        typeof incoming.intimacy === 'number'
+          ? incoming.intimacy
+          : existing?.intimacy ?? 65,
+      corrections: Array.isArray(incoming.corrections)
+        ? incoming.corrections.slice(-50)
+        : existing?.corrections || [],
+      createdAt: existing?.createdAt || incoming.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (Array.isArray(bundle.conversations)) {
+      await this.saveConversation(safeTarget, bundle.conversations.slice(-200));
+    }
+
+    return saved;
   }
 
   async getSettings(): Promise<RuntimeSettings> {
