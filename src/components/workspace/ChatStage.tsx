@@ -63,6 +63,7 @@ interface ChatStageProps {
   onOpenImport: () => void;
   onOpenAvatarPicker: () => void;
   onSetReferencePhoto?: (imageUrl: string) => Promise<void>;
+  onOpenSettings?: () => void;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -177,6 +178,7 @@ export default function ChatStage({
   onOpenImport,
   onOpenAvatarPicker,
   onSetReferencePhoto,
+  onOpenSettings,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -189,6 +191,9 @@ export default function ChatStage({
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
+  const lastReplyWasDemo = Boolean(
+    [...messages].reverse().find((m) => m.role === "assistant" && m.isDemoMode !== undefined)?.isDemoMode
+  );
   // 聊天气泡右键「不像 TA」快捷纠偏
   const [correctingIdx, setCorrectingIdx] = useState<number | null>(null);
   const [correctionDraft, setCorrectionDraft] = useState("");
@@ -380,8 +385,8 @@ export default function ChatStage({
         style={{ backgroundColor: mascotCfg.color }}
       />
       {/* Frosted Floating Header */}
-      <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header backdrop-blur-xl pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
+      <header className="relative z-20 px-3 md:px-6 pt-3.5 pb-3 flex items-center justify-between gap-2 grok-glass-header backdrop-blur-xl pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-2 shrink-0 md:min-w-[84px]">
           {!sidebarOpen && (
             <button
               type="button"
@@ -412,7 +417,7 @@ export default function ChatStage({
                 setConfirmClear(false);
                 onClearHistory();
               }}
-              className={`px-3.5 py-1.5 rounded-full border grok-floating-pill text-[11.5px] font-medium hover:-translate-y-0.5 transition-all cursor-pointer ${
+              className={`px-3 md:px-3.5 py-1.5 rounded-full border grok-floating-pill text-[11.5px] font-medium whitespace-nowrap hover:-translate-y-0.5 transition-all cursor-pointer ${
                 confirmClear
                   ? "bg-rose-500/12 border-rose-500/40 text-rose-500"
                   : "bg-[var(--bg-composer)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -428,7 +433,7 @@ export default function ChatStage({
         <button
           type="button"
           onClick={onToggleInspector}
-          className="pointer-events-auto inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          className="pointer-events-auto inline-flex min-w-0 items-center gap-2 md:gap-2.5 px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
           title="点击滑出/收起角色灵魂状态舱"
         >
           <BlobMascot
@@ -439,10 +444,10 @@ export default function ChatStage({
             trackPointer
             state={streaming ? "working" : "idle"}
           />
-          <span className="text-[13.5px] font-semibold text-[var(--text-primary)]">
+          <span className="truncate text-[13.5px] font-semibold text-[var(--text-primary)]">
             {persona.name}
           </span>
-          <span className="text-[11px] text-[var(--text-muted)]">
+          <span className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]">
             {showInspector ? (
               "✕"
             ) : streaming ? (
@@ -456,11 +461,11 @@ export default function ChatStage({
         </button>
 
         {/* Right Floating Share Pill */}
-        <div className="pointer-events-auto flex items-center justify-end gap-2 min-w-[84px]">
+        <div className="pointer-events-auto flex items-center justify-end gap-2 shrink-0 md:min-w-[84px]">
           <button
             type="button"
             onClick={handleShare}
-            className="px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            className="whitespace-nowrap px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
           >
             {sharedToast ? "已复制 ✓" : "分享"}
           </button>
@@ -1230,6 +1235,8 @@ export default function ChatStage({
         onChangeMode={onChangeMode}
         onTriggerProactive={() => onTriggerProactive()}
         onOpenImport={onOpenImport}
+        offlineMode={lastReplyWasDemo}
+        onOpenSettings={onOpenSettings}
       />
     </div>
   );

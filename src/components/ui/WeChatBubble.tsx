@@ -23,6 +23,7 @@ export const WeChatBubble: React.FC<WeChatBubbleProps> = ({
         {showAvatar && (
           <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
             {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- 头像可能是 data URL / 本地生成图
               <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
             ) : (
               <div

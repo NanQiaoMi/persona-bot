@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { describeRequestError, useFeedback } from '@/components/feedback/FeedbackProvider';
 import ImportModal from '@/components/ImportModal';
 import SkillPanel from '@/components/SkillPanel';
 
@@ -44,6 +45,7 @@ interface PersonaDetail {
 }
 
 export default function PersonaDetailPage() {
+  const { toast } = useFeedback();
   const params = useParams();
   const slug = params.slug as string;
 
@@ -66,34 +68,14 @@ export default function PersonaDetailPage() {
           setPersona(data.persona);
         }
       } catch (error) {
-        console.error('Failed to load persona:', error);
+        toast('角色没加载出来', { tone: 'error', description: describeRequestError(error) });
       } finally {
         setLoading(false);
       }
     };
     
     loadPersona();
-  }, [slug]);
-
-  const handleDelete = async () => {
-    if (!confirm('确定要删除这个角色吗？此操作不可撤销。')) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personas/${slug}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        window.location.href = '/';
-      }
-    } catch (error) {
-      console.error('Failed to delete persona:', error);
-    }
-  };
+  }, [slug, toast]);
 
   if (loading) {
     return (

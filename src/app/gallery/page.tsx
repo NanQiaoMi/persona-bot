@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { describeRequestError, useFeedback } from "@/components/feedback/FeedbackProvider";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
 
 export default function GalleryPage() {
+  const { toast, confirm } = useFeedback();
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "preset" | "custom">("all");
@@ -21,7 +23,13 @@ export default function GalleryPage() {
           setPersonas(data.personas || []);
         }
       } catch (err) {
-        console.error("Failed to load personas:", err);
+        if (active) {
+          toast("角色列表没加载出来", {
+            tone: "error",
+            description: describeRequestError(err),
+            action: { label: "刷新页面", onClick: () => window.location.reload() },
+          });
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -30,13 +38,13 @@ export default function GalleryPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [toast]);
 
   const handleExportMarkdown = async (slug: string, name: string) => {
     try {
       const res = await fetch(`/api/personas/${encodeURIComponent(slug)}`);
       const data = await res.json();
-      if (!data.success || !data.persona) return;
+      if (!data.success || !data.persona) throw new Error("HTTP 404");
       const p = data.persona;
       const bundle = `# ${p.name} (${p.slug}) — PersonaBot v2.0 角色灵魂包\n\n## 全息画像\n${p.aiProfileMd}\n\n---\n\n${p.personaMd}\n\n---\n\n${p.memoriesMd}\n`;
       const blob = new Blob([bundle], { type: "text/markdown;charset=utf-8" });
@@ -46,13 +54,20 @@ export default function GalleryPage() {
       a.download = `${name}-${slug}-persona.md`;
       a.click();
       URL.revokeObjectURL(url);
+      toast(`已导出「${name}」`, { tone: "success" });
     } catch (err) {
-      console.error("Export failed:", err);
+      toast("导出失败", { tone: "error", description: describeRequestError(err) });
     }
   };
 
   const handleDelete = async (slug: string, name: string) => {
-    if (!confirm(`确定要删除角色「${name}」吗？`)) return;
+    const ok = await confirm({
+      title: `删除「${name}」？`,
+      description: "角色设定、记忆和聊天记录都会一起删除，删除后无法恢复。",
+      confirmLabel: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     setDeleting(slug);
     try {
       const res = await fetch(
@@ -62,7 +77,12 @@ export default function GalleryPage() {
       const data = await res.json();
       if (data.success) {
         setPersonas((prev) => prev.filter((p) => p.slug !== slug));
+        toast(`已删除「${name}」`, { tone: "success" });
+      } else {
+        throw new Error(data?.error || `HTTP ${res.status}`);
       }
+    } catch (err) {
+      toast("删除失败", { tone: "error", description: describeRequestError(err) });
     } finally {
       setDeleting(null);
     }

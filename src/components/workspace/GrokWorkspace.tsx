@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ImportModal from "@/components/ImportModal";
+import { COMPACT_QUERY, NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
+import { describeRequestError, useFeedback } from "@/components/feedback/FeedbackProvider";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
   ConversationMessage,
@@ -24,6 +26,7 @@ interface GrokWorkspaceProps {
 }
 
 export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
+  const { toast } = useFeedback();
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   const [activeSlug, setActiveSlug] = useState<string>(
     initialSlug || "grok-ella"
@@ -43,7 +46,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [thinkMode, setThinkMode] = useState(true);
   const [deepSearch, setDeepSearch] = useState(false);
   const [activeMode, setActiveMode] = useState<PersonaMode>("fun");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // 手机宽度下侧栏默认收起为抽屉；桌面保持原来的展开 / 收起状态
+  const isNarrow = useMediaQuery(NARROW_QUERY);
+  const isCompact = useMediaQuery(COMPACT_QUERY);
+  const sidebarOpen = isNarrow ? mobileSidebarOpen : desktopSidebarOpen;
+  const setSidebarOpen = (next: boolean | ((v: boolean) => boolean)) => {
+    const value = typeof next === "function" ? next(sidebarOpen) : next;
+    if (isNarrow) setMobileSidebarOpen(value);
+    else setDesktopSidebarOpen(value);
+  };
   const [showInspector, setShowInspector] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -119,39 +132,53 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   } | null>(null);
 
   const loadPersonaList = useCallback(async () => {
-    try {
-      const res = await fetch("/api/personas");
-      const data = await res.json();
-      if (data.success && Array.isArray(data.personas)) {
-        setPersonas(data.personas);
+    const run = async (): Promise<void> => {
+      try {
+        const res = await fetch("/api/personas");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.personas)) {
+          setPersonas(data.personas);
+        }
+      } catch (err) {
+        toast("角色列表没加载出来", {
+          tone: "error",
+          description: describeRequestError(err),
+          action: { label: "重试", onClick: () => void run() },
+        });
       }
-    } catch (err) {
-      console.error("Failed to load personas:", err);
-    }
-  }, []);
+    };
+    await run();
+  }, [toast]);
 
   const loadActivePersonaDetail = useCallback(async (slug: string) => {
-    try {
-      const [pRes, cRes] = await Promise.all([
-        fetch(`/api/personas/${encodeURIComponent(slug)}`),
-        fetch(`/api/conversations?slug=${encodeURIComponent(slug)}&limit=100`),
-      ]);
-      const pData = await pRes.json();
-      const cData = await cRes.json();
+    const run = async (): Promise<void> => {
+      try {
+        const [pRes, cRes] = await Promise.all([
+          fetch(`/api/personas/${encodeURIComponent(slug)}`),
+          fetch(`/api/conversations?slug=${encodeURIComponent(slug)}&limit=100`),
+        ]);
+        const pData = await pRes.json();
+        const cData = await cRes.json();
 
-      if (pData.success && pData.persona) {
-        setActivePersona(pData.persona);
-        setActiveMode(pData.persona.defaultMode || "authentic");
+        if (pData.success && pData.persona) {
+          setActivePersona(pData.persona);
+          setActiveMode(pData.persona.defaultMode || "authentic");
+        }
+        if (cData.success && Array.isArray(cData.messages)) {
+          setMessages(cData.messages);
+        } else {
+          setMessages([]);
+        }
+      } catch (err) {
+        toast("聊天记录没加载出来", {
+          tone: "error",
+          description: describeRequestError(err),
+          action: { label: "重试", onClick: () => void run() },
+        });
       }
-      if (cData.success && Array.isArray(cData.messages)) {
-        setMessages(cData.messages);
-      } else {
-        setMessages([]);
-      }
-    } catch (err) {
-      console.error("Failed to load active persona:", err);
-    }
-  }, []);
+    };
+    await run();
+  }, [toast]);
 
   useEffect(() => {
     let active = true;
@@ -566,7 +593,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       await loadPersonaList();
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
-        console.error("Streaming chat error:", error);
+        toast("这条消息没发出去", {
+          tone: "error",
+          description: describeRequestError(error),
+          action: {
+            label: "重试",
+            onClick: () => void runStreamRequest(historyToSend, modeToUse, options),
+          },
+        });
       }
     } finally {
       streamAbortRef.current = null;
@@ -668,7 +702,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         await loadPersonaList();
       }
     } catch (err) {
-      console.error("Failed to trigger proactive message:", err);
+      toast("TA 暂时没法主动找你", { tone: "error", description: describeRequestError(err) });
     }
   };
 
@@ -688,7 +722,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       setMessages([]);
       await loadPersonaList();
     } catch (err) {
-      console.error("Failed to clear history:", err);
+      toast("清空聊天记录失败", { tone: "error", description: describeRequestError(err) });
     }
   };
 
@@ -706,9 +740,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       if (data.success && data.persona) {
         setActivePersona(data.persona);
         await loadPersonaList();
+      } else {
+        throw new Error(data?.error?.message || `HTTP ${res.status}`);
       }
     } catch (err) {
-      console.error("Failed to update persona:", err);
+      toast("保存没成功", { tone: "error", description: describeRequestError(err) });
     }
   };
 
@@ -716,8 +752,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     reason: string,
     category = "style",
     botResponse = "",
-    userInput = ""
-  ) => {
+    userInput = "",
+    opts: { silentSuccess?: boolean } = {}
+  ): Promise<boolean> => {
     try {
       const res = await fetch(
         `/api/personas/${encodeURIComponent(activeSlug)}/correct`,
@@ -735,21 +772,30 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const data = await res.json();
       if (data.success && data.persona) {
         setActivePersona(data.persona);
+        if (!opts.silentSuccess) {
+          toast("已记下，下一轮就会改", { tone: "success", description: data.rule });
+        }
+        return true;
       }
+      throw new Error(data?.error || `HTTP ${res.status}`);
     } catch (err) {
-      console.error("Failed to add correction:", err);
+      toast("纠偏没有保存", { tone: "error", description: describeRequestError(err) });
+      return false;
     }
   };
 
   const handleQuickCorrect = async (msgIndex: number, reason: string) => {
     const targetMsg = messages[msgIndex];
     const prevUserMsg = msgIndex > 0 ? messages[msgIndex - 1] : undefined;
-    await handleAddCorrection(
+    const ok = await handleAddCorrection(
       reason,
       "style",
       targetMsg?.content || "",
-      prevUserMsg?.content || ""
+      prevUserMsg?.content || "",
+      { silentSuccess: true }
     );
+    // 让气泡上的纠偏卡片回到可编辑状态，不丢用户写的内容
+    if (!ok) throw new Error("correction failed");
   };
 
   const handleRelayToMaster = async (msg: ConversationMessage) => {
@@ -764,26 +810,46 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       });
       await loadPersonaList();
     } catch (err) {
-      console.error("Failed to relay message to master-bot:", err);
+      toast("转交给主控 Bot 失败", { tone: "error", description: describeRequestError(err) });
     }
   };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {sidebarOpen && (
-        <LeftSidebar
-          personas={personas}
-          activeSlug={activeSlug}
-          isStreaming={Boolean(streaming)}
-          draftsBySlug={draftsBySlug}
-          onSelectPersona={(slug) => setActiveSlug(slug)}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenCommandPalette={() => setShowCommandPalette(true)}
-          onOpenCreateBot={() => setShowCreateBot(true)}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
-          onCollapse={() => setSidebarOpen(false)}
-        />
+        <>
+          {isNarrow && (
+            <div
+              aria-hidden
+              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] animate-fade-in"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+          )}
+          <div
+            className={
+              isNarrow
+                ? "fixed inset-y-0 left-0 z-50 shadow-[var(--shadow-overlay)] animate-drawer-left"
+                : "contents"
+            }
+          >
+            <LeftSidebar
+              personas={personas}
+              activeSlug={activeSlug}
+              isStreaming={Boolean(streaming)}
+              draftsBySlug={draftsBySlug}
+              onSelectPersona={(slug) => {
+                setActiveSlug(slug);
+                if (isNarrow) setMobileSidebarOpen(false);
+              }}
+              onOpenSettings={() => setShowSettings(true)}
+              onOpenCommandPalette={() => setShowCommandPalette(true)}
+              onOpenCreateBot={() => setShowCreateBot(true)}
+              theme={theme}
+              onToggleTheme={handleToggleTheme}
+              onCollapse={() => setSidebarOpen(false)}
+            />
+          </div>
+        </>
       )}
 
       <ChatStage
@@ -814,6 +880,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onOpenImport={() => setShowImport(true)}
         onOpenAvatarPicker={() => setShowAvatarPicker(true)}
+        onOpenSettings={() => setShowSettings(true)}
         onSetReferencePhoto={async (url) => {
           if (!activePersona) return;
           await handleSavePersonaPatch({
@@ -826,24 +893,43 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       />
 
       {showInspector && (
-        <RightInspector
-          key={`inspector-${activePersona?.slug || "default"}`}
-          persona={activePersona}
-          isStreaming={Boolean(streaming)}
-          autoNudgeEnabled={autoNudgeEnabled}
-          onToggleAutoNudge={() => setAutoNudgeEnabled((v) => !v)}
-          onSavePersonaPatch={handleSavePersonaPatch}
-          onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
-          onTriggerProactive={handleTriggerProactive}
-          onRefreshPersona={async () => {
-            await Promise.all([
-              loadActivePersonaDetail(activeSlug),
-              loadPersonaList(),
-            ]);
-          }}
-          onOpenAvatarPicker={() => setShowAvatarPicker(true)}
-          onClose={() => setShowInspector(false)}
-        />
+        <>
+          {isCompact && (
+            <div
+              aria-hidden
+              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] animate-fade-in"
+              onClick={() => setShowInspector(false)}
+            />
+          )}
+          <div
+            className={
+              isCompact
+                ? "fixed inset-y-0 right-0 z-50 max-w-full shadow-[var(--shadow-overlay)] animate-drawer-right"
+                : "contents"
+            }
+          >
+            <RightInspector
+              key={`inspector-${activePersona?.slug || "default"}`}
+              persona={activePersona}
+              isStreaming={Boolean(streaming)}
+              autoNudgeEnabled={autoNudgeEnabled}
+              onToggleAutoNudge={() => setAutoNudgeEnabled((v) => !v)}
+              onSavePersonaPatch={handleSavePersonaPatch}
+              onAddCorrection={async (reason, cat) => {
+                await handleAddCorrection(reason, cat);
+              }}
+              onTriggerProactive={handleTriggerProactive}
+              onRefreshPersona={async () => {
+                await Promise.all([
+                  loadActivePersonaDetail(activeSlug),
+                  loadPersonaList(),
+                ]);
+              }}
+              onOpenAvatarPicker={() => setShowAvatarPicker(true)}
+              onClose={() => setShowInspector(false)}
+            />
+          </div>
+        </>
       )}
 
       <CreateBotModal

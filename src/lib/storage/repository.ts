@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
+import { toPlainPreview } from '@/lib/text/preview';
 import {
   ensurePersonaSpec,
   inferStyleDimension,
@@ -206,7 +207,7 @@ export class UnifiedStorageRepository {
         profile: persona.profile,
         emotionState: persona.emotionState,
         intimacy: persona.intimacy,
-        lastMessage: lastMsg?.content?.slice(0, 80),
+        lastMessage: toPlainPreview(lastMsg?.content, 80) || undefined,
         lastActive: lastMsg?.timestamp || persona.updatedAt,
         createdAt: persona.createdAt,
         updatedAt: persona.updatedAt,

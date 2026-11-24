@@ -48,7 +48,7 @@ export default function RegisterForm() {
       } else {
         setError(data.error?.message || '注册失败');
       }
-    } catch (err) {
+    } catch {
       setError('网络错误，请稍后重试');
     } finally {
       setLoading(false);

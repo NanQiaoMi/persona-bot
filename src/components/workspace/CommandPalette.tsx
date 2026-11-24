@@ -1,5 +1,6 @@
 "use client";
 
+import { toPlainPreview } from "@/lib/text/preview";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
@@ -112,7 +113,7 @@ export default function CommandPalette({
                 const isMaster = Boolean(p.isMaster || p.slug === "master-bot");
                 const isActive = p.slug === activeSlug;
                 const snippet =
-                  p.lastMessage?.trim() ||
+                  toPlainPreview(p.lastMessage) ||
                   p.profile.bio?.trim() ||
                   (isMaster
                     ? "主控总管 · 协同子 Bot 并汇总阶段性回报结果"
