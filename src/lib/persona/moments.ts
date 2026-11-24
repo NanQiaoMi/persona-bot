@@ -717,3 +717,110 @@ export async function addUserMomentCommentAndReply(
 
   return { posts: finalPosts, replyComment };
 }
+
+export const CHAT_MOMENT_COOLDOWN_MS = 20 * 60 * 1000;
+export const VISIT_MOMENT_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+
+const inFlightAutoMoments = new Set<string>();
+
+export function isAutoMomentInFlight(slug: string): boolean {
+  return inFlightAutoMoments.has(slug);
+}
+
+/**
+ * 判断当前是否应当由角色在后台自主发布一条新朋友圈（含防刷屏冷却护栏）
+ */
+export function shouldAutoPublishMoment(params: {
+  posts: MomentPost[];
+  recentUserMessages: string[];
+  trigger: 'chat' | 'visit';
+  nowMs?: number;
+}): { due: boolean; hint?: string } {
+  const nowMs = params.nowMs ?? Date.now();
+  const nonSeedPosts = params.posts.filter((p) => !p.id.includes('_seed_'));
+  const latestNonSeed = nonSeedPosts.reduce<number>((max, p) => {
+    const ts = new Date(p.createdAt).getTime();
+    return Number.isFinite(ts) && ts > max ? ts : max;
+  }, 0);
+
+  if (params.trigger === 'visit') {
+    if (
+      nonSeedPosts.length === 0 ||
+      nowMs - latestNonSeed >= VISIT_MOMENT_COOLDOWN_MS
+    ) {
+      return {
+        due: true,
+        hint: '结合当前时段分享一段自己的旅行、风景、美食或生活日常随拍',
+      };
+    }
+    return { due: false };
+  }
+
+  if (
+    nonSeedPosts.length > 0 &&
+    nowMs - latestNonSeed < CHAT_MOMENT_COOLDOWN_MS
+  ) {
+    return { due: false };
+  }
+
+  const cleanMsgs = params.recentUserMessages
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const latestMsg = cleanMsgs[cleanMsgs.length - 1] || '';
+  const hasLifeEvent =
+    /旅游|旅行|出去玩|海边|咖啡|火锅|夜宵|打游戏|开黑|熬夜|睡不着|风景|日落|拍照|逛街|看电影|开心|想你/.test(
+      latestMsg
+    );
+
+  if (hasLifeEvent || cleanMsgs.length >= 3) {
+    return {
+      due: true,
+      hint: '自然呼应最近聊到的事情或心情，也可以延伸分享自己的生活/旅游瞬间，不要生硬复述原话',
+    };
+  }
+
+  return { due: false };
+}
+
+/**
+ * 全自主后台发朋友圈：按冷却和语境判断是否到点，满足则自动调用生成模型与生图模型发新动态
+ */
+export async function maybeAutoPublishMoment(
+  slug: string,
+  trigger: 'chat' | 'visit',
+  options?: { nowMs?: number }
+): Promise<boolean> {
+  if (inFlightAutoMoments.has(slug)) {
+    return false;
+  }
+
+  inFlightAutoMoments.add(slug);
+  try {
+    const [persona, allPersonas, recentMsgs] = await Promise.all([
+      storageRepo.getPersona(slug),
+      storageRepo.listPersonas(),
+      storageRepo.getConversation(slug, 12),
+    ]);
+    if (!persona) return false;
+
+    const posts = await ensureInitialMoments(persona, allPersonas);
+    const recentUserMessages = recentMsgs
+      .filter((m) => m.role === 'user' && typeof m.content === 'string')
+      .map((m) => m.content);
+
+    const decision = shouldAutoPublishMoment({
+      posts,
+      recentUserMessages,
+      trigger,
+      nowMs: options?.nowMs,
+    });
+    if (!decision.due) return false;
+
+    await generateNewMomentPost(slug, { hint: decision.hint });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    inFlightAutoMoments.delete(slug);
+  }
+}

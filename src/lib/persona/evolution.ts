@@ -14,6 +14,7 @@ import {
   extractAppearanceHintFromConversation,
   mergeAppearanceAnchorUpdate,
 } from '@/lib/persona/appearance-evolution';
+import { maybeAutoPublishMoment } from '@/lib/persona/moments';
 import {
   applySmoothTraitDeltas,
   heuristicTraits,
@@ -680,5 +681,8 @@ export async function runPostTurnPipeline(params: {
   // @ 唤起的角色只记忆，不在别的角色的会话里做整理
   if (params.slug === params.conversationSlug) {
     await maybeRunAutoEvolution(params.slug);
+    if (!process.env.VITEST) {
+      void maybeAutoPublishMoment(params.slug, 'chat').catch(() => {});
+    }
   }
 }

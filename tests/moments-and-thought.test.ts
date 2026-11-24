@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   addUserMomentCommentAndReply,
+  CHAT_MOMENT_COOLDOWN_MS,
   ensureInitialMoments,
   generateNewMomentPost,
+  maybeAutoPublishMoment,
+  shouldAutoPublishMoment,
   toggleMomentLike,
+  VISIT_MOMENT_COOLDOWN_MS,
 } from '@/lib/persona/moments';
 import { GET as getMomentsRoute, POST as postMomentsRoute } from '@/app/api/personas/[slug]/moments/route';
 import { storageRepo } from '@/lib/storage/repository';
@@ -164,6 +168,122 @@ describe('WeChat-style Moments Backend & API', () => {
       const postData = await postRes.json();
       expect(postData.success).toBe(true);
       expect(postData.posts[0].likedByUser).toBe(true);
+    } finally {
+      await storageRepo.deletePersona(slug);
+    }
+  });
+
+  it('evaluates visit and chat cooldown rules accurately in shouldAutoPublishMoment', () => {
+    const now = Date.now();
+    const seedOnly = [
+      {
+        id: 'mom_test_seed_1',
+        authorSlug: 'test',
+        authorName: '测试',
+        content: 'seed',
+        images: [],
+        likedByUser: false,
+        likes: [],
+        comments: [],
+        createdAt: new Date(now - 60_000).toISOString(),
+      },
+    ];
+
+    expect(
+      shouldAutoPublishMoment({
+        posts: seedOnly,
+        recentUserMessages: [],
+        trigger: 'visit',
+        nowMs: now,
+      }).due
+    ).toBe(true);
+
+    const recentAuto = [
+      {
+        id: 'mom_auto_1',
+        authorSlug: 'test',
+        authorName: '测试',
+        content: 'fresh post',
+        images: [],
+        likedByUser: false,
+        likes: [],
+        comments: [],
+        createdAt: new Date(now - 5 * 60_000).toISOString(),
+      },
+      ...seedOnly,
+    ];
+
+    expect(
+      shouldAutoPublishMoment({
+        posts: recentAuto,
+        recentUserMessages: ['去旅游拍了日落'],
+        trigger: 'chat',
+        nowMs: now,
+      }).due
+    ).toBe(false);
+
+    expect(
+      shouldAutoPublishMoment({
+        posts: recentAuto,
+        recentUserMessages: [],
+        trigger: 'visit',
+        nowMs: now,
+      }).due
+    ).toBe(false);
+
+    expect(
+      shouldAutoPublishMoment({
+        posts: recentAuto,
+        recentUserMessages: ['一起去吃火锅呀'],
+        trigger: 'chat',
+        nowMs: now + CHAT_MOMENT_COOLDOWN_MS + 1000,
+      }).due
+    ).toBe(true);
+
+    expect(
+      shouldAutoPublishMoment({
+        posts: recentAuto,
+        recentUserMessages: [],
+        trigger: 'visit',
+        nowMs: now + VISIT_MOMENT_COOLDOWN_MS + 1000,
+      }).due
+    ).toBe(true);
+  });
+
+  it('maybeAutoPublishMoment autonomously generates and persists a post then respects cooldown', async () => {
+    const slug = `moments-auto-${Date.now()}`;
+    const persona = makePersona(slug);
+    await storageRepo.savePersona(persona);
+    await storageRepo.saveConversation(slug, [
+      {
+        id: 'u1',
+        role: 'user',
+        content: '今晚一起打游戏然后去吃夜宵吧',
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ data: [{ b64_json: TINY_PNG_B64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
+
+    try {
+      const firstPublished = await maybeAutoPublishMoment(slug, 'chat');
+      expect(firstPublished).toBe(true);
+
+      const posts = await storageRepo.getMoments(slug);
+      expect(posts.length).toBe(4);
+      expect(posts[0].id).not.toContain('_seed_');
+
+      // Immediate second call must be blocked by cooldown
+      const secondPublished = await maybeAutoPublishMoment(slug, 'chat');
+      expect(secondPublished).toBe(false);
     } finally {
       await storageRepo.deletePersona(slug);
     }

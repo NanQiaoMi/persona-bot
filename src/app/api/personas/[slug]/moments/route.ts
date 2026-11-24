@@ -3,6 +3,8 @@ import {
   addUserMomentCommentAndReply,
   ensureInitialMoments,
   generateNewMomentPost,
+  isAutoMomentInFlight,
+  maybeAutoPublishMoment,
   toggleMomentLike,
 } from '@/lib/persona/moments';
 import { storageRepo } from '@/lib/storage/repository';
@@ -30,7 +32,14 @@ export async function GET(
     }
 
     const posts = await ensureInitialMoments(persona, allPersonas);
-    return NextResponse.json({ success: true, posts });
+    if (!process.env.VITEST) {
+      void maybeAutoPublishMoment(decodedSlug, 'visit').catch(() => {});
+    }
+    return NextResponse.json({
+      success: true,
+      posts,
+      autoPublishing: isAutoMomentInFlight(decodedSlug),
+    });
   } catch (error) {
     console.error('Get moments error:', error);
     return NextResponse.json(
