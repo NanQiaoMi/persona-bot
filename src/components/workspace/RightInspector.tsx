@@ -50,8 +50,10 @@ export default function RightInspector({
   const [evolving, setEvolving] = useState(false);
   const [rollingBackId, setRollingBackId] = useState<string | null>(null);
   const [importingBundle, setImportingBundle] = useState(false);
+  const [uploadingRef, setUploadingRef] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
   const bundleFileInputRef = useRef<HTMLInputElement>(null);
+  const refImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const slug = persona?.slug;
@@ -527,6 +529,106 @@ export default function RightInspector({
                         "未设定固定外貌特征；设定后每次自拍/生图都会自动保持同一人物外貌与画风。"}
                     </p>
                   )}
+
+                  {/* Reference Image Identity Lock */}
+                  <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-[var(--text-secondary)]">
+                        人物一致性参考图
+                      </span>
+                      {persona.profile.referenceImageUrl && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await onSavePersonaPatch({
+                              profile: {
+                                ...persona.profile,
+                                referenceImageUrl: undefined,
+                              },
+                            });
+                          }}
+                          className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
+                        >
+                          清除
+                        </button>
+                      )}
+                    </div>
+
+                    {persona.profile.referenceImageUrl ? (
+                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={persona.profile.referenceImageUrl}
+                          alt="人物参考图"
+                          className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[var(--border-strong)]"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium text-[#18a999]">
+                            ✓ 已锁定参考图底稿
+                          </div>
+                          <div className="text-[10px] text-[var(--text-muted)] truncate">
+                            后续发自拍将参考此图五官与形象
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10.5px] text-[var(--text-muted)]">
+                        尚未锁定参考图；发送首张自拍后会自动锁定，也可手动上传：
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={uploadingRef}
+                      onClick={() => refImageInputRef.current?.click()}
+                      className="w-full py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {uploadingRef
+                        ? "正在保存参考图..."
+                        : persona.profile.referenceImageUrl
+                          ? "📷 更换人物参考图"
+                          : "📷 上传人物参考图"}
+                    </button>
+                    <input
+                      ref={refImageInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setUploadingRef(true);
+                        try {
+                          const dataUrl = await new Promise<string>(
+                            (resolve, reject) => {
+                              const reader = new FileReader();
+                              reader.onload = () =>
+                                resolve(String(reader.result || ""));
+                              reader.onerror = () => reject(new Error("Read error"));
+                              reader.readAsDataURL(file);
+                            }
+                          );
+                          const res = await fetch("/api/media/reference", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              slug: persona.slug,
+                              dataUrl,
+                            }),
+                          });
+                          const data = await res.json();
+                          if (data?.success) {
+                            await onRefreshPersona?.();
+                          }
+                        } catch {
+                          // Ignore upload error
+                        } finally {
+                          setUploadingRef(false);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

@@ -9,8 +9,13 @@ import {
 } from '@/lib/persona/evolution';
 import {
   analyzeUserChatStyle,
+  polishYoungAdultBursts,
   trimExcessiveEmojis,
 } from '@/lib/persona/style-loop';
+import {
+  buildReferenceAwarePrompt,
+  generatePersonaMedia,
+} from '@/lib/grok/image-generator';
 import { storageRepo } from '@/lib/storage/repository';
 
 const TEST_SLUG = 'test-evo-soul-bot';
@@ -208,5 +213,41 @@ describe('Memory Evolution, Learned Habits, Snapshot Rollback & Soul Bundle', ()
     expect(mergedStyle.personaMd.indexOf(STYLE_LOOP_HEADING)).toBeLessThan(
       mergedStyle.personaMd.indexOf('## Correction 记录')
     );
+
+    const polished = polishYoungAdultBursts(
+      [
+        '不过话说回来，我刚忙完手里的事。',
+        '今天下雨真离谱！！😏',
+        '```ts\nconst x = 1;\n```',
+      ],
+      style
+    );
+    expect(polished[0]).toBe('我刚忙完手里的事');
+    expect(polished[1]).toBe('今天下雨真离谱！');
+    expect(polished[2]).toContain('const x = 1;');
+  });
+
+  it('builds identity-consistent reference prompts and gracefully falls back when image gateway is offline', async () => {
+    const refPrompt = buildReferenceAwarePrompt(
+      'photo',
+      '咖啡馆窗边喝冰美式随手拍',
+      'mi mi',
+      '松弛酷妹',
+      '中分黑长直，银色细框眼镜'
+    );
+    expect(refPrompt).toContain('EXACT same person shown in the reference image');
+    expect(refPrompt).toContain('中分黑长直');
+
+    const res = await generatePersonaMedia({
+      kind: 'photo',
+      caption: '夜晚街头路灯下随手拍',
+      personaName: 'mi mi',
+      referenceImageUrl:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      baseUrl: 'http://127.0.0.1:18699/v1',
+      imageModel: 'gpt-image-2.6',
+    });
+    expect(res.imageUrl).toBeUndefined();
+    expect(res.errorHint).toBeTruthy();
   });
 });

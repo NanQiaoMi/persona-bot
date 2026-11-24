@@ -62,6 +62,7 @@ interface ChatStageProps {
   onToggleSidebar: () => void;
   onOpenImport: () => void;
   onOpenAvatarPicker: () => void;
+  onSetReferencePhoto?: (imageUrl: string) => Promise<void>;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -174,6 +175,7 @@ export default function ChatStage({
   onToggleSidebar,
   onOpenImport,
   onOpenAvatarPicker,
+  onSetReferencePhoto,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -1062,8 +1064,23 @@ export default function ChatStage({
               alt={lightboxMedia.caption}
               className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
             />
-            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
-              <span className="max-w-md truncate">{lightboxMedia.caption}</span>
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span className="max-w-xs truncate">{lightboxMedia.caption}</span>
+              {lightboxMedia.kind === "photo" && onSetReferencePhoto && (
+                <button
+                  type="button"
+                  onClick={() => void onSetReferencePhoto(lightboxMedia.url)}
+                  className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                    persona.profile.referenceImageUrl === lightboxMedia.url
+                      ? "bg-[#18a999] text-white"
+                      : "bg-white/15 hover:bg-white/25 text-white"
+                  }`}
+                >
+                  {persona.profile.referenceImageUrl === lightboxMedia.url
+                    ? "✓ 已设为人物参考图"
+                    : "⭐ 设为参考图"}
+                </button>
+              )}
               <a
                 href={lightboxMedia.url}
                 download

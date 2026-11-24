@@ -5,7 +5,9 @@ export interface UserChatStyleProfile {
   emojiPerMsg: number;
   maxBotEmojiPerTurn: 0 | 1;
   usesTrailingPeriod: boolean;
+  exclamationPerMsg: number;
   detectedSlang: string[];
+  sampleLines: string[];
   styleDirective: string;
 }
 
@@ -65,15 +67,18 @@ export function analyzeUserChatStyle(
       emojiPerMsg: 0,
       maxBotEmojiPerTurn: 0,
       usesTrailingPeriod: false,
+      exclamationPerMsg: 0,
       detectedSlang: [],
+      sampleLines: [],
       styleDirective:
-        '对方还没展开聊，先按当代年轻人微信日常短句聊（单条 8~22 字），不用“。”收尾，尽量 0 个 emoji。',
+        '对方还没展开聊，先按当代年轻人微信日常短句聊（单条 6~22 字），不用“。”收尾，不端着也不当主持人追问，尽量 0 个 emoji。',
     };
   }
 
   const emojiRegex = getEmojiRegex();
   let totalChars = 0;
   let totalEmojis = 0;
+  let totalExclamations = 0;
   let trailingPeriodCount = 0;
   const slangHitSet = new Set<string>();
 
@@ -81,6 +86,8 @@ export function analyzeUserChatStyle(
     totalChars += text.length;
     const emojiMatches = text.match(emojiRegex);
     totalEmojis += emojiMatches ? emojiMatches.length : 0;
+    const exclMatches = text.match(/[！!]/g);
+    totalExclamations += exclMatches ? exclMatches.length : 0;
     if (/。\s*$/.test(text)) {
       trailingPeriodCount += 1;
     }
@@ -97,9 +104,13 @@ export function analyzeUserChatStyle(
   const lengthBucket: UserChatStyleProfile['lengthBucket'] =
     avgCharLength <= 14 ? 'short' : avgCharLength <= 38 ? 'medium' : 'long';
   const emojiPerMsg = Number((totalEmojis / sampleCount).toFixed(2));
+  const exclamationPerMsg = Number((totalExclamations / sampleCount).toFixed(2));
   const maxBotEmojiPerTurn: 0 | 1 = emojiPerMsg < 0.15 ? 0 : 1;
   const usesTrailingPeriod = trailingPeriodCount / sampleCount >= 0.4;
   const detectedSlang = Array.from(slangHitSet).slice(0, 6);
+  const sampleLines = userMsgs
+    .filter((m) => m.length >= 2 && m.length <= 28)
+    .slice(-3);
 
   const hints: string[] = [];
   if (lengthBucket === 'short') {
@@ -130,9 +141,21 @@ export function analyzeUserChatStyle(
     hints.push('对方句尾很少打“。”，短气泡结尾也不要用“。”收尾，用空格或换行更自然');
   }
 
+  if (exclamationPerMsg < 0.35) {
+    hints.push('对方语气比较平实松弛，别每句话末尾都带“！”惊呼，少用感叹号和舞台剧括号动作');
+  }
+
+  hints.push('不要每一轮末尾都硬抛“你呢？今天怎么样？”之类主持人式反问，聊完自然停下也很真实');
+
   if (detectedSlang.length > 0) {
     hints.push(
       `对方常带口语表达（${detectedSlang.join('、')}），保持同频网感接话，别硬塞尬梗`
+    );
+  }
+
+  if (sampleLines.length > 0) {
+    hints.push(
+      `参考对方刚刚的真实发言节奏：${sampleLines.map((s) => `「${s}」`).join(' / ')}`
     );
   }
 
@@ -143,7 +166,9 @@ export function analyzeUserChatStyle(
     emojiPerMsg,
     maxBotEmojiPerTurn,
     usesTrailingPeriod,
+    exclamationPerMsg,
     detectedSlang,
+    sampleLines,
     styleDirective: hints.map((h) => `- ${h}`).join('\n'),
   };
 }
@@ -189,4 +214,45 @@ export function trimExcessiveEmojis(
 
   const fallbackText = bursts.map((b) => b.trim()).find(Boolean);
   return [fallbackText ? '行，听你的' : '怎么了'];
+}
+
+/**
+ * 进一步把长篇/书面/感叹号过多的气泡打磨成当代年轻人日常微信松弛口语（保留代码块与列表）
+ */
+export function polishYoungAdultBursts(
+  bursts: string[],
+  profile: UserChatStyleProfile
+): string[] {
+  const emojiCleaned = trimExcessiveEmojis(bursts, profile.maxBotEmojiPerTurn);
+
+  const polished = emojiCleaned
+    .map((segment) => {
+      if (/```/.test(segment) || /(?:^|\n)\s*(?:[-*+]|\d+\.)\s+/.test(segment)) {
+        return segment;
+      }
+
+      let working = segment
+        // Collapse repeated exclamation/question marks
+        .replace(/！{2,}/g, '！')
+        .replace(/!{2,}/g, '!')
+        // Strip robotic AI filler prefixes when standing at start of a bubble
+        .replace(/^(?:不过话说回来|顺便一提|老实说|有一说一地讲)[，,]\s*/g, '')
+        .trim();
+
+      // Mirror casual young-adult WeChat punctuation: drop lone trailing 。 on short bubbles
+      if (
+        !profile.usesTrailingPeriod &&
+        working.length <= 28 &&
+        !working.includes('\n') &&
+        working.endsWith('。') &&
+        !working.endsWith('。。')
+      ) {
+        working = working.slice(0, -1).trim();
+      }
+
+      return working;
+    })
+    .filter(Boolean);
+
+  return polished.length > 0 ? polished : emojiCleaned;
 }

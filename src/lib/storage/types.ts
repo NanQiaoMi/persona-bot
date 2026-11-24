@@ -15,6 +15,7 @@ export interface PersonaProfile {
   avatarImage?: string;
   accentColor?: string;
   appearanceAnchor?: string;
+  referenceImageUrl?: string;
   bio?: string;
 }
 

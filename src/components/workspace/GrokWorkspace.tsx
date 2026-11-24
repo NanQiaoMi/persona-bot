@@ -502,6 +502,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       return { ...m, mediaCards: updated };
                     })
                   );
+                  if (resData.autoLockedReference && activeSlugRef.current === targetSlug) {
+                    void loadActivePersonaDetail(targetSlug);
+                  }
                 }
               })
               .catch(() => {
@@ -811,6 +814,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onOpenImport={() => setShowImport(true)}
         onOpenAvatarPicker={() => setShowAvatarPicker(true)}
+        onSetReferencePhoto={async (url) => {
+          if (!activePersona) return;
+          await handleSavePersonaPatch({
+            profile: {
+              ...activePersona.profile,
+              referenceImageUrl: url,
+            },
+          });
+        }}
       />
 
       {showInspector && (

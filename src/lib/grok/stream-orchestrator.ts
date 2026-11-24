@@ -14,7 +14,7 @@ import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
 import { maybeRunAutoEvolution } from '@/lib/persona/evolution';
 import {
   analyzeUserChatStyle,
-  trimExcessiveEmojis,
+  polishYoungAdultBursts,
 } from '@/lib/persona/style-loop';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
@@ -959,9 +959,9 @@ export async function executeGrokChatTurn(
   );
 
   const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
-  const emojiTrimmedBursts = trimExcessiveEmojis(
+  const emojiTrimmedBursts = polishYoungAdultBursts(
     sanitizedBursts,
-    userStyleProfile.maxBotEmojiPerTurn
+    userStyleProfile
   );
   const segments = splitIntoNaturalMessages(emojiTrimmedBursts);
   parsed.bursts = segments;
