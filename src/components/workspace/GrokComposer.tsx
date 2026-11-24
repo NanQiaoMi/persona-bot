@@ -14,6 +14,9 @@ interface GrokComposerProps {
     requestSticker?: boolean;
     mentionedSlug?: string;
   }) => void;
+  onStop?: () => void;
+  externalImage?: string | null;
+  onClearExternalImage?: () => void;
   disabled?: boolean;
   thinkMode: boolean;
   onToggleThink: () => void;
@@ -32,6 +35,9 @@ export default function GrokComposer({
   value,
   onChange,
   onSend,
+  onStop,
+  externalImage,
+  onClearExternalImage,
   disabled,
   thinkMode,
   onToggleThink,
@@ -150,12 +156,14 @@ export default function GrokComposer({
     setTimeout(() => textInputRef.current?.focus(), 0);
   };
 
+  const activeImagePreview = imagePreview || externalImage || null;
+
   const handleSubmit = (
     requestPhoto = false,
     requestSticker = false
   ) => {
     if (disabled) return;
-    if (!value.trim() && !imagePreview && !requestPhoto && !requestSticker) return;
+    if (!value.trim() && !activeImagePreview && !requestPhoto && !requestSticker) return;
     const matchedInText = personas.find((p) =>
       value.includes(`@${p.name}`)
     )?.slug;
@@ -168,12 +176,13 @@ export default function GrokComposer({
         ? selectedMentionSlug
         : undefined);
     onSend({
-      imageUrl: imagePreview || undefined,
+      imageUrl: activeImagePreview || undefined,
       requestPhoto,
       requestSticker,
       mentionedSlug: resolvedMentionSlug,
     });
     setImagePreview(null);
+    onClearExternalImage?.();
     setSelectedMentionSlug(undefined);
     setMenuOpen(false);
   };
@@ -223,7 +232,7 @@ export default function GrokComposer({
     }
   };
 
-  const hasContent = Boolean(value.trim()) || Boolean(imagePreview);
+  const hasContent = Boolean(value.trim()) || Boolean(activeImagePreview);
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
@@ -365,19 +374,22 @@ export default function GrokComposer({
         )}
 
         {/* Active Image Attachment Preview */}
-        {imagePreview && (
+        {activeImagePreview && (
           <div className="mb-2.5 px-4 py-2 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center gap-3 animate-fade-in">
             <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-[var(--border-strong)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imagePreview}
+                src={activeImagePreview}
                 alt="上传预览"
                 className="w-full h-full object-cover"
               />
               <button
                 type="button"
-                onClick={() => setImagePreview(null)}
-                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/75 text-white text-[10px] flex items-center justify-center"
+                onClick={() => {
+                  setImagePreview(null);
+                  onClearExternalImage?.();
+                }}
+                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/75 text-white text-[10px] flex items-center justify-center cursor-pointer"
               >
                 ×
               </button>
@@ -566,24 +578,34 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          {/* Animated Active-Bot Color Waveform / Send Button */}
+          {/* Animated Active-Bot Color Waveform / Send / Stop Button */}
           <button
             type="button"
             onClick={() => {
-              if (hasContent) {
+              if (disabled) {
+                onStop?.();
+              } else if (hasContent) {
                 handleSubmit(false);
               } else {
                 onTriggerProactive();
               }
             }}
-            disabled={disabled}
-            aria-label={hasContent ? "发送消息" : "语音/主动破冰"}
+            disabled={disabled && !onStop}
+            aria-label={
+              disabled ? "停止回复" : hasContent ? "发送消息" : "语音/主动破冰"
+            }
             className="w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
             style={{ backgroundColor: accentColor }}
-            title={hasContent ? "发送消息 (Enter)" : "让 TA 主动开口破冰"}
+            title={
+              disabled
+                ? "停止当前回复"
+                : hasContent
+                  ? "发送消息 (Enter)"
+                  : "让 TA 主动开口破冰"
+            }
           >
             {disabled ? (
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              <span className="w-3 h-3 rounded-[3px] bg-white" />
             ) : hasContent ? (
               <svg
                 className="w-4 h-4"

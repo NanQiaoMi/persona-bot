@@ -45,6 +45,7 @@ interface ChatStageProps {
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
   onClearHistory: () => void;
+  onStopStreaming?: () => void;
   onQuickCorrect: (msgIndex: number, reason: string) => Promise<void>;
   onRegenerate: (msgIndex: number, overrideMode?: PersonaMode) => void;
   onRelayToMaster?: (msg: ConversationMessage) => Promise<void>;
@@ -159,6 +160,7 @@ export default function ChatStage({
   onQuickSend,
   onTriggerProactive,
   onClearHistory,
+  onStopStreaming,
   onSelectPersona,
   thinkMode,
   onToggleThink,
@@ -175,7 +177,12 @@ export default function ChatStage({
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const dragCounterRef = useRef(0);
+  const confirmClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [droppedImage, setDroppedImage] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
@@ -184,6 +191,50 @@ export default function ChatStage({
     caption: string;
     kind: "photo" | "sticker";
   } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (confirmClearTimerRef.current) {
+        clearTimeout(confirmClearTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDraggingFile(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFile(false);
+    }
+  };
+
+  const handleDropFile = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDraggingFile(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setDroppedImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -274,7 +325,21 @@ export default function ChatStage({
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
-    <div className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden">
+    <div
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDropFile}
+      className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden"
+    >
+      {isDraggingFile && (
+        <div className="pointer-events-none absolute inset-3 z-40 rounded-3xl border-2 border-dashed border-[#18a999] bg-[var(--bg-elevated)]/85 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
+          <span className="text-3xl">🖼️</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            松手即可发送图片给 {persona.name}
+          </span>
+        </div>
+      )}
       {/* Subtle Ambient Mascot Glow behind Floating Header */}
       <div
         aria-hidden="true"
@@ -297,11 +362,31 @@ export default function ChatStage({
           {messages.length > 0 && (
             <button
               type="button"
-              onClick={onClearHistory}
-              className="px-3.5 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all"
-              title="清空当前对话"
+              onClick={() => {
+                if (!confirmClear) {
+                  setConfirmClear(true);
+                  if (confirmClearTimerRef.current) {
+                    clearTimeout(confirmClearTimerRef.current);
+                  }
+                  confirmClearTimerRef.current = setTimeout(() => {
+                    setConfirmClear(false);
+                  }, 3000);
+                  return;
+                }
+                if (confirmClearTimerRef.current) {
+                  clearTimeout(confirmClearTimerRef.current);
+                }
+                setConfirmClear(false);
+                onClearHistory();
+              }}
+              className={`px-3.5 py-1.5 rounded-full border grok-floating-pill text-[11.5px] font-medium hover:-translate-y-0.5 transition-all cursor-pointer ${
+                confirmClear
+                  ? "bg-rose-500/12 border-rose-500/40 text-rose-500"
+                  : "bg-[var(--bg-composer)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+              title={confirmClear ? "再次点击确认清空当前对话" : "清空当前对话"}
             >
-              新对话
+              {confirmClear ? "确认清空？" : "新对话"}
             </button>
           )}
         </div>
@@ -1019,6 +1104,9 @@ export default function ChatStage({
         value={input}
         onChange={onChangeInput}
         onSend={onSend}
+        onStop={onStopStreaming}
+        externalImage={droppedImage}
+        onClearExternalImage={() => setDroppedImage(null)}
         disabled={Boolean(streaming)}
         thinkMode={thinkMode}
         onToggleThink={onToggleThink}

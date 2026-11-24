@@ -9,6 +9,7 @@ interface LeftSidebarProps {
   personas: PersonaSummary[];
   activeSlug: string;
   isStreaming?: boolean;
+  draftsBySlug?: Record<string, string>;
   onSelectPersona: (slug: string) => void;
   onOpenSettings: () => void;
   onOpenCommandPalette: () => void;
@@ -52,6 +53,7 @@ export default function LeftSidebar({
   personas,
   activeSlug,
   isStreaming = false,
+  draftsBySlug = {},
   onSelectPersona,
   onOpenSettings,
   onOpenCommandPalette,
@@ -197,13 +199,15 @@ export default function LeftSidebar({
         {subBots.map((p, index) => {
           const isActive = p.slug === activeSlug;
           const isBotTyping = isActive && isStreaming;
+          const draftText = !isActive ? (draftsBySlug[p.slug] || "").trim() : "";
           const mascotCfg = getMascotConfigForPersona(p.slug, p.profile, index);
           const cleanLastMessage = (p.lastMessage || "")
             .replace(/^\[来自主控\s*Bot[^\]]*\]\s*/i, "")
             .trim();
           const snippet = isBotTyping
             ? "正在输入..."
-            : cleanLastMessage ||
+            : draftText ||
+              cleanLastMessage ||
               p.profile.bio ||
               p.emotionState?.moodLabel ||
               "点击开启实时对话...";
@@ -262,6 +266,11 @@ export default function LeftSidebar({
                       : "text-[var(--text-secondary)]"
                   }`}
                 >
+                  {draftText && (
+                    <span className="text-rose-500 font-medium mr-1">
+                      [草稿]
+                    </span>
+                  )}
                   {snippet}
                 </p>
               </div>

@@ -32,7 +32,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     null
   );
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [input, setInput] = useState("");
+  const [draftsBySlug, setDraftsBySlug] = useState<Record<string, string>>({});
+  const input = draftsBySlug[activeSlug] || "";
+  const setInput = useCallback(
+    (val: string) => {
+      setDraftsBySlug((prev) => ({ ...prev, [activeSlug]: val }));
+    },
+    [activeSlug]
+  );
   const [thinkMode, setThinkMode] = useState(true);
   const [deepSearch, setDeepSearch] = useState(false);
   const [activeMode, setActiveMode] = useState<PersonaMode>("fun");
@@ -49,10 +56,22 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
   const activeSlugRef = useRef(activeSlug);
+  const streamAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("personabot-theme");
+    if (saved === "dark" || saved === "light") {
+      document.documentElement.setAttribute("data-theme", saved);
+      queueMicrotask(() => setTheme(saved));
+    }
+  }, []);
 
   useEffect(() => {
     activeSlugRef.current = activeSlug;
     idleNudgeCountRef.current = 0;
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
     if (followupTimerRef.current) {
       clearTimeout(followupTimerRef.current);
       followupTimerRef.current = null;
@@ -62,6 +81,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       idleTimerRef.current = null;
     }
     return () => {
+      streamAbortRef.current?.abort();
+      streamAbortRef.current = null;
       if (followupTimerRef.current) {
         clearTimeout(followupTimerRef.current);
         followupTimerRef.current = null;
@@ -248,6 +269,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (typeof document !== "undefined") {
       document.documentElement.setAttribute("data-theme", next);
     }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("personabot-theme", next);
+    }
+  };
+
+  const handleStopStreaming = () => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
   };
 
   const runStreamRequest = async (
@@ -275,9 +304,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     });
 
     try {
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
       const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           slug: activeSlug,
           mentionedSlug: options?.mentionedSlug,
@@ -530,8 +562,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       }
       await loadPersonaList();
     } catch (error) {
-      console.error("Streaming chat error:", error);
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        console.error("Streaming chat error:", error);
+      }
     } finally {
+      streamAbortRef.current = null;
       setStreaming(null);
     }
   };
@@ -635,6 +670,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   };
 
   const handleClearHistory = async () => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
     clearScheduledFollowup();
     try {
       await fetch("/api/conversations", {
@@ -735,6 +772,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           personas={personas}
           activeSlug={activeSlug}
           isStreaming={Boolean(streaming)}
+          draftsBySlug={draftsBySlug}
           onSelectPersona={(slug) => setActiveSlug(slug)}
           onOpenSettings={() => setShowSettings(true)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
@@ -753,6 +791,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         input={input}
         onChangeInput={setInput}
         onSend={handleSend}
+        onStopStreaming={handleStopStreaming}
         onQuickSend={handleQuickSend}
         onTriggerProactive={handleTriggerProactive}
         onClearHistory={handleClearHistory}
