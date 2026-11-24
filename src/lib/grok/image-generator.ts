@@ -87,6 +87,43 @@ export function buildReferenceAwarePrompt(
     .join(' ');
 }
 
+/**
+ * 构造标准人物一致性棚拍定妆照 Prompt（正面半身、纯浅灰无缝背景、均匀柔光、正视镜头无遮挡）
+ */
+export function buildStandardReferencePrompt(
+  personaName: string,
+  personaStyle?: string,
+  appearanceAnchor?: string,
+  hasSourceImage = false
+): string {
+  const styleHint = personaStyle ? ` (${personaStyle})` : '';
+  const anchorLine = appearanceAnchor?.trim()
+    ? `Character appearance traits: "${appearanceAnchor.trim()}".`
+    : '';
+
+  if (hasSourceImage) {
+    return [
+      `Create a clean standardized studio character reference portrait of the EXACT same person from the reference photo (${personaName}${styleHint}), preserving identical face, facial structure, eyes, nose, lips, hairstyle, hair color, skin tone, and identity.`,
+      anchorLine,
+      'Front-facing head-and-shoulders to chest-up studio portrait, looking directly at camera, neutral relaxed soft expression, clear unobstructed face.',
+      'Clean solid light neutral gray seamless studio background, even soft diffused frontal studio lighting, no harsh shadows, no dramatic color cast, strip away cluttered background and occlusions.',
+      'Sharp focus, realistic natural skin texture, high-resolution casting headshot quality, no sunglasses, no hands near face, no watermark, no text overlays.',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return [
+    `Create a clean standardized studio character reference portrait representing "${personaName}"${styleHint}.`,
+    anchorLine,
+    'Front-facing head-and-shoulders to chest-up studio portrait, looking directly at camera, neutral relaxed soft expression, clear unobstructed face.',
+    'Clean solid light neutral gray seamless studio background, even soft diffused frontal studio lighting, no harsh shadows, realistic natural skin texture.',
+    'Sharp focus, high-resolution casting headshot quality, no sunglasses, no hands near face, no watermark, no text overlays.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 async function loadReferenceImageBuffer(
   referenceImageUrl?: string
 ): Promise<{ buffer: Buffer; filename: string; mimeType: string } | null> {
@@ -172,8 +209,10 @@ async function extractMediaResponse(
   kind: 'photo' | 'sticker',
   model: string,
   prompt: string,
-  usedReferenceImage = false
+  usedReferenceImage = false,
+  filePrefix?: string
 ): Promise<GenerateMediaResult | null> {
+  const resolvedPrefix = filePrefix || (kind === 'sticker' ? 'sticker' : 'photo');
   const json = await res.json();
   const first = json?.data?.[0];
 
@@ -182,7 +221,7 @@ async function extractMediaResponse(
     const localUrl = await saveGeneratedMediaBuffer(
       buf,
       'png',
-      kind === 'sticker' ? 'sticker' : 'photo'
+      resolvedPrefix
     );
     return { imageUrl: localUrl, model, prompt, usedReferenceImage };
   }
@@ -197,7 +236,7 @@ async function extractMediaResponse(
         const localUrl = await saveGeneratedMediaBuffer(
           buf,
           ext,
-          kind === 'sticker' ? 'sticker' : 'photo'
+          resolvedPrefix
         );
         return { imageUrl: localUrl, model, prompt, usedReferenceImage };
       }
@@ -214,7 +253,7 @@ async function extractMediaResponse(
         const localUrl = await saveGeneratedMediaBuffer(
           Buffer.from(arrBuf),
           ext,
-          kind === 'sticker' ? 'sticker' : 'photo'
+          resolvedPrefix
         );
         return { imageUrl: localUrl, model, prompt, usedReferenceImage };
       }
@@ -226,6 +265,129 @@ async function extractMediaResponse(
   }
 
   return null;
+}
+
+function buildAuthHeaders(apiKey?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (apiKey && apiKey !== 'your-api-key') {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  return headers;
+}
+
+async function runImageEdit(params: {
+  editsEndpoint: string;
+  authHeaders: Record<string, string>;
+  model: string;
+  prompt: string;
+  refImg: { buffer: Buffer; filename: string; mimeType: string };
+  kind: 'photo' | 'sticker';
+  filePrefix?: string;
+}): Promise<{ result?: GenerateMediaResult; status?: number; errText?: string }> {
+  const form = new FormData();
+  form.append('model', params.model);
+  form.append('prompt', params.prompt);
+  form.append('n', '1');
+  form.append('size', '1024x1024');
+  form.append(
+    'image',
+    new Blob([new Uint8Array(params.refImg.buffer)], {
+      type: params.refImg.mimeType,
+    }),
+    params.refImg.filename
+  );
+
+  const editRes = await fetch(params.editsEndpoint, {
+    method: 'POST',
+    headers: params.authHeaders,
+    body: form,
+    signal: AbortSignal.timeout(120000),
+  });
+
+  if (!editRes.ok) {
+    const errText = await editRes.text().catch(() => '');
+    return { status: editRes.status, errText };
+  }
+
+  const extracted = await extractMediaResponse(
+    editRes,
+    params.kind,
+    params.model,
+    params.prompt,
+    true,
+    params.filePrefix
+  );
+  if (extracted?.imageUrl) {
+    return { result: extracted };
+  }
+  return { status: editRes.status };
+}
+
+async function runTextToImage(params: {
+  endpoint: string;
+  authHeaders: Record<string, string>;
+  model: string;
+  prompt: string;
+  kind: 'photo' | 'sticker';
+  filePrefix?: string;
+}): Promise<GenerateMediaResult> {
+  try {
+    const res = await fetch(params.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...params.authHeaders,
+      },
+      body: JSON.stringify({
+        model: params.model,
+        prompt: params.prompt,
+        n: 1,
+        size: '1024x1024',
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      return {
+        model: params.model,
+        prompt: params.prompt,
+        errorHint: `本地网关未登录（HTTP ${res.status}），请先在客户端登录后填入密钥以生成真实图片`,
+      };
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return {
+        model: params.model,
+        prompt: params.prompt,
+        errorHint: `生图接口返回异常（HTTP ${res.status}）${errText ? `: ${errText.slice(0, 60)}` : ''}`,
+      };
+    }
+
+    const extracted = await extractMediaResponse(
+      res,
+      params.kind,
+      params.model,
+      params.prompt,
+      false,
+      params.filePrefix
+    );
+    if (extracted) {
+      return extracted;
+    }
+
+    return {
+      model: params.model,
+      prompt: params.prompt,
+      errorHint: '生图接口未返回有效图片数据，已保留文字描述卡片',
+    };
+  } catch {
+    return {
+      model: params.model,
+      prompt: params.prompt,
+      errorHint: '图片网关暂未连通，已展示文字情境卡片',
+    };
+  }
 }
 
 /**
@@ -245,11 +407,7 @@ export async function generatePersonaMedia(
     params.personaStyle,
     params.appearanceAnchor
   );
-
-  const authHeaders: Record<string, string> = {};
-  if (params.apiKey && params.apiKey !== 'your-api-key') {
-    authHeaders.Authorization = `Bearer ${params.apiKey}`;
-  }
+  const authHeaders = buildAuthHeaders(params.apiKey);
 
   // Try reference-guided /images/edits first when a reference image is configured
   const refImg = await loadReferenceImageBuffer(params.referenceImageUrl);
@@ -262,89 +420,122 @@ export async function generatePersonaMedia(
         params.personaStyle,
         params.appearanceAnchor
       );
-      const form = new FormData();
-      form.append('model', model);
-      form.append('prompt', refPrompt);
-      form.append('n', '1');
-      form.append('size', '1024x1024');
-      form.append(
-        'image',
-        new Blob([new Uint8Array(refImg.buffer)], { type: refImg.mimeType }),
-        refImg.filename
-      );
-
-      const editRes = await fetch(editsEndpoint, {
-        method: 'POST',
-        headers: authHeaders,
-        body: form,
-        signal: AbortSignal.timeout(120000),
+      const editAttempt = await runImageEdit({
+        editsEndpoint,
+        authHeaders,
+        model,
+        prompt: refPrompt,
+        refImg,
+        kind: params.kind,
       });
-
-      if (editRes.ok) {
-        const extracted = await extractMediaResponse(
-          editRes,
-          params.kind,
-          model,
-          refPrompt,
-          true
-        );
-        if (extracted?.imageUrl) {
-          return extracted;
-        }
+      if (editAttempt.result?.imageUrl) {
+        return editAttempt.result;
       }
     } catch {
       // Fallback transparently to text-to-image /images/generations below
     }
   }
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      body: JSON.stringify({
+  return runTextToImage({
+    endpoint,
+    authHeaders,
+    model,
+    prompt,
+    kind: params.kind,
+  });
+}
+
+export interface GenerateStandardReferenceParams {
+  personaName: string;
+  personaStyle?: string;
+  appearanceAnchor?: string;
+  sourceImageUrl?: string;
+  allowTextFallback?: boolean;
+  baseUrl: string;
+  apiKey?: string;
+  imageModel: string;
+}
+
+/**
+ * 基于首张照片或外貌锚点提炼/生成标准棚拍人物参考图（正面半身、纯浅灰背景、均匀柔光）
+ */
+export async function generateStandardReferencePortrait(
+  params: GenerateStandardReferenceParams
+): Promise<GenerateMediaResult> {
+  const cleanBase = params.baseUrl.replace(/\/$/, '');
+  const endpoint = `${cleanBase}/images/generations`;
+  const editsEndpoint = `${cleanBase}/images/edits`;
+  const model = params.imageModel || 'gpt-image-2.6';
+  const authHeaders = buildAuthHeaders(params.apiKey);
+
+  const sourceImg = await loadReferenceImageBuffer(params.sourceImageUrl);
+  if (sourceImg) {
+    const refPrompt = buildStandardReferencePrompt(
+      params.personaName,
+      params.personaStyle,
+      params.appearanceAnchor,
+      true
+    );
+    try {
+      const editAttempt = await runImageEdit({
+        editsEndpoint,
+        authHeaders,
         model,
-        prompt,
-        n: 1,
-        size: '1024x1024',
-      }),
-      signal: AbortSignal.timeout(120000),
-    });
-
-    if (res.status === 401 || res.status === 403) {
-      return {
-        model,
-        prompt,
-        errorHint: `本地网关未登录（HTTP ${res.status}），请先在客户端登录后填入密钥以生成真实图片`,
-      };
+        prompt: refPrompt,
+        refImg: sourceImg,
+        kind: 'photo',
+        filePrefix: 'ref',
+      });
+      if (editAttempt.result?.imageUrl) {
+        return editAttempt.result;
+      }
+      if (params.allowTextFallback === false) {
+        const statusHint = editAttempt.status
+          ? `（HTTP ${editAttempt.status}）`
+          : '';
+        return {
+          model,
+          prompt: refPrompt,
+          errorHint: `图生图提炼标准参考图失败${statusHint}，已保留原图作为兜底`,
+        };
+      }
+    } catch {
+      if (params.allowTextFallback === false) {
+        return {
+          model,
+          prompt: refPrompt,
+          errorHint: '图片网关暂未连通或不支持图生图提炼，已保留原图作为兜底',
+        };
+      }
     }
+  }
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      return {
-        model,
-        prompt,
-        errorHint: `生图接口返回异常（HTTP ${res.status}）${errText ? `: ${errText.slice(0, 60)}` : ''}`,
-      };
-    }
-
-    const extracted = await extractMediaResponse(res, params.kind, model, prompt, false);
-    if (extracted) {
-      return extracted;
-    }
-
+  if (params.sourceImageUrl && params.allowTextFallback === false) {
+    const prompt = buildStandardReferencePrompt(
+      params.personaName,
+      params.personaStyle,
+      params.appearanceAnchor,
+      true
+    );
     return {
       model,
       prompt,
-      errorHint: '生图接口未返回有效图片数据，已保留文字描述卡片',
-    };
-  } catch {
-    return {
-      model,
-      prompt,
-      errorHint: '图片网关暂未连通，已展示文字情境卡片',
+      errorHint: '未能读取源参考图文件，已保留原图作为兜底',
     };
   }
+
+  const prompt = buildStandardReferencePrompt(
+    params.personaName,
+    params.personaStyle,
+    params.appearanceAnchor,
+    false
+  );
+  return runTextToImage({
+    endpoint,
+    authHeaders,
+    model,
+    prompt,
+    kind: 'photo',
+    filePrefix: 'ref',
+  });
 }
