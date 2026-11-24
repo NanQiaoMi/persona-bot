@@ -10,6 +10,15 @@ import {
   archiveExpiredSchedules,
   recordRecall,
 } from '@/lib/persona/memory-lifecycle';
+import {
+  extractAppearanceHintFromConversation,
+  mergeAppearanceAnchorUpdate,
+} from '@/lib/persona/appearance-evolution';
+import {
+  applySmoothTraitDeltas,
+  heuristicTraits,
+  NumericTraitKey,
+} from '@/lib/persona/traits';
 import { admitCandidates, applyTurnQuality, TrialTransition } from '@/lib/persona/trial';
 import {
   ensurePersonaSpec,
@@ -27,6 +36,9 @@ export interface EvolutionResult {
   addedMemories: string[];
   addedHabits: string[];
   addedStyleRules: string[];
+  addedPersonalityTags?: string[];
+  updatedTraits?: string[];
+  updatedAppearanceAnchor?: string;
   prunedSchedules: number;
   usedLLM: boolean;
   /** 被护栏或冲突消解拒绝的候选规则 */
@@ -227,6 +239,9 @@ export async function consolidatePersonaEvolution(
   let candidateMemories: string[] = [];
   let candidateHabits: string[] = [];
   let candidateStyleRules: string[] = [];
+  let candidatePersonalityTags: string[] = [];
+  let candidateTraitDeltas: Partial<Record<NumericTraitKey, number>> | undefined;
+  let candidateAppearanceUpdate = '';
   let llmSummary = '';
   let usedLLM = false;
 
@@ -242,14 +257,32 @@ export async function consolidatePersonaEvolution(
         .map((c) => `- ${c.correction}`)
         .join('\n');
 
-      const prompt = `请分析以下最近对话与用户纠偏，同时完成「长期记忆提取」「相处习惯」「对话风格自省改进（去除 AI 味与多余 emoji，贴近当代年轻人微信聊天方式）」。
+      const currentTagsText = (persona.profile.personalityTags || []).join('、') || '暂无';
+      const currentAppearanceText = persona.profile.appearanceAnchor || '未设定';
+
+      const prompt = `请分析以下最近对话与用户纠偏，同时完成「长期记忆提取」「相处习惯」「对话风格自省改进（去除 AI 味与多余 emoji，贴近当代年轻人微信聊天方式）」「温和人格演进与外貌约定提炼」。
 只输出严格 JSON，不要额外解释：
 {
   "memories": ["简短长期事实或用户偏好（最多 4 条，不要一次性寒暄）"],
   "habits": ["角色相处习惯（最多 3 条）"],
   "styleRules": ["对比对方说话方式（平均 ${userStyle.avgCharLength} 字、emoji 频率 ${userStyle.emojiPerMsg}）与你的回复，指出哪句太书面/太像AI/emoji太多，并给出下一轮说话方式改进规则（最多 2 条）"],
+  "newPersonalityTags": ["从近期互动自然显现的新性格标签（2~6字中文，最多2个，不与已有标签重复）"],
+  "traitDeltas": {
+    "openness": 0,
+    "conscientiousness": 0,
+    "extraversion": 0,
+    "agreeableness": 0,
+    "neuroticism": 0,
+    "emotionalStability": 0,
+    "recoveryRate": 0
+  },
+  "appearanceUpdate": "若对话中明确约定或提及角色的新外貌/发型/穿搭特征则给1句简短描述，否则空字符串",
   "summary": "20字以内的本次整理摘要"
 }
+注意：traitDeltas 仅对本次对话明显体现变化趋势的维度给 [-0.08, 0.08] 之间的微调值，未体现变化填 0 即可。
+
+已有性格标签：${currentTagsText}
+已有外貌与画风锚点：${currentAppearanceText}
 
 已有记忆摘要：
 ${persona.memoriesMd.slice(-600)}
@@ -275,6 +308,9 @@ ${transcript}`;
         memories?: unknown[];
         habits?: unknown[];
         styleRules?: unknown[];
+        newPersonalityTags?: unknown[];
+        traitDeltas?: Record<string, unknown>;
+        appearanceUpdate?: unknown;
         summary?: unknown;
       }>(content);
       if (parsed) {
@@ -290,6 +326,34 @@ ${transcript}`;
         candidateMemories = cleanList(parsed.memories, 5);
         candidateHabits = cleanList(parsed.habits, 4);
         candidateStyleRules = cleanList(parsed.styleRules, 3);
+        if (Array.isArray(parsed.newPersonalityTags)) {
+          candidatePersonalityTags = parsed.newPersonalityTags
+            .filter((x): x is string => typeof x === 'string')
+            .map((x) => x.replace(/^#+/, '').trim())
+            .filter((x) => x.length >= 2 && x.length <= 8)
+            .slice(0, 4);
+        }
+        if (parsed.traitDeltas && typeof parsed.traitDeltas === 'object') {
+          const td: Partial<Record<NumericTraitKey, number>> = {};
+          for (const key of [
+            'openness',
+            'conscientiousness',
+            'extraversion',
+            'agreeableness',
+            'neuroticism',
+            'emotionalStability',
+            'recoveryRate',
+          ] as NumericTraitKey[]) {
+            const val = parsed.traitDeltas[key];
+            if (typeof val === 'number' && Number.isFinite(val) && Math.abs(val) >= 0.01) {
+              td[key] = val;
+            }
+          }
+          candidateTraitDeltas = td;
+        }
+        if (typeof parsed.appearanceUpdate === 'string') {
+          candidateAppearanceUpdate = parsed.appearanceUpdate.trim();
+        }
         if (typeof parsed.summary === 'string') {
           llmSummary = parsed.summary.trim();
         }
@@ -307,6 +371,9 @@ ${transcript}`;
         candidateMemories.push(fact);
       }
     }
+  }
+  if (!candidateAppearanceUpdate) {
+    candidateAppearanceUpdate = extractAppearanceHintFromConversation(recentMessages) || '';
   }
   // 纠偏已作为 locked 条目渲染在 Correction 节，不再复制成「互动风格调整」习惯重复占用 Prompt
 
@@ -362,10 +429,46 @@ ${transcript}`;
     const addedStyleRules = admitted.trialed.filter((it) => it.kind === 'style').map((it) => it.text);
     rejectedRules = admitted.rejected;
 
+    // 1) 增量合并人格指纹标签（只增不删原核心标签，去重且最多保留 10 个）
+    const existingTags = Array.isArray(fresh.profile.personalityTags)
+      ? fresh.profile.personalityTags
+      : [];
+    const addedPersonalityTags: string[] = [];
+    const nextTags = [...existingTags];
+    for (const tag of candidatePersonalityTags) {
+      if (addedPersonalityTags.length >= 2 || nextTags.length >= 10) break;
+      const norm = tag.toLowerCase();
+      if (!nextTags.some((t) => t.trim().toLowerCase() === norm)) {
+        nextTags.push(tag);
+        addedPersonalityTags.push(tag);
+      }
+    }
+
+    // 2) 平滑微调大五性格特质（单次 ±0.08 护栏）
+    const baseTraits =
+      learnedMerge.spec.traits || heuristicTraits(fresh.personaMd, fresh.profile);
+    const traitUpdate = applySmoothTraitDeltas(baseTraits, candidateTraitDeltas);
+    if (traitUpdate.updated) {
+      learnedMerge.spec = {
+        ...learnedMerge.spec,
+        traits: traitUpdate.traits,
+      };
+    }
+
+    // 3) 对话外貌锚点渐进补充（受 appearanceAnchorLocked 保护）
+    const appearanceMerge = mergeAppearanceAnchorUpdate(
+      fresh.profile.appearanceAnchor,
+      candidateAppearanceUpdate,
+      fresh.profile.appearanceAnchorLocked
+    );
+
     const hasChanges =
       addedMemories.length > 0 ||
       addedHabits.length > 0 ||
       addedStyleRules.length > 0 ||
+      addedPersonalityTags.length > 0 ||
+      traitUpdate.updated ||
+      appearanceMerge.updated ||
       pruned.prunedCount > 0;
 
     const evolutionState =
@@ -379,11 +482,24 @@ ${transcript}`;
       return typeof cursor === 'number' ? { ...fresh, evolution: evolutionState } : null;
     }
 
-    const summaryText =
+    const growthNotes: string[] = [];
+    if (addedPersonalityTags.length > 0) {
+      growthNotes.push(`新增性格标签「${addedPersonalityTags.join('、')}」`);
+    }
+    if (traitUpdate.updated) {
+      growthNotes.push(`微调性格特质(${traitUpdate.changedKeys.length}项)`);
+    }
+    if (appearanceMerge.updated) {
+      growthNotes.push('更新外貌锚点');
+    }
+
+    const baseSummary =
       llmSummary ||
       `新增 ${addedMemories.length} 条记忆，${addedHabits.length} 条习惯与 ${addedStyleRules.length} 条口吻规则进入试用${
         pruned.prunedCount > 0 ? `，归档 ${pruned.prunedCount} 条过期日程` : ''
       }`;
+    const summaryText =
+      growthNotes.length > 0 ? `${baseSummary}；${growthNotes.join('、')}` : baseSummary;
 
     const snap = await storageRepo.writeSnapshotFrom(fresh, reason, summaryText, snapshotKind);
     outcome = {
@@ -392,11 +508,19 @@ ${transcript}`;
       addedMemories,
       addedHabits,
       addedStyleRules,
+      addedPersonalityTags,
+      updatedTraits: traitUpdate.changedKeys,
+      updatedAppearanceAnchor: appearanceMerge.updated ? appearanceMerge.anchor : undefined,
       prunedSchedules: pruned.prunedCount,
       summary: summaryText,
     };
     return {
       ...fresh,
+      profile: {
+        ...fresh.profile,
+        ...(addedPersonalityTags.length > 0 ? { personalityTags: nextTags } : {}),
+        ...(appearanceMerge.updated ? { appearanceAnchor: appearanceMerge.anchor } : {}),
+      },
       spec: learnedMerge.spec,
       memoriesMd: nextMemoriesMd,
       evolution: evolutionState,
