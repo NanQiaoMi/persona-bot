@@ -241,13 +241,13 @@ export default function GrokComposer({
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
-    <div className="relative px-4 md:px-8 pb-5 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/95 to-transparent">
-      <div className="relative max-w-3xl mx-auto">
+    <div className="relative px-3 sm:px-6 md:px-8 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-5 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/95 to-transparent shrink-0">
+      <div className="relative max-w-[720px] mx-auto">
         {/* Floating "+" Toolbox Popover */}
         {menuOpen && (
           <div
             ref={popoverRef}
-            className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 origin-bottom-left animate-popover-in"
+            className="absolute bottom-full left-0 mb-3 w-[min(88vw,320px)] rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 origin-bottom-left animate-popover-in"
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--text-primary)]">
@@ -441,7 +441,7 @@ export default function GrokComposer({
 
         {/* Floating "@" Bot Mention Picker (Grok Bot Style) */}
         {showMentionMenu && (
-          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 origin-bottom-left animate-popover-in">
+          <div className="absolute bottom-full left-2 sm:left-10 mb-2.5 w-[min(86vw,288px)] rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 origin-bottom-left animate-popover-in">
             <div className="max-h-60 overflow-y-auto space-y-0.5">
               {filteredMentions.map((bot, idx) => {
                 const mascot = getMascotConfigForPersona(bot.slug, bot.profile);
@@ -496,7 +496,7 @@ export default function GrokComposer({
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="打开功能菜单"
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform duration-[var(--motion-base)] shrink-0 cursor-pointer ${
+            className={`w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-transform duration-[var(--motion-base)] shrink-0 cursor-pointer ${
               menuOpen
                 ? "bg-[var(--text-primary)] text-[var(--bg-primary)] rotate-45"
                 : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
@@ -571,7 +571,7 @@ export default function GrokComposer({
           <button
             type="button"
             onClick={handleVoiceInput}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
+            className={`w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
               isRecording
                 ? "bg-danger-soft text-danger animate-pulse"
                 : "bg-surface-raised hover:bg-surface-sunken text-secondary hover:scale-105 active:scale-95"
@@ -609,7 +609,7 @@ export default function GrokComposer({
             aria-label={
               disabled ? "停止回复" : hasContent ? "发送消息" : "语音/主动破冰"
             }
-            className="w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-[transform,opacity] duration-[var(--motion-fast)] shrink-0 cursor-pointer"
+            className="w-11 h-11 sm:w-9 sm:h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-[transform,opacity] duration-[var(--motion-fast)] shrink-0 cursor-pointer"
             style={{ backgroundColor: accentColor }}
             title={
               disabled

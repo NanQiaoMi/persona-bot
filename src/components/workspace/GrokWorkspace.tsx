@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ImportModal from "@/components/ImportModal";
-import { COMPACT_QUERY, NARROW_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
+import {
+  COMPACT_QUERY,
+  NARROW_QUERY,
+  TABLET_QUERY,
+  useMediaQuery,
+} from "@/hooks/useMediaQuery";
+import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
+import { shouldOpenLeftDrawerBySwipe } from "@/lib/responsive/gestures";
 import { describeRequestError, useFeedback } from "@/components/feedback/FeedbackProvider";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
@@ -51,14 +58,23 @@ export default function GrokWorkspace({
   const [deepSearch, setDeepSearch] = useState(false);
   const [activeMode, setActiveMode] = useState<PersonaMode>("fun");
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+  const [tabletSidebarExpanded, setTabletSidebarExpanded] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  // 手机宽度下侧栏默认收起为抽屉；桌面保持原来的展开 / 收起状态
+  // 断点布局：<768 手机抽屉；768~1023 平板 72px 图标栏；≥1280 三栏常驻
   const isNarrow = useMediaQuery(NARROW_QUERY);
+  const isTablet = useMediaQuery(TABLET_QUERY);
   const isCompact = useMediaQuery(COMPACT_QUERY);
-  const sidebarOpen = isNarrow ? mobileSidebarOpen : desktopSidebarOpen;
+  const vvHeight = useVisualViewportHeight(isNarrow);
+  const edgeSwipeRef = useRef<{ x: number; y: number } | null>(null);
+  const sidebarOpen = isNarrow
+    ? mobileSidebarOpen
+    : isTablet
+      ? true
+      : desktopSidebarOpen;
   const setSidebarOpen = (next: boolean | ((v: boolean) => boolean)) => {
     const value = typeof next === "function" ? next(sidebarOpen) : next;
     if (isNarrow) setMobileSidebarOpen(value);
+    else if (isTablet) setTabletSidebarExpanded(value);
     else setDesktopSidebarOpen(value);
   };
   const [showInspector, setShowInspector] = useState(Boolean(initialInspectorOpen));
@@ -819,7 +835,33 @@ export default function GrokWorkspace({
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-surface-base text-primary">
+    <div
+      style={vvHeight ? { height: `${vvHeight}px` } : undefined}
+      onTouchStart={(e) => {
+        if (!isNarrow || mobileSidebarOpen) return;
+        const touch = e.touches[0];
+        if (touch && touch.clientX <= 28) {
+          edgeSwipeRef.current = { x: touch.clientX, y: touch.clientY };
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (!edgeSwipeRef.current) return;
+        const touch = e.changedTouches[0];
+        const start = edgeSwipeRef.current;
+        edgeSwipeRef.current = null;
+        if (!touch) return;
+        if (
+          shouldOpenLeftDrawerBySwipe(
+            start.x,
+            touch.clientX - start.x,
+            touch.clientY - start.y
+          )
+        ) {
+          setMobileSidebarOpen(true);
+        }
+      }}
+      className="flex h-[100dvh] w-screen overflow-hidden bg-surface-base text-primary"
+    >
       {sidebarOpen && (
         <>
           {isNarrow && (
@@ -841,6 +883,9 @@ export default function GrokWorkspace({
               activeSlug={activeSlug}
               isStreaming={Boolean(streaming)}
               draftsBySlug={draftsBySlug}
+              collapsedRail={!isNarrow && isTablet && !tabletSidebarExpanded}
+              onExpandRail={() => setTabletSidebarExpanded(true)}
+              onCloseDrawer={isNarrow ? () => setMobileSidebarOpen(false) : undefined}
               onSelectPersona={(slug) => {
                 setActiveSlug(slug);
                 if (isNarrow) setMobileSidebarOpen(false);
@@ -850,7 +895,10 @@ export default function GrokWorkspace({
               onOpenCreateBot={() => setShowCreateBot(true)}
               theme={theme}
               onToggleTheme={handleToggleTheme}
-              onCollapse={() => setSidebarOpen(false)}
+              onCollapse={() => {
+                if (isTablet) setTabletSidebarExpanded(false);
+                else setSidebarOpen(false);
+              }}
             />
           </div>
         </>
@@ -907,14 +955,17 @@ export default function GrokWorkspace({
           )}
           <div
             className={
-              isCompact
-                ? "fixed inset-y-0 right-0 z-50 max-w-full shadow-overlay animate-drawer-right"
-                : "contents"
+              isNarrow
+                ? "fixed inset-x-0 bottom-0 z-50 max-w-full"
+                : isCompact
+                  ? "fixed inset-y-0 right-0 z-50 max-w-full shadow-overlay animate-drawer-right"
+                  : "contents"
             }
           >
             <RightInspector
               key={`inspector-${activePersona?.slug || "default"}`}
               persona={activePersona}
+              mobileSheet={isNarrow}
               isStreaming={Boolean(streaming)}
               autoNudgeEnabled={autoNudgeEnabled}
               onToggleAutoNudge={() => setAutoNudgeEnabled((v) => !v)}

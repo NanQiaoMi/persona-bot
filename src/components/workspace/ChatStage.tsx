@@ -114,7 +114,7 @@ function GrokMessageBody({
           return (
             <pre
               key={bIdx}
-              className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] overflow-x-auto font-mono text-xs leading-relaxed"
+              className="max-w-full p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] overflow-x-auto font-mono text-xs leading-relaxed"
             >
               <code>{inner}</code>
             </pre>
@@ -218,10 +218,13 @@ export default function ChatStage({
   });
   const dragCounterRef = useRef(0);
   const confirmClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mobileMoreRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [droppedImage, setDroppedImage] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
@@ -245,8 +248,22 @@ export default function ChatStage({
       if (confirmClearTimerRef.current) {
         clearTimeout(confirmClearTimerRef.current);
       }
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (mobileMoreRef.current && !mobileMoreRef.current.contains(e.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handleOutside);
+    return () => window.removeEventListener("mousedown", handleOutside);
+  }, [mobileMenuOpen]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!e.dataTransfer?.types?.includes("Files")) return;
@@ -426,7 +443,7 @@ export default function ChatStage({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDropFile}
-      className="relative flex-1 flex flex-col h-screen bg-surface-base min-w-0 overflow-hidden"
+      className="relative flex-1 flex flex-col h-full min-h-0 bg-surface-base min-w-0 overflow-hidden"
     >
       {isDraggingFile && (
         <div className="pointer-events-none absolute inset-3 z-40 rounded-[var(--r-xl)] border-2 border-dashed border-brand bg-surface-overlay backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
@@ -443,13 +460,14 @@ export default function ChatStage({
         style={{ backgroundColor: mascotCfg.color }}
       />
       {/* Frosted Floating Header */}
-      <header className="relative z-20 px-3 md:px-6 pt-3.5 pb-3 flex items-center justify-between gap-2 grok-glass-header backdrop-blur-xl pointer-events-none">
+      <header className="relative z-20 px-3 md:px-6 pt-3 pb-2.5 flex items-center justify-between gap-2 grok-glass-header backdrop-blur-xl pointer-events-none shrink-0">
         <div className="pointer-events-auto flex items-center gap-2 shrink-0 md:min-w-[84px]">
           {!sidebarOpen && (
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-[transform,color] duration-[var(--motion-fast)] cursor-pointer"
+              aria-label="打开角色菜单"
+              className="w-11 h-11 md:w-8 md:h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-[15px] md:text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-[transform,color] duration-[var(--motion-fast)] cursor-pointer"
               title="展开侧边栏"
             >
               ◧
@@ -475,7 +493,7 @@ export default function ChatStage({
                 setConfirmClear(false);
                 onClearHistory();
               }}
-              className={`px-3 md:px-3.5 py-1.5 rounded-full border grok-floating-pill text-[12px] font-medium whitespace-nowrap hover:-translate-y-0.5 transition-transform cursor-pointer ${
+              className={`hidden md:inline-flex px-3.5 py-1.5 rounded-full border grok-floating-pill text-[12px] font-medium whitespace-nowrap hover:-translate-y-0.5 transition-transform cursor-pointer ${
                 confirmClear
                   ? "bg-danger-soft border-[var(--sem-danger)]/40 text-danger"
                   : "bg-surface-base border-[var(--border-subtle)] text-secondary hover:text-primary"
@@ -491,7 +509,7 @@ export default function ChatStage({
         <button
           type="button"
           onClick={onToggleInspector}
-          className="pointer-events-auto inline-flex min-w-0 items-center gap-2 md:gap-2.5 px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-[transform,border-color] duration-[var(--motion-fast)] cursor-pointer"
+          className="pointer-events-auto inline-flex min-w-0 min-h-[44px] md:min-h-0 items-center gap-2 md:gap-2.5 px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-[transform,border-color] duration-[var(--motion-fast)] cursor-pointer"
           title="点击滑出/收起角色灵魂状态舱"
         >
           <span key={persona.slug} className="inline-flex min-w-0 items-center gap-2 md:gap-2.5 animate-stage-swap">
@@ -520,15 +538,80 @@ export default function ChatStage({
           </span>
         </button>
 
-        {/* Right Floating Share Pill */}
-        <div className="pointer-events-auto flex items-center justify-end gap-2 shrink-0 md:min-w-[84px]">
+        {/* Right Floating Share Pill (Desktop) + More Menu (Mobile) */}
+        <div
+          ref={mobileMoreRef}
+          className="relative pointer-events-auto flex items-center justify-end gap-2 shrink-0 md:min-w-[84px]"
+        >
           <button
             type="button"
             onClick={handleShare}
-            className="whitespace-nowrap px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-[transform,border-color] duration-[var(--motion-fast)] cursor-pointer"
+            className="hidden md:inline-flex whitespace-nowrap px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-[transform,border-color] duration-[var(--motion-fast)] cursor-pointer"
           >
             {sharedToast ? "已复制 ✓" : "分享"}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="更多操作"
+            className="md:hidden w-11 h-11 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-[16px] text-primary cursor-pointer"
+          >
+            ⋯
+          </button>
+
+          {mobileMenuOpen && (
+            <div className="md:hidden absolute top-full right-0 mt-2 w-40 rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 origin-top-right animate-popover-in">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void handleShare();
+                }}
+                className="w-full px-3 py-2.5 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left text-[13px] text-primary cursor-pointer"
+              >
+                {sharedToast ? "✓ 已复制对话" : "分享对话"}
+              </button>
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!confirmClear) {
+                      setConfirmClear(true);
+                      if (confirmClearTimerRef.current) {
+                        clearTimeout(confirmClearTimerRef.current);
+                      }
+                      confirmClearTimerRef.current = setTimeout(() => {
+                        setConfirmClear(false);
+                      }, 3000);
+                      return;
+                    }
+                    if (confirmClearTimerRef.current) {
+                      clearTimeout(confirmClearTimerRef.current);
+                    }
+                    setConfirmClear(false);
+                    setMobileMenuOpen(false);
+                    onClearHistory();
+                  }}
+                  className={`w-full px-3 py-2.5 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left text-[13px] cursor-pointer ${
+                    confirmClear ? "text-danger font-semibold" : "text-primary"
+                  }`}
+                >
+                  {confirmClear ? "再次点击确认清空" : "新对话（清空）"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onToggleInspector();
+                }}
+                className="w-full px-3 py-2.5 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left text-[13px] text-primary cursor-pointer"
+              >
+                {showInspector ? "收起角色面板" : "打开角色面板"}
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -536,9 +619,9 @@ export default function ChatStage({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-6"
+        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 md:px-8 pt-2 pb-6"
       >
-        <div key={persona.slug} className="max-w-3xl mx-auto animate-stage-swap">
+        <div key={persona.slug} className="max-w-[720px] mx-auto animate-stage-swap">
           {messages.length === 0 && !streaming ? (
             /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
             <div className="pt-10 pb-8 flex flex-col items-center text-center space-y-6 animate-fade-in">
@@ -735,7 +818,7 @@ export default function ChatStage({
                             />
                           </button>
                         )}
-                        <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
+                        <div className="max-w-[85%] sm:max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
                           <p className="whitespace-pre-wrap break-words">
                             {msg.content}
                           </p>
@@ -877,7 +960,7 @@ export default function ChatStage({
                       searchResults={msg.searchResults}
                     />
 
-                    {/* Multi-Bubble IM Style Grok Bot Reply Stack（右键打开「不像 TA」快捷纠偏） */}
+                    {/* Multi-Bubble IM Style Grok Bot Reply Stack（桌面右键 / 手机长按打开「不像 TA」快捷纠偏） */}
                     <div
                       className="flex flex-col items-start gap-1.5 w-full"
                       onContextMenu={(e) => {
@@ -886,6 +969,35 @@ export default function ChatStage({
                         setCorrectingIdx(correctingIdx === idx ? null : idx);
                         setCorrectionDraft("");
                         setCorrectionState("idle");
+                      }}
+                      onTouchStart={() => {
+                        if (msg.isFollowup && !msg.content) return;
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                        }
+                        longPressTimerRef.current = setTimeout(() => {
+                          setCorrectingIdx(idx);
+                          setCorrectionDraft("");
+                          setCorrectionState("idle");
+                        }, 500);
+                      }}
+                      onTouchMove={() => {
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                          longPressTimerRef.current = null;
+                        }
+                      }}
+                      onTouchEnd={() => {
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                          longPressTimerRef.current = null;
+                        }
+                      }}
+                      onTouchCancel={() => {
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                          longPressTimerRef.current = null;
+                        }
                       }}
                     >
                       {bursts.map((burstText, bIdx) => (
@@ -896,7 +1008,7 @@ export default function ChatStage({
                               ? undefined
                               : { animationDelay: `${Math.min(bIdx, 5) * 60}ms` }
                           }
-                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                          className="max-w-[85%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
                         >
                           <GrokMessageBody content={burstText} />
                         </div>
@@ -1046,7 +1158,7 @@ export default function ChatStage({
                                       kind: "photo",
                                     })
                                   }
-                                  className="block max-w-[300px] rounded-2xl overflow-hidden shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
+                                  className="block max-w-[min(85%,300px)] rounded-2xl overflow-hidden shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
                                 >
                                   <BlurUpImage
                                     key={card.imageUrl}
@@ -1151,7 +1263,7 @@ export default function ChatStage({
                       ).map((bText, bIdx, arr) => (
                         <div
                           key={bIdx}
-                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
+                          className="max-w-[85%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
                         >
                           <GrokMessageBody
                             content={bText}

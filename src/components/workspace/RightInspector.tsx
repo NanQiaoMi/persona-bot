@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, FieldTextarea, IconButton } from "@/components/primitives";
+import { BottomSheetSnap, resolveBottomSheetSnap } from "@/lib/responsive/gestures";
 import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
@@ -20,6 +21,7 @@ interface RightInspectorProps {
   onRefreshPersona?: () => Promise<void>;
   onOpenAvatarPicker: () => void;
   onClose: () => void;
+  mobileSheet?: boolean;
 }
 
 export default function RightInspector({
@@ -33,6 +35,7 @@ export default function RightInspector({
   onRefreshPersona,
   onOpenAvatarPicker,
   onClose,
+  mobileSheet = false,
 }: RightInspectorProps) {
   const [section, setSection] = useState<"activity" | "library">("activity");
   const [libraryTab, setLibraryTab] = useState<LibraryTab>("emotion");
@@ -55,6 +58,8 @@ export default function RightInspector({
   const [importingBundle, setImportingBundle] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
+  const [sheetSnap, setSheetSnap] = useState<BottomSheetSnap>("half");
+  const dragStartYRef = useRef<number | null>(null);
   const [intimacyDelta, setIntimacyDelta] = useState<{
     delta: number;
     seq: number;
@@ -109,8 +114,14 @@ export default function RightInspector({
 
   if (!persona) {
     return (
-      <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
-        正在加载角色状态舱...
+      <aside
+        className={
+          mobileSheet
+            ? "w-full h-[50dvh] rounded-t-[var(--r-xl)] border-t border-[var(--border-subtle)] bg-surface-raised p-4 flex items-center justify-center text-[12px] text-muted"
+            : "w-[320px] shrink-0 border-l border-[var(--border-subtle)] bg-surface-raised p-4 flex items-center justify-center text-[12px] text-muted h-full"
+        }
+      >
+        正在加载角色状态...
       </aside>
     );
   }
@@ -123,9 +134,53 @@ export default function RightInspector({
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
 
   return (
-    <aside className="w-[312px] shrink-0 border-l border-[var(--border-subtle)] bg-surface-raised flex flex-col h-screen animate-fade-in">
+    <aside
+      style={
+        mobileSheet
+          ? { height: sheetSnap === "full" ? "92dvh" : "60dvh" }
+          : undefined
+      }
+      className={
+        mobileSheet
+          ? "w-full rounded-t-[var(--r-xl)] border-t border-[var(--border-subtle)] bg-surface-raised flex flex-col pb-[env(safe-area-inset-bottom)] shadow-overlay transition-[height] duration-[var(--motion-base)] ease-[var(--ease-standard)] animate-drawer-bottom"
+          : "w-[320px] shrink-0 border-l border-[var(--border-subtle)] bg-surface-raised flex flex-col h-full animate-fade-in"
+      }
+    >
+      {mobileSheet && (
+        <div
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            if (touch) dragStartYRef.current = touch.clientY;
+          }}
+          onTouchEnd={(e) => {
+            if (dragStartYRef.current === null) return;
+            const touch = e.changedTouches[0];
+            if (!touch) return;
+            const dy = touch.clientY - dragStartYRef.current;
+            dragStartYRef.current = null;
+            if (Math.abs(dy) < 12) {
+              setSheetSnap((s) => (s === "half" ? "full" : "half"));
+              return;
+            }
+            const next = resolveBottomSheetSnap(sheetSnap, dy);
+            if (next === "closed") {
+              onClose();
+            } else {
+              setSheetSnap(next);
+            }
+          }}
+          onClick={() => setSheetSnap((s) => (s === "half" ? "full" : "half"))}
+          role="button"
+          tabIndex={0}
+          aria-label="拖动或点击切换半屏与全屏"
+          className="pt-2.5 pb-1 flex justify-center cursor-pointer shrink-0 touch-none"
+        >
+          <span className="w-10 h-1 rounded-full bg-[var(--border-strong)]" />
+        </div>
+      )}
+
       {/* Top Close & Centered Hero Avatar */}
-      <div className="relative px-4 pt-4 pb-3 flex flex-col items-center">
+      <div className="relative px-4 pt-3 pb-3 flex flex-col items-center shrink-0">
         <IconButton
           label="收起右侧面板"
           size={32}
