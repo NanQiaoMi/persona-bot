@@ -2,6 +2,12 @@ import fs from 'fs/promises';
 import path from 'path';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
 import {
+  ensurePersonaSpec,
+  newLearnedId,
+  PersonaSpec,
+  renderPersonaMarkdown,
+} from '@/lib/persona/spec';
+import {
   ConversationMessage,
   CorrectionItem,
   PersonaEmotionSnapshot,
@@ -236,6 +242,10 @@ export class UnifiedStorageRepository {
       path.join(dir, 'corrections.json'),
       []
     );
+    const specRaw = await readJsonSafe<Partial<PersonaSpec> | null>(
+      path.join(dir, 'spec.json'),
+      null
+    );
 
     if (!meta.name && !personaMd) {
       return null;
@@ -293,6 +303,7 @@ export class UnifiedStorageRepository {
       },
       intimacy: typeof meta.intimacy === 'number' ? meta.intimacy : 60,
       corrections,
+      spec: ensurePersonaSpec(personaMd, specRaw),
       evolution: isRecord(meta.evolution) &&
         typeof meta.evolution.lastEvolvedUserTurn === 'number'
         ? (meta.evolution as unknown as PersonaRecord['evolution'])
@@ -318,9 +329,13 @@ export class UnifiedStorageRepository {
     await fs.mkdir(path.join(dir, 'versions'), { recursive: true });
 
     const now = new Date().toISOString();
+    // spec 是 6/7/纠偏小节的唯一来源：写入时从 spec 重新渲染 persona.md，保证两者一致
+    const spec = ensurePersonaSpec(record.personaMd || '', record.spec);
     const normalized: PersonaRecord = {
       ...record,
       slug: safeSlug,
+      spec,
+      personaMd: renderPersonaMarkdown(record.personaMd || '', spec.learned),
       updatedAt: now,
       createdAt: record.createdAt || now,
     };
@@ -355,6 +370,7 @@ export class UnifiedStorageRepository {
         JSON.stringify(normalized.corrections || [], null, 2),
         'utf-8'
       ),
+      fs.writeFile(path.join(dir, 'spec.json'), JSON.stringify(spec, null, 2), 'utf-8'),
     ]);
 
     return normalized;
@@ -400,14 +416,29 @@ export class UnifiedStorageRepository {
     };
     persona.corrections = [...persona.corrections, item].slice(-50);
 
-    // Also append to personaMd Correction section for immediate prompt effectiveness
-    const ruleLine = `- [纠偏 ${new Date().toLocaleDateString('zh-CN')}] 避免「${item.botResponse.slice(0, 40)}」，应当：${item.correction}`;
-    if (persona.personaMd.includes('## Correction 记录')) {
-      persona.personaMd = persona.personaMd.replace('（暂无记录）', '').trimEnd() + `\n${ruleLine}\n`;
-    } else {
-      persona.personaMd = `${persona.personaMd.trimEnd()}\n\n## Correction 记录\n${ruleLine}\n`;
-    }
-
+    // 纠偏写成 learned 条目（locked，不会被自动淘汰），写入时渲染到 persona.md 的 Correction 节立即生效
+    const spec = ensurePersonaSpec(persona.personaMd, persona.spec);
+    const nowIso = item.timestamp;
+    persona.spec = {
+      ...spec,
+      learned: [
+        ...spec.learned,
+        {
+          id: newLearnedId(),
+          kind: 'correction',
+          text: item.botResponse
+            ? `避免「${item.botResponse.slice(0, 40)}」，应当：${item.correction}`
+            : item.correction,
+          source: 'user-correction',
+          evidenceMsgIds: [],
+          confidence: 0.9,
+          status: 'locked',
+          hitCount: 1,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        },
+      ],
+    };
     return persona;
   }
 
@@ -500,6 +531,7 @@ export class UnifiedStorageRepository {
       corrections: persona.corrections || [],
       intimacy: persona.intimacy,
       emotionState: persona.emotionState,
+      spec: persona.spec,
     };
 
     await fs.writeFile(
@@ -570,6 +602,8 @@ export class UnifiedStorageRepository {
         intimacy:
           typeof snap.intimacy === 'number' ? snap.intimacy : persona.intimacy,
         emotionState: snap.emotionState || persona.emotionState,
+        // 旧快照没有 spec 时由 ensurePersonaSpec 从快照的 persona.md 推导
+        spec: snap.spec,
         updatedAt: new Date().toISOString(),
       };
     });
@@ -646,6 +680,7 @@ export class UnifiedStorageRepository {
       corrections: Array.isArray(incoming.corrections)
         ? incoming.corrections.slice(-50)
         : existing?.corrections || [],
+      spec: incoming.spec,
       createdAt: existing?.createdAt || incoming.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });

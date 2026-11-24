@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ensurePersonaSpec, reconcileSpecWithMarkdown } from '@/lib/persona/spec';
 import { storageRepo } from '@/lib/storage/repository';
 
 export async function GET(
@@ -48,6 +49,14 @@ export async function PUT(
     const updated = await storageRepo.updatePersona(existing.slug, (current) => ({
       ...current,
       ...body,
+      // 直接编辑 persona.md 时，把 6/7/纠偏小节的改动同步回结构化 learned 条目
+      spec:
+        typeof body.personaMd === 'string' && !body.spec
+          ? reconcileSpecWithMarkdown(
+              ensurePersonaSpec(current.personaMd, current.spec),
+              body.personaMd
+            )
+          : body.spec || current.spec,
       slug: current.slug,
       profile: {
         ...current.profile,
