@@ -120,6 +120,7 @@ export async function POST(request: Request) {
         referenceImageUrl: result.imageUrl,
         personaName: updated.name,
         personaStyle: updated.profile.personalityTags?.slice(0, 4).join('、'),
+        personaMd: updated.personaMd,
         currentAnchor: updated.profile.appearanceAnchor,
         settings,
       });

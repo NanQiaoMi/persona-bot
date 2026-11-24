@@ -3,6 +3,8 @@ import {
   generatePersonaMedia,
   LOCAL_GATEWAY_BASE_URL,
 } from '@/lib/grok/image-generator';
+import { buildGuaranteedAppearanceFallback } from '@/lib/persona/appearance-evolution';
+import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
 import { storageRepo } from '@/lib/storage/repository';
 import { MediaCard } from '@/lib/storage/types';
 
@@ -29,9 +31,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const [settings, persona] = await Promise.all([
+    const [settings, persona, sceneAssets] = await Promise.all([
       storageRepo.getSettings(),
       storageRepo.getPersona(slug),
+      storageRepo.getSceneAssets(slug),
     ]);
 
     const baseUrl = (
@@ -44,13 +47,24 @@ export async function POST(request: Request) {
       settings.imageModel || process.env.IMAGE_MODEL || 'gpt-image-2.6';
 
     const mediaType = kind === 'photo' ? 'photo' : 'sticker';
+    const captionText = String(caption || `${persona?.name || slug} 的趣味表达`);
+    const matchedScene =
+      mediaType === 'photo'
+        ? matchSceneAssetForCaption(sceneAssets, captionText)
+        : null;
+    const effectiveReferenceUrl =
+      matchedScene?.isPureEnvironment
+        ? matchedScene.asset.imageUrl
+        : persona?.profile.referenceImageUrl;
+
     const mediaRes = await generatePersonaMedia({
       kind: mediaType,
-      caption: String(caption || `${persona?.name || slug} 的趣味表达`),
+      caption: captionText,
       personaName: persona?.name || slug,
       personaStyle: persona?.profile.personalityTags?.slice(0, 3).join(', '),
       appearanceAnchor: persona?.profile.appearanceAnchor,
-      referenceImageUrl: persona?.profile.referenceImageUrl,
+      sceneAnchor: matchedScene?.asset.description,
+      referenceImageUrl: effectiveReferenceUrl,
       baseUrl,
       apiKey,
       imageModel,
@@ -63,7 +77,8 @@ export async function POST(request: Request) {
       mediaType === 'photo' &&
       mediaRes.imageUrl &&
       persona &&
-      !persona.profile.referenceImageUrl
+      !persona.profile.referenceImageUrl &&
+      !matchedScene?.isPureEnvironment
     ) {
       const lockedUrl = mediaRes.imageUrl;
       await storageRepo.updatePersona(persona.slug, (current) => {
@@ -71,9 +86,22 @@ export async function POST(request: Request) {
           return null;
         }
         autoLockedReference = true;
+        const fallbackAnchor =
+          !current.profile.appearanceAnchor && !current.profile.appearanceAnchorLocked
+            ? buildGuaranteedAppearanceFallback({
+                personaName: current.name,
+                personaStyle: current.profile.personalityTags?.slice(0, 4).join('、'),
+                personaMd: current.personaMd,
+                fallbackCaption: captionText,
+              })
+            : undefined;
         return {
           ...current,
-          profile: { ...current.profile, referenceImageUrl: lockedUrl },
+          profile: {
+            ...current.profile,
+            referenceImageUrl: lockedUrl,
+            ...(fallbackAnchor ? { appearanceAnchor: fallbackAnchor } : {}),
+          },
           updatedAt: new Date().toISOString(),
         };
       });

@@ -7,6 +7,7 @@ import {
   parseJsonFromLlmOutput,
   resolveLlmConfig,
 } from '@/lib/llm/client';
+import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
 import { storageRepo } from '@/lib/storage/repository';
 import {
   MomentComment,
@@ -405,11 +406,12 @@ export async function generateNewMomentPost(
   slug: string,
   options?: { topic?: MomentTopic; hint?: string }
 ): Promise<{ post: MomentPost; posts: MomentPost[] }> {
-  const [persona, allPersonas, settings, recentMsgs] = await Promise.all([
+  const [persona, allPersonas, settings, recentMsgs, sceneAssets] = await Promise.all([
     storageRepo.getPersona(slug),
     storageRepo.listPersonas(),
     storageRepo.getSettings(),
     storageRepo.getConversation(slug, 8),
+    storageRepo.getSceneAssets(slug),
   ]);
 
   if (!persona) {
@@ -507,6 +509,16 @@ ${options?.hint ? `额外提示：${options.hint}` : ''}
   const imageModel =
     settings.imageModel || process.env.IMAGE_MODEL || 'gpt-image-2.6';
 
+  const matchedScene = matchSceneAssetForCaption(
+    sceneAssets,
+    `${draft.imagePrompt} ${draft.location} ${draft.content}`
+  );
+  const effectiveRefUrl = draft.includePersonaFace
+    ? persona.profile.referenceImageUrl
+    : matchedScene?.isPureEnvironment
+      ? matchedScene.asset.imageUrl
+      : undefined;
+
   let imageUrl: string | undefined;
   try {
     const mediaRes = await generatePersonaMedia({
@@ -517,9 +529,8 @@ ${options?.hint ? `额外提示：${options.hint}` : ''}
       appearanceAnchor: draft.includePersonaFace
         ? persona.profile.appearanceAnchor
         : undefined,
-      referenceImageUrl: draft.includePersonaFace
-        ? persona.profile.referenceImageUrl
-        : undefined,
+      sceneAnchor: matchedScene?.asset.description,
+      referenceImageUrl: effectiveRefUrl,
       baseUrl,
       apiKey,
       imageModel,
