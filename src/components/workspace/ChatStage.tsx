@@ -14,6 +14,7 @@ import { MascotShapeId } from "./mascot-palette";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrokComposer from "./GrokComposer";
 import PageArtifactCard from "./PageArtifactCard";
+import SaveSceneAssetButton from "./SaveSceneAssetButton";
 import ThoughtSearchTrace from "./ThoughtSearchTrace";
 
 interface StreamingState {
@@ -1206,6 +1207,15 @@ export default function ChatStage({
                     ? "✓ 已设为人物参考图"
                     : "⭐ 设为参考图"}
                 </button>
+              )}
+              {lightboxMedia.kind === "photo" && (
+                <SaveSceneAssetButton
+                  key={lightboxMedia.url}
+                  slug={persona.slug}
+                  imageUrl={lightboxMedia.url}
+                  defaultName={lightboxMedia.caption.slice(0, 14) || "固定场景"}
+                  defaultDescription={lightboxMedia.caption}
+                />
               )}
               <a
                 href={lightboxMedia.url}

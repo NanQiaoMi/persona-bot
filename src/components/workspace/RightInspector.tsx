@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
-import { PersonaMode, PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
+import {
+  PersonaMode,
+  PersonaRecord,
+  PersonaSnapshotMeta,
+  SceneAsset,
+  SceneAssetCategory,
+} from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
 import MomentsFeed from "./MomentsFeed";
@@ -75,11 +81,55 @@ export default function RightInspector({
   const [rollingBackId, setRollingBackId] = useState<string | null>(null);
   const [importingBundle, setImportingBundle] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
+  const [autoGeneratingAnchor, setAutoGeneratingAnchor] = useState(false);
   const [previewRefOpen, setPreviewRefOpen] = useState(false);
   const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
+  const [sceneAssets, setSceneAssets] = useState<SceneAsset[]>([]);
+  const [assetsRefreshTick, setAssetsRefreshTick] = useState(0);
+  const [addAssetOpen, setAddAssetOpen] = useState(false);
+  const [newAssetName, setNewAssetName] = useState("");
+  const [newAssetCategory, setNewAssetCategory] =
+    useState<SceneAssetCategory>("room");
+  const [newAssetDesc, setNewAssetDesc] = useState("");
+  const [creatingAsset, setCreatingAsset] = useState(false);
+  const [assetNotice, setAssetNotice] = useState<string | null>(null);
+  const [previewAsset, setPreviewAsset] = useState<SceneAsset | null>(null);
   const bundleFileInputRef = useRef<HTMLInputElement>(null);
   const refImageInputRef = useRef<HTMLInputElement>(null);
+  const assetFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const slug = persona?.slug;
+    if (!slug || section !== "library" || libraryTab !== "emotion") return;
+
+    let cancelled = false;
+    fetch(`/api/personas/${encodeURIComponent(slug)}/assets`, {
+      cache: "no-store",
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.success && Array.isArray(data.assets)) {
+          setSceneAssets(data.assets as SceneAsset[]);
+        }
+      })
+      .catch(() => {
+        // Ignore asset fetch error
+      });
+
+    const onUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<{ slug?: string }>).detail;
+      if (!detail?.slug || detail.slug === slug) {
+        setAssetsRefreshTick((t) => t + 1);
+      }
+    };
+    window.addEventListener("personabot:assets-updated", onUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("personabot:assets-updated", onUpdated);
+    };
+  }, [persona?.slug, section, libraryTab, assetsRefreshTick]);
 
   useEffect(() => {
     const slug = persona?.slug;
@@ -108,7 +158,37 @@ export default function RightInspector({
     return (
       <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
         正在加载角色状态舱...
-      </aside>
+        {previewAsset && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
+          onClick={() => setPreviewAsset(null)}
+        >
+          <div
+            className="relative max-w-xl w-full flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewAsset.imageUrl}
+              alt={previewAsset.name}
+              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+            />
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span className="max-w-xs truncate">
+                {previewAsset.name} · {previewAsset.description}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewAsset(null)}
+                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </aside>
     );
   }
 
@@ -355,17 +435,53 @@ export default function RightInspector({
                       )}
                     </div>
                     {editingAppearance === null ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingAppearance(
-                            persona.profile.appearanceAnchor || ""
-                          )
-                        }
-                        className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer shrink-0"
-                      >
-                        {persona.profile.appearanceAnchor ? "修改" : "设定"}
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={autoGeneratingAnchor}
+                          onClick={async () => {
+                            if (autoGeneratingAnchor) return;
+                            setAutoGeneratingAnchor(true);
+                            try {
+                              const res = await fetch(
+                                `/api/personas/${encodeURIComponent(persona.slug)}/assets`,
+                                {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ action: "auto_anchor" }),
+                                }
+                              );
+                              const data = await res.json();
+                              if (data?.success) {
+                                await onRefreshPersona?.();
+                                onReportGrowth?.(
+                                  data.usedVision
+                                    ? "已看图反推更新外貌与画风锚点"
+                                    : "已自动生成外貌与画风锚点"
+                                );
+                              }
+                            } catch {
+                              // Ignore auto anchor error
+                            } finally {
+                              setAutoGeneratingAnchor(false);
+                            }
+                          }}
+                          className="text-[#18a999] text-[10.5px] font-medium hover:underline cursor-pointer disabled:opacity-50"
+                        >
+                          {autoGeneratingAnchor ? "生成中..." : "✨ 自动生成"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingAppearance(
+                              persona.profile.appearanceAnchor || ""
+                            )
+                          }
+                          className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium hover:underline cursor-pointer"
+                        >
+                          {persona.profile.appearanceAnchor ? "修改" : "设定"}
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex gap-2 text-[11px] shrink-0">
                         <button
@@ -556,6 +672,243 @@ export default function RightInspector({
                       }}
                     />
                   </div>
+                </div>
+
+                {/* Scene / Environment Fixed Asset Library */}
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      🏠 固定场景资产库
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddAssetOpen((v) => !v);
+                        setAssetNotice(null);
+                      }}
+                      className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer shrink-0"
+                    >
+                      {addAssetOpen ? "收起" : "+ 新增场景"}
+                    </button>
+                  </div>
+
+                  <p className="text-[10.5px] text-[var(--text-muted)] leading-relaxed">
+                    固定 TA 的房间、书桌或常去地点，后续拍照与朋友圈提到对应地点会自动保持环境一致。
+                  </p>
+
+                  {addAssetOpen && (
+                    <div className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-2 animate-fade-in">
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={newAssetName}
+                          onChange={(e) => setNewAssetName(e.target.value)}
+                          placeholder="名称（如：我的卧室）"
+                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                        />
+                        <select
+                          value={newAssetCategory}
+                          onChange={(e) =>
+                            setNewAssetCategory(
+                              e.target.value as SceneAssetCategory
+                            )
+                          }
+                          className="px-2 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none cursor-pointer"
+                        >
+                          <option value="room">房间</option>
+                          <option value="location">地点</option>
+                          <option value="environment">环境</option>
+                        </select>
+                      </div>
+                      <input
+                        type="text"
+                        value={newAssetDesc}
+                        onChange={(e) => setNewAssetDesc(e.target.value)}
+                        placeholder="补充描述（可选，如：暖黄台灯、原木书桌和落地窗）"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                      />
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={creatingAsset}
+                          onClick={async () => {
+                            if (!newAssetName.trim()) {
+                              setAssetNotice("请先输入场景名称（如：我的卧室）");
+                              return;
+                            }
+                            setCreatingAsset(true);
+                            setAssetNotice(null);
+                            try {
+                              const res = await fetch(
+                                `/api/personas/${encodeURIComponent(persona.slug)}/assets`,
+                                {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    action: "generate",
+                                    name: newAssetName.trim(),
+                                    category: newAssetCategory,
+                                    description: newAssetDesc.trim() || undefined,
+                                  }),
+                                }
+                              );
+                              const data = await res.json();
+                              if (data?.success && Array.isArray(data.assets)) {
+                                setSceneAssets(data.assets);
+                                setNewAssetName("");
+                                setNewAssetDesc("");
+                                setAddAssetOpen(false);
+                              } else {
+                                setAssetNotice(data?.error || "生成场景图失败");
+                              }
+                            } catch {
+                              setAssetNotice("网络异常，生成场景图失败");
+                            } finally {
+                              setCreatingAsset(false);
+                            }
+                          }}
+                          className="py-1.5 px-2 rounded-lg bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[11px] font-medium cursor-pointer"
+                        >
+                          {creatingAsset ? "生成中..." : "✨ AI 生成场景图"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={creatingAsset}
+                          onClick={() => assetFileInputRef.current?.click()}
+                          className="py-1.5 px-2 rounded-lg bg-[var(--bg-composer)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] cursor-pointer disabled:opacity-50"
+                        >
+                          📷 上传场景图
+                        </button>
+                      </div>
+                      <input
+                        ref={assetFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          setCreatingAsset(true);
+                          setAssetNotice(null);
+                          try {
+                            const dataUrl = await new Promise<string>(
+                              (resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () =>
+                                  resolve(String(reader.result || ""));
+                                reader.onerror = () =>
+                                  reject(new Error("Read error"));
+                                reader.readAsDataURL(file);
+                              }
+                            );
+                            const res = await fetch(
+                              `/api/personas/${encodeURIComponent(persona.slug)}/assets`,
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  action: "upload",
+                                  name:
+                                    newAssetName.trim() ||
+                                    file.name.replace(/\.[^.]+$/, "") ||
+                                    "上传场景",
+                                  category: newAssetCategory,
+                                  dataUrl,
+                                  description: newAssetDesc.trim() || undefined,
+                                }),
+                              }
+                            );
+                            const data = await res.json();
+                            if (data?.success && Array.isArray(data.assets)) {
+                              setSceneAssets(data.assets);
+                              setNewAssetName("");
+                              setNewAssetDesc("");
+                              setAddAssetOpen(false);
+                            } else {
+                              setAssetNotice(data?.error || "上传失败");
+                            }
+                          } catch {
+                            setAssetNotice("上传场景图失败");
+                          } finally {
+                            setCreatingAsset(false);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {assetNotice && (
+                    <div className="text-[10.5px] text-rose-500 px-1">
+                      {assetNotice}
+                    </div>
+                  )}
+
+                  {sceneAssets.length === 0 ? (
+                    <div className="p-3 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[10.5px] text-[var(--text-muted)]">
+                      暂无固定场景；点上方「+ 新增场景」或点开聊天/朋友圈照片选「🏠 存为场景资产」
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {sceneAssets.map((asset) => (
+                        <div
+                          key={asset.id}
+                          className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPreviewAsset(asset)}
+                            className="w-11 h-11 rounded-lg overflow-hidden border border-[var(--border-strong)] shrink-0 cursor-zoom-in"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={asset.imageUrl}
+                              alt={asset.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-semibold text-[var(--text-primary)] truncate">
+                                {asset.name}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded bg-[var(--bg-composer)] text-[9.5px] text-[var(--text-muted)] shrink-0">
+                                {asset.category === "room"
+                                  ? "房间"
+                                  : asset.category === "location"
+                                    ? "地点"
+                                    : "环境"}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-[var(--text-muted)] truncate">
+                              {asset.description}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(
+                                  `/api/personas/${encodeURIComponent(persona.slug)}/assets?assetId=${encodeURIComponent(asset.id)}`,
+                                  { method: "DELETE" }
+                                );
+                                const data = await res.json();
+                                if (data?.success && Array.isArray(data.assets)) {
+                                  setSceneAssets(data.assets);
+                                }
+                              } catch {
+                                // Ignore delete error
+                              }
+                            }}
+                            title="删除场景资产"
+                            className="text-[var(--text-muted)] hover:text-rose-500 text-[11px] px-1 cursor-pointer shrink-0"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1103,6 +1456,36 @@ export default function RightInspector({
               <button
                 type="button"
                 onClick={() => setPreviewRefOpen(false)}
+                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {previewAsset && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
+          onClick={() => setPreviewAsset(null)}
+        >
+          <div
+            className="relative max-w-xl w-full flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewAsset.imageUrl}
+              alt={previewAsset.name}
+              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+            />
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span className="max-w-xs truncate">
+                {previewAsset.name} · {previewAsset.description}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewAsset(null)}
                 className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
               >
                 关闭
