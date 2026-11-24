@@ -57,6 +57,8 @@ export async function POST(request: Request) {
     });
 
     let autoLockedReference = false;
+    let shouldRefineReference = false;
+    let sourcePhotoUrl: string | undefined;
     if (
       mediaType === 'photo' &&
       mediaRes.imageUrl &&
@@ -64,16 +66,21 @@ export async function POST(request: Request) {
       !persona.profile.referenceImageUrl
     ) {
       const lockedUrl = mediaRes.imageUrl;
-      await storageRepo.updatePersona(persona.slug, (current) =>
-        current.profile.referenceImageUrl
-          ? null
-          : {
-              ...current,
-              profile: { ...current.profile, referenceImageUrl: lockedUrl },
-              updatedAt: new Date().toISOString(),
-            }
-      );
-      autoLockedReference = true;
+      await storageRepo.updatePersona(persona.slug, (current) => {
+        if (current.profile.referenceImageUrl) {
+          return null;
+        }
+        autoLockedReference = true;
+        return {
+          ...current,
+          profile: { ...current.profile, referenceImageUrl: lockedUrl },
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      if (autoLockedReference) {
+        shouldRefineReference = true;
+        sourcePhotoUrl = lockedUrl;
+      }
     }
 
     const updatedCard: MediaCard = {
@@ -111,6 +118,8 @@ export async function POST(request: Request) {
       success: true,
       card: updatedCard,
       autoLockedReference,
+      shouldRefineReference,
+      ...(sourcePhotoUrl ? { sourcePhotoUrl } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Generation failed';

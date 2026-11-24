@@ -5,6 +5,7 @@ import {
   saveGeneratedMediaBuffer,
 } from '@/lib/grok/image-generator';
 import { POST as generateRefRoute } from '@/app/api/media/reference/generate/route';
+import { POST as generateMediaRoute } from '@/app/api/media/generate/route';
 import { storageRepo } from '@/lib/storage/repository';
 
 const TINY_PNG_B64 =
@@ -148,14 +149,18 @@ describe('Standard Reference Portrait Generator & API', () => {
         referenceImageUrl: manualUserRefUrl,
       },
       emotionState: {
+        primary: 'calm',
         pleasure: 0.2,
         arousal: 0.4,
         dominance: 0.1,
-        label: 'calm',
-        updatedAt: new Date().toISOString(),
+        intensity: 0.4,
+        moodLabel: '平静',
+        lastUpdated: new Date().toISOString(),
+        decayRate: 0.1,
       },
       personaMd: '# 测试',
       memoriesMd: '# 记忆',
+      aiProfileMd: '# 档案',
       corrections: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -192,6 +197,76 @@ describe('Standard Reference Portrait Generator & API', () => {
 
       const persisted = await storageRepo.getPersona(slug);
       expect(persisted?.profile.referenceImageUrl).toBe(manualUserRefUrl);
+    } finally {
+      await storageRepo.deletePersona(slug);
+    }
+  });
+
+  it('POST /api/media/generate auto-locks first photo as fallback and emits shouldRefineReference signal', async () => {
+    const slug = `first-photo-${Date.now()}`;
+    await storageRepo.savePersona({
+      slug,
+      name: '首次发图角色',
+      version: 'v2.0',
+      isPreset: false,
+      defaultMode: 'fun',
+      intimacy: 60,
+      profile: {
+        mbti: 'ENFP',
+        personalityTags: ['自然'],
+      },
+      emotionState: {
+        primary: 'happy',
+        pleasure: 0.4,
+        arousal: 0.5,
+        dominance: 0.2,
+        intensity: 0.5,
+        moodLabel: '开心',
+        lastUpdated: new Date().toISOString(),
+        decayRate: 0.1,
+      },
+      personaMd: '# 测试',
+      memoriesMd: '# 记忆',
+      aiProfileMd: '# 档案',
+      corrections: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ data: [{ b64_json: TINY_PNG_B64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
+
+    try {
+      const req = new Request('http://localhost:3000/api/media/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          messageId: 'msg_1',
+          cardIndex: 0,
+          kind: 'photo',
+          caption: '咖啡厅随手拍',
+        }),
+      });
+
+      const response = await generateMediaRoute(req);
+      const data = await response.json();
+
+      expect(data.success).toBe(true);
+      expect(data.autoLockedReference).toBe(true);
+      expect(data.shouldRefineReference).toBe(true);
+      expect(data.sourcePhotoUrl).toMatch(/^\/api\/media\/photo_.*\.png$/);
+      expect(data.card?.imageUrl).toBe(data.sourcePhotoUrl);
+
+      const persisted = await storageRepo.getPersona(slug);
+      expect(persisted?.profile.referenceImageUrl).toBe(data.sourcePhotoUrl);
     } finally {
       await storageRepo.deletePersona(slug);
     }
