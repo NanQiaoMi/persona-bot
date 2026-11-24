@@ -36,11 +36,7 @@ export const MEMORIES_ANALYZER_PROMPT = `你是共同记忆蒸馏专家。请从
 
 export const MEMORIES_BUILDER_PROMPT = `请将提取出的记忆片段整理为结构清晰的 \`memories.md\` 文档，以第一人称视角（“我记得…”）锚定情感细节，使其在对话中能自然联想并脱口而出。`;
 
-export const MERGER_PROMPT = `你是人格增量融合引擎。请将新导入的聊天记录或补充设定与现有的 \`persona.md\` 和 \`memories.md\` 合并，保留原有核心性格与纠偏记录，仅追加新发现的口头禅、习惯与共同记忆。`;
-
 export const CORRECTION_HANDLER_PROMPT = `你是 OOC（Out-Of-Character）纠偏处理器。用户指出了角色上一条回复不像本人的原因，请将其提炼为一条简明、高优先级的行为禁令与替代表达规则，写入 Correction 层。`;
-
-export const EMOTION_EVOLVER_PROMPT = `你是 PAD（Pleasure-Arousal-Dominance）三维情绪演进推理器。请根据角色性格、上一轮情绪状态、距上次对话的小时数以及用户最新一句话，判断角色此刻的情绪标签、好感度变化以及内心潜台词。`;
 
 export const RESPONSE_STYLER_PROMPT = `你是 Persona 风格化滤镜。当角色使用了 DeepSearch 实时联网获取外部资讯或百科事实时，必须将冷冰冰的搜索摘要完全转化为角色自己的口吻（如随口吐槽、分享刚刷到的热搜），绝不暴露机器播报腔或罗列 1.2.3 清单。`;
 

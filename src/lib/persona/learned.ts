@@ -110,3 +110,60 @@ export function mergeLearnedCandidates(
 
   return { spec: { ...spec, learned }, added, reinforced };
 }
+
+export type LearnedAction = 'retire' | 'restore' | 'lock' | 'unlock' | 'edit';
+
+/**
+ * 成长日志面板上的手动操作：撤销 / 恢复 / 锁定 / 解锁 / 编辑。
+ * 用户亲手改过的条目视为用户意志：编辑后自动锁定，自进化不会再淘汰或覆盖它。
+ */
+export function applyLearnedAction(
+  spec: PersonaSpec,
+  id: string,
+  action: LearnedAction,
+  options: { text?: string; now?: string } = {}
+): { spec: PersonaSpec; item: LearnedItem | null; error?: string } {
+  const now = options.now ?? new Date().toISOString();
+  const idx = spec.learned.findIndex((it) => it.id === id);
+  if (idx === -1) return { spec, item: null, error: '条目不存在' };
+  const current = spec.learned[idx];
+  let next: LearnedItem;
+
+  switch (action) {
+    case 'retire':
+      next = { ...current, status: 'retired', retiredReason: '你在成长日志里撤销了它', updatedAt: now };
+      break;
+    case 'restore':
+      next = { ...current, status: 'active', retiredReason: undefined, supersedes: undefined, updatedAt: now };
+      break;
+    case 'lock':
+      next = { ...current, status: 'locked', retiredReason: undefined, updatedAt: now };
+      break;
+    case 'unlock':
+      next = { ...current, status: 'active', updatedAt: now };
+      break;
+    case 'edit': {
+      const text = (options.text || '').replace(/\s+/g, ' ').trim();
+      if (text.length < 2 || text.length > 160) {
+        return { spec, item: null, error: '内容需要 2~160 个字' };
+      }
+      next = {
+        ...current,
+        text,
+        dimension: current.kind === 'style' ? inferStyleDimension(text) : current.dimension,
+        source: 'user-edit',
+        status: 'locked',
+        confidence: 1,
+        retiredReason: undefined,
+        updatedAt: now,
+      };
+      break;
+    }
+    default:
+      return { spec, item: null, error: '不支持的操作' };
+  }
+
+  const learned = [...spec.learned];
+  learned[idx] = next;
+  return { spec: { ...spec, learned }, item: next };
+}

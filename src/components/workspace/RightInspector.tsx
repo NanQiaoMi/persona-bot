@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
+import GrowthLogPanel from "./GrowthLogPanel";
+
+type LibraryTab = "emotion" | "persona" | "memories" | "growth" | "corrections";
 
 interface RightInspectorProps {
   persona: PersonaRecord | null;
@@ -30,9 +33,7 @@ export default function RightInspector({
   onClose,
 }: RightInspectorProps) {
   const [section, setSection] = useState<"activity" | "library">("activity");
-  const [libraryTab, setLibraryTab] = useState<
-    "emotion" | "persona" | "memories" | "corrections"
-  >("emotion");
+  const [libraryTab, setLibraryTab] = useState<LibraryTab>("emotion");
   const [routineEnabled, setRoutineEnabled] = useState(true);
   const [voicePreset, setVoicePreset] = useState("Helix 1.0x");
   const [voiceLang, setVoiceLang] = useState("Auto-detect");
@@ -331,21 +332,18 @@ export default function RightInspector({
         ) : (
           <div className="space-y-3.5 animate-fade-in">
             {/* Sub-tabs inside 资料库 */}
-            <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px]">
+            <div className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px]">
               {[
                 { id: "emotion", label: "情绪雷达" },
                 { id: "persona", label: "五层人格" },
                 { id: "memories", label: "共同记忆" },
+                { id: "growth", label: "成长日志" },
                 { id: "corrections", label: "纠偏OOC" },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() =>
-                    setLibraryTab(
-                      tab.id as "emotion" | "persona" | "memories" | "corrections"
-                    )
-                  }
+                  onClick={() => setLibraryTab(tab.id as LibraryTab)}
                   className={`py-1.5 rounded-xl font-medium transition-all cursor-pointer ${
                     libraryTab === tab.id
                       ? "bg-[var(--bg-secondary)] text-[var(--text-primary)]"
@@ -958,6 +956,14 @@ export default function RightInspector({
               </div>
             )}
 
+            {libraryTab === "growth" && persona && (
+              <GrowthLogPanel
+                slug={persona.slug}
+                refreshKey={persona.updatedAt}
+                onChanged={onRefreshPersona}
+              />
+            )}
+
             {libraryTab === "corrections" && (
               <div className="space-y-3">
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
@@ -990,7 +996,7 @@ export default function RightInspector({
                   </div>
                   {!persona.corrections || persona.corrections.length === 0 ? (
                     <div className="p-4 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
-                      暂无纠偏记录，也可直接在聊天气泡旁点击「纠偏」按钮
+                      暂无纠偏记录，也可以在聊天气泡上右键选「不像 TA」
                     </div>
                   ) : (
                     persona.corrections.map((item) => (
