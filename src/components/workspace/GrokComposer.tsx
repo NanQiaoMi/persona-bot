@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
@@ -18,13 +17,13 @@ interface GrokComposerProps {
   externalImage?: string | null;
   onClearExternalImage?: () => void;
   disabled?: boolean;
-  thinkMode: boolean;
-  onToggleThink: () => void;
-  deepSearch: boolean;
-  onToggleDeepSearch: () => void;
-  activeMode: PersonaMode;
-  onChangeMode: (mode: PersonaMode) => void;
-  onTriggerProactive: () => void;
+  thinkMode?: boolean;
+  onToggleThink?: () => void;
+  deepSearch?: boolean;
+  onToggleDeepSearch?: () => void;
+  activeMode?: PersonaMode;
+  onChangeMode?: (mode: PersonaMode) => void;
+  onTriggerProactive?: () => void;
   onOpenImport: () => void;
   personaName?: string;
   accentColor?: string;
@@ -39,12 +38,6 @@ export default function GrokComposer({
   externalImage,
   onClearExternalImage,
   disabled,
-  thinkMode,
-  onToggleThink,
-  deepSearch,
-  onToggleDeepSearch,
-  activeMode,
-  onChangeMode,
   onTriggerProactive,
   onOpenImport,
   personaName,
@@ -233,106 +226,38 @@ export default function GrokComposer({
   };
 
   const hasContent = Boolean(value.trim()) || Boolean(activeImagePreview);
-  const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
     <div className="relative px-4 md:px-8 pb-5 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/95 to-transparent">
       <div className="relative max-w-3xl mx-auto">
-        {/* Floating "+" Toolbox Popover */}
+        {/* WeChat-style "+" Attachment Tray */}
         {menuOpen && (
           <div
             ref={popoverRef}
-            className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in"
+            className="absolute bottom-full left-0 mb-3 w-72 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-3.5 z-30 animate-popover-in"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[var(--text-primary)]">
-                Grok 能力与人格工具箱
-              </span>
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                className="w-6 h-6 rounded-full hover:bg-[var(--bg-secondary)] flex items-center justify-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={onToggleThink}
-                className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
-                  thinkMode
-                    ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
-                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
-                }`}
-              >
-                <span>✦</span>
-                <span>Think 潜台词</span>
-              </button>
-              <button
-                type="button"
-                onClick={onToggleDeepSearch}
-                className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
-                  deepSearch
-                    ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
-                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
-                }`}
-              >
-                <span>🌐</span>
-                <span>DeepSearch</span>
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-medium text-[var(--text-muted)]">
-                人格尺度调节
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((mKey) => {
-                  const spec = PERSONA_MODES[mKey];
-                  const active = activeMode === mKey;
-                  return (
-                    <button
-                      key={mKey}
-                      type="button"
-                      onClick={() => onChangeMode(mKey)}
-                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium text-left flex items-center gap-1.5 transition-all ${
-                        active
-                          ? "bg-[var(--bg-tertiary)] border-[var(--border-strong)] text-[var(--text-primary)]"
-                          : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                      }`}
-                    >
-                      <span>{spec.badge}</span>
-                      <span>{spec.shortLabel}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
-              >
-                <span>🖼️</span>
-                <span>传图点评</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => {
-                  if (!value.trim()) {
-                    onChange("发个适合现在氛围的表情包给我看看～");
-                  }
-                  handleSubmit(false, true);
+                  setMenuOpen(false);
+                  fileInputRef.current?.click();
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
               >
-                <span>🎭</span>
-                <span>要表情包</span>
+                <span className="w-9 h-9 rounded-xl bg-emerald-500/12 text-lg flex items-center justify-center shrink-0">
+                  🖼️
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                    相册发图
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] truncate">
+                    发照片给 {personaName || "TA"}
+                  </div>
+                </div>
               </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -341,35 +266,65 @@ export default function GrokComposer({
                   }
                   handleSubmit(true, false);
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
               >
-                <span>📸</span>
-                <span>索要自拍</span>
+                <span className="w-9 h-9 rounded-xl bg-amber-500/12 text-lg flex items-center justify-center shrink-0">
+                  📸
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                    让 TA 拍照
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] truncate">
+                    看看此刻在哪里
+                  </div>
+                </div>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!value.trim()) {
+                    onChange("发个适合现在氛围的表情包给我看看～");
+                  }
+                  handleSubmit(false, true);
+                }}
+                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
+              >
+                <span className="w-9 h-9 rounded-xl bg-sky-500/12 text-lg flex items-center justify-center shrink-0">
+                  😄
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                    要表情包
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] truncate">
+                    来张斗图贴纸
+                  </div>
+                </div>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
                   setMenuOpen(false);
                   onOpenImport();
                 }}
-                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
               >
-                <span>📥</span>
-                <span>导入记录</span>
+                <span className="w-9 h-9 rounded-xl bg-purple-500/12 text-lg flex items-center justify-center shrink-0">
+                  📂
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                    导入记录
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] truncate">
+                    喂给 TA 新回忆
+                  </div>
+                </div>
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onTriggerProactive();
-              }}
-              className="w-full py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-xs font-medium text-[var(--text-primary)] flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <span>⚡</span>
-              <span>让 {personaName || "TA"} 主动破冰</span>
-            </button>
           </div>
         )}
 
@@ -397,30 +352,6 @@ export default function GrokComposer({
             <span className="text-xs text-[var(--text-secondary)]">
               已附带图片 · 发送后将结合画面与人设点评
             </span>
-          </div>
-        )}
-
-        {/* Subtle Active Mode & Search Chips */}
-        {(deepSearch || activeMode !== "authentic") && (
-          <div className="mb-2 px-2 flex items-center gap-1.5 text-[11px]">
-            {activeMode !== "authentic" && (
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                {modeSpec.badge} {modeSpec.shortLabel}
-              </button>
-            )}
-            {deepSearch && (
-              <button
-                type="button"
-                onClick={onToggleDeepSearch}
-                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors cursor-pointer"
-              >
-                🌐 DeepSearch 已开启 ×
-              </button>
-            )}
           </div>
         )}
 
@@ -587,7 +518,7 @@ export default function GrokComposer({
               } else if (hasContent) {
                 handleSubmit(false);
               } else {
-                onTriggerProactive();
+                onTriggerProactive?.();
               }
             }}
             disabled={disabled && !onStop}

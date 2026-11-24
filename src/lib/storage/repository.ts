@@ -11,6 +11,7 @@ import {
 import {
   ConversationMessage,
   CorrectionItem,
+  MomentPost,
   PersonaEmotionSnapshot,
   PersonaMode,
   PersonaRecord,
@@ -733,6 +734,38 @@ export class UnifiedStorageRepository {
     const targetPath = path.join(this.dataDir, 'settings.json');
     await fs.writeFile(targetPath, JSON.stringify(updated, null, 2), 'utf-8');
     return updated;
+  }
+
+  async getMoments(slug: string): Promise<MomentPost[]> {
+    const safeSlug = sanitizeSlug(slug);
+    const filePath = path.join(this.getPersonaDir(safeSlug), 'moments.json');
+    const parsed = await readJsonSafe<MomentPost[]>(filePath, []);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
+  async saveMoments(slug: string, posts: MomentPost[]): Promise<MomentPost[]> {
+    const safeSlug = sanitizeSlug(slug);
+    const dir = this.getPersonaDir(safeSlug);
+    await fs.mkdir(dir, { recursive: true });
+    const trimmed = posts.slice(0, 60);
+    await fs.writeFile(
+      path.join(dir, 'moments.json'),
+      JSON.stringify(trimmed, null, 2),
+      'utf-8'
+    );
+    return trimmed;
+  }
+
+  async updateMoments(
+    slug: string,
+    mutator: (current: MomentPost[]) => MomentPost[] | Promise<MomentPost[]>
+  ): Promise<MomentPost[]> {
+    const safeSlug = sanitizeSlug(slug);
+    return this.withLock(`moments:${safeSlug}`, async () => {
+      const current = await this.getMoments(safeSlug);
+      const next = await mutator(current);
+      return this.saveMoments(safeSlug, next);
+    });
   }
 }
 

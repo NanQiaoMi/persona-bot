@@ -250,3 +250,37 @@ export interface PersonaSoulBundle {
   conversations: ConversationMessage[];
   snapshots?: PersonaSnapshot[];
 }
+
+export interface MomentComment {
+  id: string;
+  authorName: string;
+  authorSlug?: string;
+  isUser: boolean;
+  content: string;
+  replyToName?: string;
+  createdAt: string;
+}
+
+export type MomentTopic =
+  | 'travel'
+  | 'scenery'
+  | 'food'
+  | 'selfie'
+  | 'daily'
+  | 'night';
+
+export interface MomentPost {
+  id: string;
+  authorSlug: string;
+  authorName: string;
+  content: string;
+  images: string[];
+  imageCaptions?: string[];
+  location?: string;
+  mood?: string;
+  topic?: MomentTopic;
+  likedByUser: boolean;
+  likes: string[];
+  comments: MomentComment[];
+  createdAt: string;
+}

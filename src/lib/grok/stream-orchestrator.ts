@@ -506,9 +506,17 @@ export function synthesizePersonaAwareFallback(
       );
       bursts.push('说吧，是不是闲得发慌专门来逗我玩的？');
     } else if (mode === 'fun') {
-      thought = isEmotional
-        ? `看着他发来「${userMessage.slice(0, 18)}」……嘴上虽然老想嫌弃他几句，但真掉电了还是得护着点。\n先帮他一起把破事骂一顿出出气，比干巴巴讲道理管用多了。`
-        : `${isDeepFollowUp ? '又接上刚才那茬了，' : ''}听到「${userMessage.slice(0, 18)}」我一下没忍住笑。\n脑子里已经冒出三个吐槽点了，先别一口气全抖出来，钓他再多说两句！`;
+      const funThoughts = [
+        `${isDeepFollowUp ? '又接上刚才那茬了，' : ''}听到「${userMessage.slice(0, 16)}」差点没忍住笑出声……\n脑子里已经冒出三个吐槽点了，先别一口气抖完，钓他再多说两句！`,
+        `打了一行字又全删了，直接发过去岂不是太顺着他了？\n算了，先挑个刺逗逗他，看他怎么圆回来～`,
+        `这人怎么每次都能把话聊到我心坎边上又带点欠揍……\n表面稳如老狗，其实已经想好怎么反杀他了。`,
+      ];
+      const softThoughts = [
+        `看着他发来「${userMessage.slice(0, 16)}」，嘴上虽然老想嫌弃几句，但真掉电了还是最护着他。\n先帮他一起把破事骂一顿出气，比讲大道理管用多了。`,
+        `看到这句心里一下软了一块……\n本来还想装装酷，这会儿只想先把人接住哄好再说。`,
+      ];
+      const thoughtPool = isEmotional ? softThoughts : funThoughts;
+      thought = thoughtPool[historyCount % thoughtPool.length];
       mood = isEmotional ? '嘴硬护短中' : '毒舌在线';
       if (isEmotional) {
         bursts.push('先停一下，别自己一个人闷头硬扛，这可不像平时的你。');

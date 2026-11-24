@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
+import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { PersonaMode, PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
+import MomentsFeed from "./MomentsFeed";
 
 type LibraryTab = "emotion" | "persona" | "memories" | "growth" | "corrections";
 
@@ -12,6 +14,12 @@ interface RightInspectorProps {
   isStreaming?: boolean;
   autoNudgeEnabled?: boolean;
   onToggleAutoNudge?: () => void;
+  thinkMode?: boolean;
+  onToggleThink?: () => void;
+  deepSearch?: boolean;
+  onToggleDeepSearch?: () => void;
+  activeMode?: PersonaMode;
+  onChangeMode?: (mode: PersonaMode) => void;
   onSavePersonaPatch: (patch: Partial<PersonaRecord>) => Promise<void>;
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
@@ -31,6 +39,12 @@ export default function RightInspector({
   isStreaming = false,
   autoNudgeEnabled = true,
   onToggleAutoNudge,
+  thinkMode = true,
+  onToggleThink,
+  deepSearch = false,
+  onToggleDeepSearch,
+  activeMode = "authentic",
+  onChangeMode,
   onSavePersonaPatch,
   onAddCorrection,
   onTriggerProactive,
@@ -46,9 +60,6 @@ export default function RightInspector({
 }: RightInspectorProps) {
   const [section, setSection] = useState<"activity" | "library">("activity");
   const [libraryTab, setLibraryTab] = useState<LibraryTab>("emotion");
-  const [routineEnabled, setRoutineEnabled] = useState(true);
-  const [voicePreset, setVoicePreset] = useState("Helix 1.0x");
-  const [voiceLang, setVoiceLang] = useState("Auto-detect");
   const [editingPersonaMd, setEditingPersonaMd] = useState<string | null>(null);
   const [editingMemoriesMd, setEditingMemoriesMd] = useState<string | null>(
     null
@@ -65,6 +76,7 @@ export default function RightInspector({
   const [importingBundle, setImportingBundle] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
   const [previewRefOpen, setPreviewRefOpen] = useState(false);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
   const bundleFileInputRef = useRef<HTMLInputElement>(null);
   const refImageInputRef = useRef<HTMLInputElement>(null);
@@ -169,179 +181,7 @@ export default function RightInspector({
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 pb-5 space-y-4 text-xs">
         {section === "activity" ? (
-          <div className="space-y-4 animate-fade-in">
-            {/* 即将进行 */}
-            <div>
-              <div className="px-1 pb-1.5 text-[11.5px] font-medium text-[var(--text-muted)]">
-                即将进行
-              </div>
-              <div className="p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[13px] text-[var(--text-secondary)] shrink-0">
-                    🕒
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
-                      {persona.name} 每日三次汇报
-                    </div>
-                    <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
-                      每天 9:00、14:00 和 19:00 左右
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={routineEnabled}
-                  onClick={() => setRoutineEnabled((v) => !v)}
-                  className={`w-10 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
-                    routineEnabled
-                      ? "bg-[#1683FF]"
-                      : "bg-black/15 dark:bg-white/20"
-                  }`}
-                >
-                  <span
-                    className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                      routineEnabled ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {onToggleAutoNudge && (
-                <div className="mt-2 p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[13px] text-[var(--text-secondary)] shrink-0">
-                      💬
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
-                        未回复主动追问
-                      </div>
-                      <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
-                        沉默 45 秒后结合语境轻敲追问
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={autoNudgeEnabled}
-                    onClick={onToggleAutoNudge}
-                    className={`w-10 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
-                      autoNudgeEnabled
-                        ? "bg-[#1683FF]"
-                        : "bg-black/15 dark:bg-white/20"
-                    }`}
-                  >
-                    <span
-                      className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                        autoNudgeEnabled ? "translate-x-4" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* 电脑 ("Bot 的电脑") */}
-            <div>
-              <div className="px-1 pb-1.5 text-[11.5px] font-medium text-[var(--text-muted)]">
-                电脑
-              </div>
-              <button
-                type="button"
-                onClick={() => void onTriggerProactive(1)}
-                className="w-full p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-3 text-left hover:border-[var(--border-strong)] transition-all cursor-pointer"
-                title="点击唤醒 Bot 主动发一条最新动态"
-              >
-                <div>
-                  <div className="text-[13px] font-semibold text-[var(--text-primary)]">
-                    Bot 的电脑
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    {isStreaming ? "工作运转中..." : "休眠中"}
-                  </div>
-                </div>
-
-                {/* Mini Screen Card */}
-                <div className="relative w-[76px] h-[46px] rounded-[10px] bg-gradient-to-br from-neutral-400/70 to-neutral-500/80 dark:from-neutral-700 dark:to-neutral-800 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
-                  <BlobMascot
-                    shape={mascotCfg.shape}
-                    color={isStreaming ? mascotCfg.color : "#3A3A3E"}
-                    size={22}
-                    trackPointer={false}
-                    state={isStreaming ? "working" : "idle"}
-                  />
-                  {!isStreaming && (
-                    <span className="absolute top-1 right-1.5 text-[9px] font-semibold text-white/75 select-none">
-                      z<sup className="text-[7px]">z</sup>
-                    </span>
-                  )}
-                </div>
-              </button>
-            </div>
-
-            {/* 语音聊天 */}
-            <div>
-              <div className="px-1 pb-1.5 text-[11.5px] font-medium text-[var(--text-muted)]">
-                语音聊天
-              </div>
-              <div className="rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
-                <div className="px-3.5 py-2.5 flex items-center justify-between">
-                  <span className="text-[12.5px] text-[var(--text-primary)]">
-                    语音
-                  </span>
-                  <select
-                    value={voicePreset}
-                    onChange={(e) => setVoicePreset(e.target.value)}
-                    className="bg-transparent text-[12px] text-[var(--text-secondary)] focus:outline-none cursor-pointer"
-                  >
-                    <option value="Helix 1.0x">Helix 1.0x</option>
-                    <option value="Sol 1.1x">Sol 1.1x</option>
-                    <option value="Ara 0.95x">Ara 0.95x</option>
-                  </select>
-                </div>
-                <div className="px-3.5 py-2.5 flex items-center justify-between">
-                  <span className="text-[12.5px] text-[var(--text-primary)]">
-                    语言
-                  </span>
-                  <select
-                    value={voiceLang}
-                    onChange={(e) => setVoiceLang(e.target.value)}
-                    className="bg-transparent text-[12px] text-[var(--text-secondary)] focus:outline-none cursor-pointer"
-                  >
-                    <option value="Auto-detect">Auto-detect</option>
-                    <option value="简体中文">简体中文</option>
-                    <option value="English">English</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* 时间感知快速触发 */}
-            <div className="p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
-              <div className="text-[12px] font-semibold text-[var(--text-primary)]">
-                ⏰ 时间感知与主动破冰
-              </div>
-              <div className="grid grid-cols-1 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => void onTriggerProactive(1)}
-                  className="py-2 px-3 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[var(--text-primary)] transition-all cursor-pointer"
-                >
-                  ⚡ 结合当前时段主动找你开口
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onTriggerProactive(12)}
-                  className="py-2 px-3 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[var(--text-primary)] transition-all cursor-pointer"
-                >
-                  🌙 模拟冷落 TA 12 小时后的吐槽
-                </button>
-              </div>
-            </div>
-          </div>
+          <MomentsFeed key={persona.slug} persona={persona} />
         ) : (
           <div className="space-y-3.5 animate-fade-in">
             {/* Sub-tabs inside 资料库 */}
@@ -1110,6 +950,136 @@ export default function RightInspector({
                 </div>
               </div>
             )}
+
+            {/* Collapsible Chat Preferences & AI Advanced Controls */}
+            <div className="pt-2 border-t border-[var(--border-subtle)]">
+              <button
+                type="button"
+                onClick={() => setAdvancedExpanded((v) => !v)}
+                className="w-full px-3 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] flex items-center justify-between text-[11.5px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                <span>⚙️ 对话偏好与高级设定</span>
+                <span className="text-[10.5px] text-[var(--text-muted)]">
+                  {advancedExpanded ? "收起 ▲" : "展开 ▼"}
+                </span>
+              </button>
+
+              {advancedExpanded && (
+                <div className="mt-2 p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-2 gap-2">
+                    {onToggleThink && (
+                      <button
+                        type="button"
+                        onClick={onToggleThink}
+                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          thinkMode
+                            ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
+                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                        }`}
+                      >
+                        <span>✦</span>
+                        <span>内心心声</span>
+                      </button>
+                    )}
+                    {onToggleDeepSearch && (
+                      <button
+                        type="button"
+                        onClick={onToggleDeepSearch}
+                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          deepSearch
+                            ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                        }`}
+                      >
+                        <span>🌐</span>
+                        <span>联网搜素</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {onChangeMode && (
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] text-[var(--text-muted)]">
+                        说话尺度模式
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((mKey) => {
+                          const spec = PERSONA_MODES[mKey];
+                          const active = activeMode === mKey;
+                          return (
+                            <button
+                              key={mKey}
+                              type="button"
+                              onClick={() => onChangeMode(mKey)}
+                              className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium text-left flex items-center gap-1.5 transition-all cursor-pointer ${
+                                active
+                                  ? "bg-[var(--bg-secondary)] border-[#18a999] text-[var(--text-primary)]"
+                                  : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              }`}
+                            >
+                              <span>{spec.badge}</span>
+                              <span>{spec.shortLabel}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {onToggleAutoNudge && (
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
+                      <div className="min-w-0">
+                        <div className="text-[11.5px] font-medium text-[var(--text-primary)]">
+                          未回复主动追问
+                        </div>
+                        <div className="text-[10px] text-[var(--text-muted)]">
+                          沉默 45 秒后结合语境轻敲你
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={autoNudgeEnabled}
+                        onClick={onToggleAutoNudge}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                          autoNudgeEnabled
+                            ? "bg-[#18a999]"
+                            : "bg-black/15 dark:bg-white/20"
+                        }`}
+                      >
+                        <span
+                          className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            autoNudgeEnabled ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 pt-1 border-t border-[var(--border-subtle)]">
+                    <div className="text-[11px] text-[var(--text-muted)]">
+                      主动破冰模拟
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void onTriggerProactive(1)}
+                        className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[11px] text-[var(--text-primary)] transition-all cursor-pointer"
+                      >
+                        ⚡ 结合当前时段主动找你开口
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onTriggerProactive(12)}
+                        className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[11px] text-[var(--text-primary)] transition-all cursor-pointer"
+                      >
+                        🌙 模拟冷落 TA 12 小时后的吐槽
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

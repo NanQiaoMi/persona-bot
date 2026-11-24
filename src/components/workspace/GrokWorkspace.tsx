@@ -952,6 +952,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           isStreaming={Boolean(streaming)}
           autoNudgeEnabled={autoNudgeEnabled}
           onToggleAutoNudge={() => setAutoNudgeEnabled((v) => !v)}
+          thinkMode={thinkMode}
+          onToggleThink={() => setThinkMode((v) => !v)}
+          deepSearch={deepSearch}
+          onToggleDeepSearch={() => setDeepSearch((v) => !v)}
+          activeMode={activeMode}
+          onChangeMode={(m) => setActiveMode(m)}
           onSavePersonaPatch={handleSavePersonaPatch}
           onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
           onTriggerProactive={handleTriggerProactive}

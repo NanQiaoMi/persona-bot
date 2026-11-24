@@ -820,6 +820,13 @@ export default function ChatStage({
                       thoughtDurationMs={msg.thoughtDurationMs}
                       searchQuery={msg.searchQuery}
                       searchResults={msg.searchResults}
+                      personaName={msg.fromBot?.name || persona.name}
+                      moodLabel={
+                        msg.mood ||
+                        persona.emotionState.moodLabel ||
+                        persona.emotionState.primary
+                      }
+                      seedKey={msg.id}
                     />
 
                     {/* Multi-Bubble IM Style Grok Bot Reply Stack（右键打开「不像 TA」快捷纠偏） */}
@@ -1081,6 +1088,12 @@ export default function ChatStage({
                     isSearching={streaming.isSearching}
                     searchQuery={streaming.searchQuery}
                     searchResults={streaming.searchResults}
+                    personaName={persona.name}
+                    moodLabel={
+                      persona.emotionState.moodLabel ||
+                      persona.emotionState.primary
+                    }
+                    seedKey={`live-${messages.length}`}
                   />
                   {streaming.reply ? (
                     <div className="flex flex-col items-start gap-1.5 w-full">
