@@ -42,7 +42,7 @@ export default function ThoughtSearchTrace({
   if (isSearching) {
     summaryText = `正在检索「${searchQuery || "全网动态"}」...`;
   } else if (isStreamingThought) {
-    summaryText = "正在思考潜台词...";
+    summaryText = "正在想怎么回你...";
   } else if (hasThought && hasSearch) {
     summaryText = `思考了 ${secondsLabel} · 查阅了 ${sourceCount} 个来源`;
   } else if (hasThought) {
@@ -123,10 +123,10 @@ export default function ThoughtSearchTrace({
           {hasThought && (
             <div className="space-y-0.5">
               <div className="text-[11px] text-[var(--text-muted)]">
-                💭 内心潜台词 (Inner OS)
+                💭 内心想法
               </div>
               <p className="text-xs text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
-                {thought || "正在组织潜台词..."}
+                {thought || "正在想怎么回你..."}
               </p>
             </div>
           )}

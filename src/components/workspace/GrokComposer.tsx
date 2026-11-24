@@ -338,29 +338,22 @@ export default function GrokComposer({
         {/* Subtle Active Mode & Search Chips */}
         {(deepSearch || activeMode !== "authentic") && (
           <div className="mb-2 px-2 flex items-center gap-1.5 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              {modeSpec.badge} {modeSpec.shortLabel}
-            </button>
+            {activeMode !== "authentic" && (
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                {modeSpec.badge} {modeSpec.shortLabel}
+              </button>
+            )}
             {deepSearch && (
               <button
                 type="button"
                 onClick={onToggleDeepSearch}
-                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors"
+                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors cursor-pointer"
               >
                 🌐 DeepSearch 已开启 ×
-              </button>
-            )}
-            {thinkMode && (
-              <button
-                type="button"
-                onClick={onToggleThink}
-                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                ✦ Think
               </button>
             )}
           </div>
@@ -488,7 +481,7 @@ export default function GrokComposer({
               }
             }}
             disabled={disabled}
-            placeholder={`给 ${personaName || "PersonaBot"} 发消息（输入 @ 可唤起其他 Bot）`}
+            placeholder={`给 ${personaName || "TA"} 发消息...`}
             className="flex-1 bg-transparent px-2 text-[14px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
 

@@ -470,7 +470,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       updated[cardIndex] = {
                         ...updated[cardIndex],
                         status: "error",
-                        errorHint: "图片生成超时，已保留描述卡片",
+                        errorHint: "刚刚信号不太好，照片没发出去",
                       };
                     }
                     return { ...m, mediaCards: updated };

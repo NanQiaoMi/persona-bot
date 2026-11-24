@@ -400,8 +400,8 @@ export default function ChatStage({
                       {
                         icon: "📊",
                         badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
-                        title: "联网整理今日热搜清单",
-                        sub: "一键触发 DeepSearch + 内嵌「页面」卡片",
+                        title: "聊聊今天的热门新鲜事",
+                        sub: "实时翻一翻网上的最新动态给你锐评",
                         text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
                         enableSearch: true,
                       },
@@ -409,8 +409,8 @@ export default function ChatStage({
                         icon: "💭",
                         badgeBg:
                           "bg-purple-500/12 text-purple-600 dark:text-purple-300",
-                        title: "看看你此刻真实的内心 OS",
-                        sub: "触发 Think 潜台词时间轴推演",
+                        title: "说说你现在心里在想啥",
+                        sub: "听听 TA 没直说出口的真实小想法",
                         text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
                         enableSearch: false,
                       },
@@ -419,7 +419,7 @@ export default function ChatStage({
                         badgeBg:
                           "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
                         title: "发张你那边的随手拍",
-                        sub: "生成角色实时情境镜头卡片",
+                        sub: "看看 TA 此刻身边的日常画面",
                         text: "发张你现在手边的随手拍给我看看呗",
                         enableSearch: false,
                       },
@@ -428,7 +428,7 @@ export default function ChatStage({
                         badgeBg:
                           "bg-rose-500/12 text-rose-600 dark:text-rose-300",
                         title: "忙完了一天，求安慰",
-                        sub: "体验多段短句连发与情绪共鸣",
+                        sub: "听几句贴合 TA 脾气的连环宽慰",
                         text: "今天工作累麻了，快按你的脾气哄我两句",
                         enableSearch: false,
                       },
@@ -517,10 +517,6 @@ export default function ChatStage({
                   );
                 }
 
-                const altRewriteMode: PersonaMode =
-                  (msg.mode || activeMode) === "fun" ? "companion" : "fun";
-                const altRewriteLabel =
-                  altRewriteMode === "fun" ? "⚡ 毒舌重说" : "🌸 温柔重说";
                 const isMasterView =
                   Boolean(persona.isMaster) || persona.slug === "master-bot";
                 const reports = msg.interBotReports || [];
@@ -683,7 +679,7 @@ export default function ChatStage({
 
                     {/* Multimodal Sticker / Photo / Voice Cards */}
                     {msg.mediaCards && msg.mediaCards.length > 0 && (
-                      <div className="mt-2.5 space-y-2.5 w-full max-w-md">
+                      <div className="mt-2 space-y-2 w-full max-w-md">
                         {msg.mediaCards.map((card, cIdx) => {
                           if (card.type === "sticker") {
                             if (card.imageUrl) {
@@ -699,13 +695,13 @@ export default function ChatStage({
                                     })
                                   }
                                   title={card.caption}
-                                  className="group/sticker inline-block rounded-2xl overflow-hidden bg-[var(--bg-composer)] border border-[var(--border-subtle)] p-1.5 shadow-sm hover:scale-[1.03] transition-transform cursor-pointer"
+                                  className="group/sticker inline-block rounded-2xl overflow-hidden hover:scale-[1.03] transition-transform cursor-pointer"
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={card.imageUrl}
                                     alt={card.caption}
-                                    className="w-36 h-36 rounded-xl object-contain"
+                                    className="w-36 h-36 rounded-2xl object-contain"
                                   />
                                 </button>
                               );
@@ -715,17 +711,18 @@ export default function ChatStage({
                               return (
                                 <div
                                   key={cIdx}
-                                  className="w-40 h-36 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex flex-col items-center justify-center gap-2 p-3 text-center animate-fade-in"
+                                  className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-[18px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in"
                                 >
                                   <BlobMascot
                                     shape={mascotCfg.shape}
                                     color={mascotCfg.color}
-                                    size={30}
+                                    image={mascotCfg.image}
+                                    size={20}
                                     trackPointer={false}
                                     state="working"
                                   />
-                                  <span className="text-[11px] font-medium animate-text-shimmer">
-                                    正在绘制表情包...
+                                  <span className="text-[12px] font-medium animate-text-shimmer">
+                                    正在翻找表情包...
                                   </span>
                                 </div>
                               );
@@ -734,11 +731,11 @@ export default function ChatStage({
                             return (
                               <div
                                 key={cIdx}
-                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-xs"
+                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-bubble-ai)] text-xs"
                               >
-                                <div className="flex items-center gap-2 font-medium text-[var(--text-primary)]">
+                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                   <span>🎭</span>
-                                  <span>表情包：{card.caption}</span>
+                                  <span>[{card.caption}]</span>
                                 </div>
                                 {card.errorHint && (
                                   <span className="text-[11px] text-[var(--text-muted)]">
@@ -750,62 +747,59 @@ export default function ChatStage({
                           }
 
                           if (card.type === "photo") {
+                            if (card.imageUrl) {
+                              return (
+                                <button
+                                  key={cIdx}
+                                  type="button"
+                                  onClick={() =>
+                                    setLightboxMedia({
+                                      url: card.imageUrl!,
+                                      caption: card.caption,
+                                      kind: "photo",
+                                    })
+                                  }
+                                  className="block max-w-[300px] rounded-2xl overflow-hidden shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={card.imageUrl}
+                                    alt={card.caption}
+                                    className="w-full max-h-72 object-cover"
+                                  />
+                                </button>
+                              );
+                            }
+
+                            if (card.status === "generating") {
+                              return (
+                                <div
+                                  key={cIdx}
+                                  className="inline-flex items-center gap-2.5 px-4 py-3 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in"
+                                >
+                                  <BlobMascot
+                                    shape={mascotCfg.shape}
+                                    color={mascotCfg.color}
+                                    image={mascotCfg.image}
+                                    size={22}
+                                    trackPointer={false}
+                                    state="working"
+                                  />
+                                  <span className="text-[12px] font-medium animate-text-shimmer">
+                                    {persona.name} 正在拍照...
+                                  </span>
+                                </div>
+                              );
+                            }
+
                             return (
                               <div
                                 key={cIdx}
-                                className="rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card overflow-hidden"
+                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-bubble-ai)] text-xs text-[var(--text-muted)]"
                               >
-                                {card.imageUrl ? (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setLightboxMedia({
-                                        url: card.imageUrl!,
-                                        caption: card.caption,
-                                        kind: "photo",
-                                      })
-                                    }
-                                    className="block w-full overflow-hidden bg-black/5 cursor-pointer"
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={card.imageUrl}
-                                      alt={card.caption}
-                                      className="w-full max-h-72 object-cover hover:scale-[1.02] transition-transform"
-                                    />
-                                  </button>
-                                ) : card.status === "generating" ? (
-                                  <div className="h-44 w-full bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-2.5 animate-fade-in">
-                                    <BlobMascot
-                                      shape={mascotCfg.shape}
-                                      color={mascotCfg.color}
-                                      size={34}
-                                      trackPointer={false}
-                                      state="working"
-                                    />
-                                    <span className="text-xs font-medium animate-text-shimmer">
-                                      正在使用 {card.model || "gpt-image-2.6"} 生成实拍图...
-                                    </span>
-                                  </div>
-                                ) : null}
-                                <div className="p-3.5 space-y-1">
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-semibold text-[var(--text-primary)]">
-                                      📸 {persona.name} 的情境实拍
-                                    </span>
-                                    <span className="text-[10px] text-[var(--text-muted)]">
-                                      {card.model || "MOMENT"}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-[var(--text-secondary)] italic leading-relaxed">
-                                    &ldquo;{card.caption}&rdquo;
-                                  </p>
-                                  {card.errorHint && !card.imageUrl && (
-                                    <p className="text-[11px] text-[var(--text-muted)] pt-0.5">
-                                      {card.errorHint}
-                                    </p>
-                                  )}
-                                </div>
+                                <span>
+                                  📸 {card.errorHint || "照片没发过来，稍后再拍给你"}
+                                </span>
                               </div>
                             );
                           }
@@ -845,25 +839,14 @@ export default function ChatStage({
                     <div
                       className={
                         isIntermediate
-                          ? "h-0 overflow-hidden opacity-0 group-hover:h-auto group-hover:mt-1.5 group-hover:opacity-100 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] transition-opacity"
-                          : "mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity"
+                          ? "h-0 overflow-hidden opacity-0 group-hover:h-auto group-hover:mt-1.5 group-hover:opacity-100 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] transition-opacity duration-200"
+                          : "mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                       }
                     >
-                      {msg.mood && <span>{msg.mood}</span>}
-                      {msg.isFollowup && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
-                          主动追发
-                        </span>
-                      )}
-                      {msg.modelUsed && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-mono">
-                          {msg.modelUsed}
-                        </span>
-                      )}
                       <button
                         type="button"
                         onClick={() => copyMessage(msg.id, msg.content)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
+                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         {copiedId === msg.id ? "✓ 已复制" : "复制"}
                       </button>
@@ -871,22 +854,14 @@ export default function ChatStage({
                         type="button"
                         onClick={() => onRegenerate(idx)}
                         disabled={Boolean(streaming)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
+                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         ↻ 重说
                       </button>
                       <button
                         type="button"
-                        onClick={() => onRegenerate(idx, altRewriteMode)}
-                        disabled={Boolean(streaming)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
-                      >
-                        {altRewriteLabel}
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => speakMessage(msg.id, msg.content)}
-                        className="hover:text-[var(--text-primary)] transition-colors"
+                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         {speakingId === msg.id ? "🔊 播报中" : "🔈 朗读"}
                       </button>
@@ -898,7 +873,7 @@ export default function ChatStage({
                           );
                           setCorrectionText("");
                         }}
-                        className="hover:text-[var(--text-primary)] transition-colors"
+                        className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         ✎ 纠偏
                       </button>
@@ -912,7 +887,7 @@ export default function ChatStage({
                           }}
                           className="hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                         >
-                          {relayedId === msg.id ? "✓ 已汇报给主 Bot" : "↗ 汇报给主 Bot"}
+                          {relayedId === msg.id ? "✓ 已汇报" : "↗ 汇报"}
                         </button>
                       )}
                     </div>
