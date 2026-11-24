@@ -12,6 +12,10 @@ import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
 import { maybeRunAutoEvolution } from '@/lib/persona/evolution';
+import {
+  analyzeUserChatStyle,
+  trimExcessiveEmojis,
+} from '@/lib/persona/style-loop';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import {
@@ -860,6 +864,7 @@ export async function executeGrokChatTurn(
   };
 
   // Stage 3: Prompt Assembly & Streaming LLM Call
+  const userStyleProfile = analyzeUserChatStyle(req.messages);
   const assembler = new PromptAssembler();
   const systemPrompt = assembler.assembleFromRecord(persona, {
     mode: activeMode,
@@ -867,6 +872,7 @@ export async function executeGrokChatTurn(
     searchContext: searchResp,
     lastUserMessage: lastUserText,
     hasImageAttachment: hasImage,
+    userStyleProfile,
     emotionSummary: {
       emotion: updatedEmotion.primary,
       intensity: updatedEmotion.intensity,
@@ -953,7 +959,11 @@ export async function executeGrokChatTurn(
   );
 
   const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
-  const segments = splitIntoNaturalMessages(sanitizedBursts);
+  const emojiTrimmedBursts = trimExcessiveEmojis(
+    sanitizedBursts,
+    userStyleProfile.maxBotEmojiPerTurn
+  );
+  const segments = splitIntoNaturalMessages(emojiTrimmedBursts);
   parsed.bursts = segments;
   parsed.cleanReply = segments.join('\n\n');
 

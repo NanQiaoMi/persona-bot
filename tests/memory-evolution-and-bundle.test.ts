@@ -3,8 +3,14 @@ import {
   consolidatePersonaEvolution,
   LEARNED_HABITS_HEADING,
   mergeLearnedHabitsIntoPersona,
+  mergeStyleLoopIntoPersona,
   pruneExpiredScheduleLines,
+  STYLE_LOOP_HEADING,
 } from '@/lib/persona/evolution';
+import {
+  analyzeUserChatStyle,
+  trimExcessiveEmojis,
+} from '@/lib/persona/style-loop';
 import { storageRepo } from '@/lib/storage/repository';
 
 const TEST_SLUG = 'test-evo-soul-bot';
@@ -134,9 +140,11 @@ describe('Memory Evolution, Learned Habits, Snapshot Rollback & Soul Bundle', ()
     expect(evo.snapshotId).toBeTruthy();
     expect(evo.addedMemories.some((m) => m.includes('辣火锅'))).toBe(true);
     expect(evo.addedHabits.some((h) => h.includes('幽默调侃'))).toBe(true);
+    expect(evo.addedStyleRules.length).toBeGreaterThanOrEqual(1);
     expect(evo.prunedSchedules).toBe(1);
     expect(evo.persona?.personaMd).toContain('# Layer 0: Core');
     expect(evo.persona?.personaMd).toContain(LEARNED_HABITS_HEADING);
+    expect(evo.persona?.personaMd).toContain(STYLE_LOOP_HEADING);
 
     const snaps = await storageRepo.listSnapshots(TEST_SLUG);
     expect(snaps.length).toBeGreaterThanOrEqual(1);
@@ -159,5 +167,46 @@ describe('Memory Evolution, Learned Habits, Snapshot Rollback & Soul Bundle', ()
     expect(reimported.memoriesMd).toContain('辣火锅');
     expect(reimported.personaMd).toContain(LEARNED_HABITS_HEADING);
     expect(reimported.profile.appearanceAnchor).toBe('短发黑色针织衫');
+  });
+
+  it('mirrors user chat style, strips oily/excess emojis, and learns style rules into section 7', () => {
+    const style = analyzeUserChatStyle([
+      { role: 'user', content: '笑死，这也太离谱了吧' },
+      { role: 'user', content: '行吧 明天看情况' },
+      { role: 'user', content: '啥时候下班hh' },
+    ]);
+    expect(style.lengthBucket).toBe('short');
+    expect(style.maxBotEmojiPerTurn).toBe(0);
+    expect(style.usesTrailingPeriod).toBe(false);
+    expect(style.detectedSlang).toContain('笑死');
+
+    // Enforce 0-emoji cap and strip oily emojis while preserving numbers/text
+    const zeroEmoji = trimExcessiveEmojis(
+      ['哎哟😏💕 2026年给你安排一套✨🙈', '这就发给你😅😂'],
+      0
+    );
+    expect(zeroEmoji[0]).toContain('2026年给你安排一套');
+    expect(zeroEmoji[0]).not.toMatch(/😏|💕|✨|🙈/);
+    expect(zeroEmoji[1]).toBe('这就发给你');
+
+    // Enforce 1-emoji cap: oily ones stripped, only 1 understated emoji kept across all bursts
+    const oneEmoji = trimExcessiveEmojis(
+      ['笑死😏确实很离谱😅', '明天再去吧😂🔥'],
+      1
+    );
+    expect(oneEmoji[0]).toBe('笑死确实很离谱😅');
+    expect(oneEmoji[1]).toBe('明天再去吧');
+
+    const basePersona = '# Layer 0\n真实。\n\n## Correction 记录\n- keep real';
+    const mergedStyle = mergeStyleLoopIntoPersona(
+      basePersona,
+      ['保持 0 个 emoji', '短句回复不打句号'],
+      '2026/11/24'
+    );
+    expect(mergedStyle.updated).toBe(true);
+    expect(mergedStyle.personaMd).toContain(STYLE_LOOP_HEADING);
+    expect(mergedStyle.personaMd.indexOf(STYLE_LOOP_HEADING)).toBeLessThan(
+      mergedStyle.personaMd.indexOf('## Correction 记录')
+    );
   });
 });

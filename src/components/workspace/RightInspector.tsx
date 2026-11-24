@@ -646,7 +646,7 @@ export default function RightInspector({
                       ✨ 记忆自进化与灵魂备份
                     </span>
                     <span className="text-[10.5px] text-[var(--text-muted)]">
-                      每 8 轮自动整理
+                      每 4 轮自省学习
                     </span>
                   </div>
 
