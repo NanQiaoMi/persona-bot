@@ -12,7 +12,16 @@ import {
   PersonaSoulBundle,
   PersonaSummary,
   RuntimeSettings,
+  SnapshotKind,
 } from './types';
+
+export const SNAPSHOT_QUOTA: Record<SnapshotKind, number> = { auto: 10, manual: 30 };
+
+/** 兼容旧快照：没有 kind 字段时，按原因文案推断是否为自进化自动快照 */
+export function inferSnapshotKind(snap: Pick<PersonaSnapshot, 'kind' | 'reason'>): SnapshotKind {
+  if (snap.kind === 'auto' || snap.kind === 'manual') return snap.kind;
+  return /第\s*\d+\s*轮自动/.test(snap.reason || '') ? 'auto' : 'manual';
+}
 
 const EXES_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), 'exes');
 const DATA_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), '.data');
@@ -38,6 +47,10 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
   autoVoicePlayback: false,
   theme: 'light',
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 function sanitizeSlug(slug: string): string {
   return slug
@@ -90,6 +103,40 @@ export class UnifiedStorageRepository {
   private baseDir: string;
   private dataDir: string;
   private seeded = false;
+  private locks = new Map<string, Promise<unknown>>();
+
+  /**
+   * 按 key 串行执行异步任务，避免同一角色/会话文件被并发「读-改-写」时互相覆盖。
+   * 注意：不可重入，回调内不要再对同一 key 调用 withLock。
+   */
+  async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.locks.get(key) || Promise.resolve();
+    const run = prev.catch(() => undefined).then(fn);
+    const tail = run.catch(() => undefined);
+    this.locks.set(key, tail);
+    try {
+      return await run;
+    } finally {
+      if (this.locks.get(key) === tail) this.locks.delete(key);
+    }
+  }
+
+  /**
+   * 原子地读取 → 修改 → 保存角色。mutator 返回 null 表示不保存。
+   */
+  async updatePersona(
+    slug: string,
+    mutator: (current: PersonaRecord) => PersonaRecord | null | Promise<PersonaRecord | null>
+  ): Promise<PersonaRecord | null> {
+    const safeSlug = sanitizeSlug(slug);
+    return this.withLock(`persona:${safeSlug}`, async () => {
+      const current = await this.getPersona(safeSlug);
+      if (!current) return null;
+      const next = await mutator(current);
+      if (!next) return current;
+      return this.writePersonaFiles(next);
+    });
+  }
 
   constructor(baseDir = EXES_DIR, dataDir = DATA_DIR) {
     this.baseDir = baseDir;
@@ -246,12 +293,25 @@ export class UnifiedStorageRepository {
       },
       intimacy: typeof meta.intimacy === 'number' ? meta.intimacy : 60,
       corrections,
+      evolution: isRecord(meta.evolution) &&
+        typeof meta.evolution.lastEvolvedUserTurn === 'number'
+        ? (meta.evolution as unknown as PersonaRecord['evolution'])
+        : undefined,
+      relationship: isRecord(meta.relationship) &&
+        typeof meta.relationship.ledgerDate === 'string'
+        ? (meta.relationship as unknown as PersonaRecord['relationship'])
+        : undefined,
       createdAt: String(meta.createdAt || meta.created_at || now),
       updatedAt: String(meta.updatedAt || meta.updated_at || now),
     };
   }
 
   async savePersona(record: PersonaRecord): Promise<PersonaRecord> {
+    const safeSlug = sanitizeSlug(record.slug || record.name);
+    return this.withLock(`persona:${safeSlug}`, () => this.writePersonaFiles(record));
+  }
+
+  private async writePersonaFiles(record: PersonaRecord): Promise<PersonaRecord> {
     const safeSlug = sanitizeSlug(record.slug || record.name);
     const dir = this.getPersonaDir(safeSlug);
     await fs.mkdir(dir, { recursive: true });
@@ -274,6 +334,8 @@ export class UnifiedStorageRepository {
       defaultMode: normalized.defaultMode,
       intimacy: normalized.intimacy,
       profile: normalized.profile,
+      evolution: normalized.evolution,
+      relationship: normalized.relationship,
       createdAt: normalized.createdAt,
       updatedAt: normalized.updatedAt,
     };
@@ -311,18 +373,25 @@ export class UnifiedStorageRepository {
   async updateEmotionAndIntimacy(
     slug: string,
     emotionState: PersonaEmotionSnapshot,
-    intimacy: number
+    intimacy: number,
+    relationship?: PersonaRecord['relationship']
   ): Promise<void> {
-    const persona = await this.getPersona(slug);
-    if (!persona) return;
-    persona.emotionState = emotionState;
-    persona.intimacy = Math.max(0, Math.min(100, Math.round(intimacy)));
-    await this.savePersona(persona);
+    await this.updatePersona(slug, (persona) => ({
+      ...persona,
+      emotionState,
+      intimacy: Math.max(0, Math.min(100, Math.round(intimacy))),
+      relationship: relationship ?? persona.relationship,
+    }));
   }
 
   async addCorrection(slug: string, correction: Omit<CorrectionItem, 'id' | 'timestamp'>): Promise<PersonaRecord | null> {
-    const persona = await this.getPersona(slug);
-    if (!persona) return null;
+    return this.updatePersona(slug, (persona) => this.applyCorrection(persona, correction));
+  }
+
+  private applyCorrection(
+    persona: PersonaRecord,
+    correction: Omit<CorrectionItem, 'id' | 'timestamp'>
+  ): PersonaRecord {
 
     const item: CorrectionItem = {
       id: `corr_${Date.now()}`,
@@ -339,7 +408,7 @@ export class UnifiedStorageRepository {
       persona.personaMd = `${persona.personaMd.trimEnd()}\n\n## Correction 记录\n${ruleLine}\n`;
     }
 
-    return this.savePersona(persona);
+    return persona;
   }
 
   async getConversation(slug: string, limit = 100): Promise<ConversationMessage[]> {
@@ -363,10 +432,12 @@ export class UnifiedStorageRepository {
   }
 
   async appendMessages(slug: string, newMessages: ConversationMessage[]): Promise<ConversationMessage[]> {
-    const existing = await this.getConversation(slug, 0);
-    const merged = [...existing, ...newMessages].slice(-200);
-    await this.saveConversation(slug, merged);
-    return merged;
+    return this.withLock(`conv:${sanitizeSlug(slug)}`, async () => {
+      const existing = await this.getConversation(slug, 0);
+      const merged = [...existing, ...newMessages].slice(-200);
+      await this.saveConversation(slug, merged);
+      return merged;
+    });
   }
 
   private async readSnapshotFiles(slug: string): Promise<PersonaSnapshot[]> {
@@ -394,11 +465,24 @@ export class UnifiedStorageRepository {
   async createSnapshot(
     slug: string,
     reason: string,
-    summary?: string
+    summary?: string,
+    kind: SnapshotKind = 'manual'
   ): Promise<PersonaSnapshot | null> {
     const persona = await this.getPersona(slug);
     if (!persona) return null;
+    return this.writeSnapshotFrom(persona, reason, summary, kind);
+  }
 
+  /**
+   * 基于给定的角色记录写入快照（可在 updatePersona 回调内使用，不会重复加锁），并按 kind 分别执行配额淘汰
+   */
+  async writeSnapshotFrom(
+    persona: PersonaRecord,
+    reason: string,
+    summary?: string,
+    kind: SnapshotKind = 'manual'
+  ): Promise<PersonaSnapshot> {
+    const slug = persona.slug;
     const snapDir = this.getSnapshotsDir(slug);
     await fs.mkdir(snapDir, { recursive: true });
 
@@ -406,6 +490,7 @@ export class UnifiedStorageRepository {
     const snapshot: PersonaSnapshot = {
       id,
       createdAt: new Date().toISOString(),
+      kind,
       reason: reason.trim() || '自动存档',
       summary: summary?.trim() || undefined,
       personaMd: persona.personaMd,
@@ -423,10 +508,13 @@ export class UnifiedStorageRepository {
       'utf-8'
     );
 
-    const all = await this.readSnapshotFiles(slug);
-    if (all.length > 10) {
+    const sameKind = (await this.readSnapshotFiles(slug)).filter(
+      (snap) => inferSnapshotKind(snap) === kind
+    );
+    const quota = SNAPSHOT_QUOTA[kind];
+    if (sameKind.length > quota) {
       await Promise.all(
-        all.slice(10).map((old) =>
+        sameKind.slice(quota).map((old) =>
           fs.unlink(path.join(snapDir, `${old.id}.json`)).catch(() => {})
         )
       );
@@ -440,6 +528,7 @@ export class UnifiedStorageRepository {
     return all.map((s) => ({
       id: s.id,
       createdAt: s.createdAt,
+      kind: inferSnapshotKind(s),
       reason: s.reason,
       summary: s.summary,
       intimacy: s.intimacy,
@@ -457,35 +546,33 @@ export class UnifiedStorageRepository {
       throw new Error('Invalid snapshotId');
     }
 
-    const persona = await this.getPersona(slug);
-    if (!persona) return null;
-
-    const snapPath = path.join(this.getSnapshotsDir(slug), `${snapshotId}.json`);
+    const snapPath = path.join(this.getSnapshotsDir(sanitizeSlug(slug)), `${snapshotId}.json`);
     const snap = await readJsonSafe<PersonaSnapshot | null>(snapPath, null);
     if (!snap) return null;
 
-    await this.createSnapshot(
-      slug,
-      '回滚前自动备份',
-      `回滚至 ${new Date(snap.createdAt).toLocaleString('zh-CN')} (${snap.reason})`
-    );
+    return this.updatePersona(slug, async (persona) => {
+      await this.writeSnapshotFrom(
+        persona,
+        '回滚前自动备份',
+        `回滚至 ${new Date(snap.createdAt).toLocaleString('zh-CN')} (${snap.reason})`,
+        'manual'
+      );
 
-    const restored: PersonaRecord = {
-      ...persona,
-      personaMd: snap.personaMd,
-      memoriesMd: snap.memoriesMd,
-      aiProfileMd: snap.aiProfileMd ?? persona.aiProfileMd,
-      profile: snap.profile || persona.profile,
-      corrections: Array.isArray(snap.corrections)
-        ? snap.corrections
-        : persona.corrections,
-      intimacy:
-        typeof snap.intimacy === 'number' ? snap.intimacy : persona.intimacy,
-      emotionState: snap.emotionState || persona.emotionState,
-      updatedAt: new Date().toISOString(),
-    };
-
-    return this.savePersona(restored);
+      return {
+        ...persona,
+        personaMd: snap.personaMd,
+        memoriesMd: snap.memoriesMd,
+        aiProfileMd: snap.aiProfileMd ?? persona.aiProfileMd,
+        profile: snap.profile || persona.profile,
+        corrections: Array.isArray(snap.corrections)
+          ? snap.corrections
+          : persona.corrections,
+        intimacy:
+          typeof snap.intimacy === 'number' ? snap.intimacy : persona.intimacy,
+        emotionState: snap.emotionState || persona.emotionState,
+        updatedAt: new Date().toISOString(),
+      };
+    });
   }
 
   async exportSoulBundle(slug: string): Promise<PersonaSoulBundle | null> {

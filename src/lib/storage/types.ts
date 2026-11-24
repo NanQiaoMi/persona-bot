@@ -53,9 +53,28 @@ export interface PersonaRecord {
   emotionState: PersonaEmotionSnapshot;
   intimacy: number;
   corrections: CorrectionItem[];
+  /** 自进化游标（持久化，重启不丢） */
+  evolution?: PersonaEvolutionState;
+  /** 关系账本：好感度每日增量上限与冷落衰减依据 */
+  relationship?: PersonaRelationshipState;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface PersonaEvolutionState {
+  lastEvolvedUserTurn: number;
+  lastEvolvedAt?: string;
+}
+
+export interface PersonaRelationshipState {
+  /** 记账日期 YYYY-MM-DD（本地时区） */
+  ledgerDate: string;
+  /** 当天累计净增好感 */
+  gainedToday: number;
+  lastChatAt?: string;
+}
+
+export type SnapshotKind = 'manual' | 'auto';
 
 export interface PersonaSummary {
   slug: string;
@@ -191,6 +210,8 @@ export interface RuntimeSettings {
 export interface PersonaSnapshot {
   id: string;
   createdAt: string;
+  /** manual：用户手动/安全备份（独立配额，不被自动快照挤掉）；auto：自进化自动存档 */
+  kind?: SnapshotKind;
   reason: string;
   summary?: string;
   personaMd: string;
@@ -205,6 +226,7 @@ export interface PersonaSnapshot {
 export interface PersonaSnapshotMeta {
   id: string;
   createdAt: string;
+  kind: SnapshotKind;
   reason: string;
   summary?: string;
   intimacy: number;

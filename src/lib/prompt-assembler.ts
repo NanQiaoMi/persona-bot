@@ -1,5 +1,6 @@
 import { DeepSearchResponse, formatSearchContextForPrompt } from '@/lib/grok/deep-search';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
+import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { OOC_GUARD_PROMPT } from '@/lib/persona/prompts';
 import { UserChatStyleProfile } from '@/lib/persona/style-loop';
 import { storageRepo } from '@/lib/storage/repository';
@@ -54,22 +55,10 @@ export class PromptAssembler {
   }
 
   private filterMemories(memories: string, lastMessage?: string): string {
-    if (!memories || !lastMessage) return memories;
-    const lines = memories.split('\n');
-    const keywords = lastMessage
-      .toLowerCase()
-      .split(/[\s，。！？,.!?]+/)
-      .filter((k) => k.length > 1);
-
-    if (keywords.length === 0) return memories;
-    const matched = lines.filter((line) =>
-      keywords.some((kw) => line.toLowerCase().includes(kw))
-    );
-
-    if (matched.length > 0) {
-      return `### 当前话题触发的高相关记忆\n${matched.join('\n')}\n\n### 完整记忆底色\n${memories}`;
-    }
-    return memories;
+    return retrieveRelevantMemories(memories, lastMessage, {
+      topK: 6,
+      budgetChars: 1500,
+    }).context;
   }
 
   assembleFromRecord(persona: PersonaRecord, options: AssembleOptions = {}): string {

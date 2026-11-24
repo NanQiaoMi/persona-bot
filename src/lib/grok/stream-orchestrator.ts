@@ -1,4 +1,4 @@
-import { EmotionEngine, inferPersonalityTraits } from '@/lib/emotion/engine';
+import { evolveTurnEmotion } from '@/lib/emotion/turn';
 import {
   DeepSearchResponse,
   performDeepSearch,
@@ -840,30 +840,12 @@ export async function executeGrokChatTurn(
     });
   }
 
-  // Stage 2: Emotion Evolution
-  const traits = inferPersonalityTraits(persona.personaMd);
-  const engine = new EmotionEngine(traits);
-  const evolved = engine.processEvent({
-    type: 'message',
-    content: lastUserText,
-    sender: 'user',
-    timestamp: new Date(),
-  });
-
-  const intimacyDelta =
-    evolved.pleasure >= 0 ? (activeMode === 'companion' ? 2 : 1) : -1;
-  const newIntimacy = Math.max(0, Math.min(100, persona.intimacy + intimacyDelta));
-
-  const updatedEmotion: PersonaEmotionSnapshot = {
-    primary: evolved.primary,
-    pleasure: Number(evolved.pleasure.toFixed(2)),
-    arousal: Number(evolved.arousal.toFixed(2)),
-    dominance: Number(evolved.dominance.toFixed(2)),
-    intensity: Number(evolved.intensity.toFixed(2)),
-    moodLabel: persona.emotionState.moodLabel || `${evolved.primary}`,
-    lastUpdated: new Date().toISOString(),
-    decayRate: evolved.decayRate,
-  };
+  // Stage 2: Emotion Evolution（从上一轮持久化情绪出发，按间隔时间衰减后处理本轮消息）
+  const turnEmotion = evolveTurnEmotion(persona, lastUserText, activeMode);
+  const updatedEmotion: PersonaEmotionSnapshot = turnEmotion.snapshot;
+  const intimacyDelta = turnEmotion.intimacy.delta;
+  const newIntimacy = turnEmotion.intimacy.intimacy;
+  const relationshipState = turnEmotion.intimacy.relationship;
 
   // Stage 3: Prompt Assembly & Streaming LLM Call
   const userStyleProfile = analyzeUserChatStyle(req.messages);
@@ -878,7 +860,7 @@ export async function executeGrokChatTurn(
     emotionSummary: {
       emotion: updatedEmotion.primary,
       intensity: updatedEmotion.intensity,
-      attitude: engine.getEmotionDescription(),
+      attitude: turnEmotion.description,
       intimacy: newIntimacy,
     },
   });
@@ -1080,7 +1062,12 @@ export async function executeGrokChatTurn(
       mode: activeMode,
     };
 
-    await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
+    await storageRepo.updateEmotionAndIntimacy(
+    persona.slug,
+    updatedEmotion,
+    newIntimacy,
+    relationshipState
+  );
     await storageRepo.appendMessages(channelPersona.slug, [
       userMessageRecord,
       combinedMessage,
@@ -1199,7 +1186,12 @@ export async function executeGrokChatTurn(
     mode: activeMode,
   };
 
-  await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
+  await storageRepo.updateEmotionAndIntimacy(
+    persona.slug,
+    updatedEmotion,
+    newIntimacy,
+    relationshipState
+  );
   await storageRepo.appendMessages(channelPersona.slug, [
     userMessageRecord,
     ...assistantMessages,

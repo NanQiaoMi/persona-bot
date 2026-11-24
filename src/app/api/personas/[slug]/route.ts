@@ -45,19 +45,19 @@ export async function PUT(
       );
     }
 
-    const updated = await storageRepo.savePersona({
-      ...existing,
+    const updated = await storageRepo.updatePersona(existing.slug, (current) => ({
+      ...current,
       ...body,
-      slug: existing.slug,
+      slug: current.slug,
       profile: {
-        ...existing.profile,
+        ...current.profile,
         ...(body.profile || {}),
       },
       emotionState: {
-        ...existing.emotionState,
+        ...current.emotionState,
         ...(body.emotionState || {}),
       },
-    });
+    }));
 
     return NextResponse.json({ success: true, persona: updated });
   } catch (error) {

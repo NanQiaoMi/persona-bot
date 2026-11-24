@@ -63,14 +63,16 @@ export async function POST(request: Request) {
       persona &&
       !persona.profile.referenceImageUrl
     ) {
-      await storageRepo.savePersona({
-        ...persona,
-        profile: {
-          ...persona.profile,
-          referenceImageUrl: mediaRes.imageUrl,
-        },
-        updatedAt: new Date().toISOString(),
-      });
+      const lockedUrl = mediaRes.imageUrl;
+      await storageRepo.updatePersona(persona.slug, (current) =>
+        current.profile.referenceImageUrl
+          ? null
+          : {
+              ...current,
+              profile: { ...current.profile, referenceImageUrl: lockedUrl },
+              updatedAt: new Date().toISOString(),
+            }
+      );
       autoLockedReference = true;
     }
 
