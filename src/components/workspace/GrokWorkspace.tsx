@@ -58,7 +58,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [refineRefNotice, setRefineRefNotice] = useState<
     Record<string, string | null>
   >({});
+  const [growthNoticeBySlug, setGrowthNoticeBySlug] = useState<
+    Record<string, string | null>
+  >({});
   const refiningRefSlugsRef = useRef<Record<string, boolean>>({});
+  const prevProfileMetaRef = useRef<
+    Record<string, { tags: string[]; appearanceAnchor?: string }>
+  >({});
   const followupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
@@ -147,8 +153,36 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const cData = await cRes.json();
 
       if (pData.success && pData.persona) {
-        setActivePersona(pData.persona);
-        setActiveMode(pData.persona.defaultMode || "authentic");
+        const nextPersona = pData.persona as PersonaRecord;
+        const prevMeta = prevProfileMetaRef.current[slug];
+        const nextTags = nextPersona.profile.personalityTags || [];
+        const nextAnchor = nextPersona.profile.appearanceAnchor;
+        if (prevMeta) {
+          const addedTags = nextTags.filter((t) => !prevMeta.tags.includes(t));
+          const anchorAutoChanged =
+            Boolean(nextAnchor) &&
+            nextAnchor !== prevMeta.appearanceAnchor &&
+            !nextPersona.profile.appearanceAnchorLocked;
+          const parts: string[] = [];
+          if (addedTags.length > 0) {
+            parts.push(`新增性格标签「${addedTags.join("、")}」`);
+          }
+          if (anchorAutoChanged) {
+            parts.push("已同步更新外貌与画风锚点");
+          }
+          if (parts.length > 0) {
+            setGrowthNoticeBySlug((prev) => ({
+              ...prev,
+              [slug]: parts.join("；"),
+            }));
+          }
+        }
+        prevProfileMetaRef.current[slug] = {
+          tags: nextTags,
+          appearanceAnchor: nextAnchor,
+        };
+        setActivePersona(nextPersona);
+        setActiveMode(nextPersona.defaultMode || "authentic");
       }
       if (cData.success && Array.isArray(cData.messages)) {
         setMessages(cData.messages);
@@ -319,7 +353,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
             }
             setRefineRefNotice((prev) => ({
               ...prev,
-              [targetSlug]: "✓ 已更新为标准棚拍参考图",
+              [targetSlug]: data.appearanceAnchorUpdated
+                ? "✓ 已更新标准棚拍参考图，并自动同步外貌与画风锚点"
+                : "✓ 已更新为标准棚拍参考图",
             }));
           }
         } else {
@@ -931,6 +967,23 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           refineReferenceNotice={
             activePersona ? refineRefNotice[activePersona.slug] : null
           }
+          latestGrowthNotice={
+            activePersona ? growthNoticeBySlug[activePersona.slug] : null
+          }
+          onDismissGrowthNotice={() => {
+            if (!activePersona) return;
+            setGrowthNoticeBySlug((prev) => ({
+              ...prev,
+              [activePersona.slug]: null,
+            }));
+          }}
+          onReportGrowth={(notice) => {
+            if (!activePersona) return;
+            setGrowthNoticeBySlug((prev) => ({
+              ...prev,
+              [activePersona.slug]: notice,
+            }));
+          }}
           onRefineReferencePortrait={async (sourceUrl) => {
             if (!activePersona) return;
             await handleRefineReferencePortrait(activePersona.slug, {

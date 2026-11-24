@@ -18,6 +18,9 @@ interface RightInspectorProps {
   onRefreshPersona?: () => Promise<void>;
   isRefiningReference?: boolean;
   refineReferenceNotice?: string | null;
+  latestGrowthNotice?: string | null;
+  onDismissGrowthNotice?: () => void;
+  onReportGrowth?: (notice: string) => void;
   onRefineReferencePortrait?: (sourceImageUrl?: string) => Promise<void>;
   onOpenAvatarPicker: () => void;
   onClose: () => void;
@@ -34,6 +37,9 @@ export default function RightInspector({
   onRefreshPersona,
   isRefiningReference = false,
   refineReferenceNotice = null,
+  latestGrowthNotice = null,
+  onDismissGrowthNotice,
+  onReportGrowth,
   onRefineReferencePortrait,
   onOpenAvatarPicker,
   onClose,
@@ -362,6 +368,23 @@ export default function RightInspector({
               ))}
             </div>
 
+            {latestGrowthNotice && (
+              <div className="flex items-start justify-between gap-2 p-2.5 rounded-2xl bg-[#18a999]/10 border border-[#18a999]/30 text-[11px] text-[#18a999]">
+                <span className="leading-relaxed">
+                  ✨ 刚刚成长：{latestGrowthNotice}
+                </span>
+                {onDismissGrowthNotice && (
+                  <button
+                    type="button"
+                    onClick={onDismissGrowthNotice}
+                    className="shrink-0 text-[10px] opacity-75 hover:opacity-100 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            )}
+
             {libraryTab === "emotion" && (
               <div className="space-y-3">
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
@@ -472,10 +495,25 @@ export default function RightInspector({
 
                 {/* Consistent Photo Appearance Anchor Editor */}
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[var(--text-primary)]">
-                      固定外貌与画风锚点
-                    </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-semibold text-[var(--text-primary)] truncate">
+                        固定外貌与画风锚点
+                      </span>
+                      {persona.profile.appearanceAnchor && (
+                        <span
+                          className={`shrink-0 px-1.5 py-0.5 rounded-md text-[9.5px] font-medium ${
+                            persona.profile.appearanceAnchorLocked
+                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-300"
+                              : "bg-[#18a999]/12 text-[#18a999]"
+                          }`}
+                        >
+                          {persona.profile.appearanceAnchorLocked
+                            ? "已手动锁定"
+                            : "自动同步"}
+                        </span>
+                      )}
+                    </div>
                     {editingAppearance === null ? (
                       <button
                         type="button"
@@ -484,12 +522,12 @@ export default function RightInspector({
                             persona.profile.appearanceAnchor || ""
                           )
                         }
-                        className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer"
+                        className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer shrink-0"
                       >
                         {persona.profile.appearanceAnchor ? "修改" : "设定"}
                       </button>
                     ) : (
-                      <div className="flex gap-2 text-[11px]">
+                      <div className="flex gap-2 text-[11px] shrink-0">
                         <button
                           type="button"
                           onClick={() => setEditingAppearance(null)}
@@ -502,11 +540,12 @@ export default function RightInspector({
                           disabled={saving}
                           onClick={async () => {
                             setSaving(true);
+                            const trimmed = editingAppearance.trim();
                             await onSavePersonaPatch({
                               profile: {
                                 ...persona.profile,
-                                appearanceAnchor:
-                                  editingAppearance.trim() || undefined,
+                                appearanceAnchor: trimmed || undefined,
+                                appearanceAnchorLocked: Boolean(trimmed),
                               },
                             });
                             setEditingAppearance(null);
@@ -663,6 +702,11 @@ export default function RightInspector({
                           const data = await res.json();
                           if (data?.success) {
                             await onRefreshPersona?.();
+                            if (data.appearanceAnchorUpdated) {
+                              onReportGrowth?.(
+                                "已上传参考图，并自动同步外貌与画风锚点"
+                              );
+                            }
                           }
                         } catch {
                           // Ignore upload error
@@ -816,6 +860,9 @@ export default function RightInspector({
                           );
                           if (data.evolved) {
                             await onRefreshPersona?.();
+                            if (data.summary) {
+                              onReportGrowth?.(data.summary);
+                            }
                           }
                         } else {
                           setEvolutionNotice(data?.error || "整理失败");
