@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Button, Chip, FieldInput, Modal } from "@/components/primitives";
+import { Button, Card, Chip, FieldInput, Modal } from "@/components/primitives";
 import {
   LOCAL_CHAT_MODELS,
   LOCAL_GATEWAY_BASE_URL,
@@ -27,35 +28,35 @@ const PROVIDER_PRESETS: Array<{
     label: "本地网关 18630",
     baseUrl: LOCAL_GATEWAY_BASE_URL,
     model: "gpt-5.6",
-    badge: "🚀 对话 + 生图",
+    badge: "对话 + 生图",
   },
   {
     id: "xai",
     label: "xAI Grok",
     baseUrl: "https://api.x.ai/v1",
     model: "grok-3",
-    badge: "⚡ 官方接口",
+    badge: "官方接口",
   },
   {
     id: "deepseek",
     label: "DeepSeek",
     baseUrl: "https://api.deepseek.com/v1",
     model: "deepseek-chat",
-    badge: "🧠 高性价比",
+    badge: "高性价比",
   },
   {
     id: "openai",
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o",
-    badge: "🌐 通用旗舰",
+    badge: "通用旗舰",
   },
   {
     id: "ollama",
     label: "Ollama 本地",
     baseUrl: "http://localhost:11434/v1",
     model: "qwen2.5:14b",
-    badge: "💻 本地私密",
+    badge: "本地私密",
   },
 ];
 
@@ -89,16 +90,19 @@ export default function SettingsModal({
     message: string;
     models?: string[];
   } | null>(null);
-  const [testQuery, setTestQuery] = useState("Grok 3 最新特性");
-  const [testResults, setTestResults] = useState<SearchResultItem[] | null>(
-    null
-  );
+  const [testQuery, setTestQuery] = useState("今日科技动态");
+  const [testResults, setTestResults] = useState<SearchResultItem[] | null>(null);
   const [testingSearch, setTestingSearch] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
+    const savedTheme =
+      typeof window !== "undefined"
+        ? (window.localStorage.getItem("personabot-theme") as "light" | "dark" | null)
+        : null;
+
     const loadSettingsAndModels = async () => {
       try {
         const res = await fetch("/api/settings");
@@ -108,12 +112,12 @@ export default function SettingsModal({
           enableAutoSticker: true,
           enableAutoPhoto: true,
           ...(data?.settings || {}),
+          theme: savedTheme || data?.settings?.theme || "light",
         };
         if (active && data.success && data.settings) {
           setForm(loaded);
         }
 
-        // Auto-fetch live models from configured gateway /v1/models
         const gwRes = await fetch("/api/settings/test-gateway", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -149,8 +153,6 @@ export default function SettingsModal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const handleSave = async () => {
     setSaving(true);
     setStatusMsg("");
@@ -162,6 +164,10 @@ export default function SettingsModal({
       });
       const data = await res.json();
       if (data.success) {
+        if (typeof window !== "undefined") {
+          document.documentElement.setAttribute("data-theme", form.theme);
+          window.localStorage.setItem("personabot-theme", form.theme);
+        }
         setStatusMsg("✓ 配置已保存并实时生效");
         onSaved?.(data.settings);
         setTimeout(() => {
@@ -169,7 +175,7 @@ export default function SettingsModal({
         }, 450);
       }
     } catch {
-      setStatusMsg("保存失败，请重试");
+      setStatusMsg("保存失败，请检查网络连接后重试");
     } finally {
       setSaving(false);
     }
@@ -208,7 +214,7 @@ export default function SettingsModal({
     } catch {
       setGatewayTestResult({
         authStatus: "offline",
-        message: "检测请求没有发出去，确认 npm run dev 还在运行",
+        message: "检测请求没有发出去，确认本地服务还在运行后重试",
       });
     } finally {
       setTestingGateway(false);
@@ -238,6 +244,14 @@ export default function SettingsModal({
     }
   };
 
+  const handleSelectTheme = (nextTheme: "light" | "dark") => {
+    setForm((prev) => ({ ...prev, theme: nextTheme }));
+    if (typeof window !== "undefined") {
+      document.documentElement.setAttribute("data-theme", nextTheme);
+      window.localStorage.setItem("personabot-theme", nextTheme);
+    }
+  };
+
   const isLocalPreset =
     form.llmProvider === "local_gateway" ||
     form.llmBaseUrl.includes("127.0.0.1:18630");
@@ -251,29 +265,48 @@ export default function SettingsModal({
   const displayedImageModels =
     liveImageModels.length > 0 ? liveImageModels : [...LOCAL_IMAGE_MODELS];
 
+  const connectionBadge = gatewayTestResult ? (
+    <span
+      className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+        gatewayTestResult.authStatus === "ok"
+          ? "bg-success-soft text-success"
+          : gatewayTestResult.authStatus === "unauthorized"
+            ? "bg-warning-soft text-warning"
+            : "bg-danger-soft text-danger"
+      }`}
+    >
+      {gatewayTestResult.authStatus === "ok"
+        ? "已连接"
+        : gatewayTestResult.authStatus === "unauthorized"
+          ? "需要密钥"
+          : "未连通"}
+    </span>
+  ) : null;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       size="lg"
-      title="设置与模型配置"
-      description="支持本地网关 (127.0.0.1:18630/v1) 对话 + 表情包/拍照生图，以及 xAI / DeepSeek / OpenAI"
+      title="设置"
+      description="配置对话模型、生图模型、联网搜索与界面外观"
       bodyClassName="flex flex-col min-h-0"
     >
-      {/* Body */}
-      <div className="p-6 overflow-y-auto space-y-5 text-[12px] flex-1">
-        {/* 1. Provider Quick Presets */}
-        <div className="space-y-2">
-          <label className="font-semibold text-primary block">
-            1. 一键选择 API 引擎预设
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {PROVIDER_PRESETS.map((preset) => {
-              const isSelected = form.llmProvider === preset.id;
-              return (
-                <button
+      <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-[12px] flex-1">
+        {/* Card 1: 对话模型 */}
+        <Card variant="flat" padding="md" className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-[14px] font-semibold text-primary">对话模型</h3>
+            {connectionBadge}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[12px] text-secondary block">服务预设</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PROVIDER_PRESETS.map((preset) => (
+                <Chip
                   key={preset.id}
-                  type="button"
+                  selected={form.llmProvider === preset.id}
                   onClick={() => {
                     setForm((prev) => ({
                       ...prev,
@@ -283,180 +316,164 @@ export default function SettingsModal({
                     }));
                     void handleTestGateway(preset.baseUrl, preset.model);
                   }}
-                  className={`p-2.5 rounded-[var(--r-lg)] border text-left transition-colors cursor-pointer ${
-                    isSelected
-                      ? "border-brand bg-brand-soft text-brand"
-                      : "border-[var(--border-subtle)] bg-surface-raised text-secondary hover:text-primary"
-                  }`}
                 >
-                  <div className="font-semibold text-[12px] truncate">
-                    {preset.label}
-                  </div>
-                  <div className="text-[11px] opacity-80 mt-0.5 truncate">
-                    {preset.badge}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* LLM Connection Details */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-secondary mb-1">
-              SDK Base URL（含 `/v1`）
-            </label>
-            <FieldInput
-              type="text"
-              value={form.llmBaseUrl}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, llmBaseUrl: e.target.value }))
-              }
-              placeholder={LOCAL_GATEWAY_BASE_URL}
-              className="!bg-surface-base !text-[12px]"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-secondary">
-                聊天文本模型 (Chat Model)
-              </label>
-              {liveChatModels.length > 0 && (
-                <span className="text-[11px] text-success font-medium">
-                  已实时拉取 {liveChatModels.length} 个模型
-                </span>
-              )}
+                  {preset.label} · {preset.badge}
+                </Chip>
+              ))}
             </div>
-            <FieldInput
-              type="text"
-              value={form.llmModel}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, llmModel: e.target.value }))
-              }
-              placeholder="gpt-5.6 / gpt-6 / auto"
-              className="!bg-surface-base !text-[12px]"
-            />
-            {displayedChatModels.length > 0 && (
-              <div className="mt-2 max-h-24 overflow-y-auto flex flex-wrap items-center gap-1.5 pr-1">
-                {displayedChatModels.map((m) => (
-                  <Chip
-                    key={m}
-                    size="sm"
-                    tone="brand"
-                    selected={form.llmModel === m}
-                    onClick={() =>
-                      setForm((prev) => ({ ...prev, llmModel: m }))
-                    }
-                  >
-                    {m}
-                  </Chip>
-                ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-secondary mb-1">接口地址 Base URL</label>
+              <FieldInput
+                type="text"
+                value={form.llmBaseUrl}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, llmBaseUrl: e.target.value }))
+                }
+                placeholder={LOCAL_GATEWAY_BASE_URL}
+                className="!bg-surface-base !text-[12px]"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-secondary">默认模型名称</label>
+                {liveChatModels.length > 0 && (
+                  <span className="text-[11px] text-success font-medium">
+                    已拉取 {liveChatModels.length} 个
+                  </span>
+                )}
+              </div>
+              <FieldInput
+                type="text"
+                value={form.llmModel}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, llmModel: e.target.value }))
+                }
+                placeholder="gpt-5.6 / gpt-6 / auto"
+                className="!bg-surface-base !text-[12px]"
+              />
+            </div>
+          </div>
+
+          {displayedChatModels.length > 0 && (
+            <div className="max-h-24 overflow-y-auto flex flex-wrap items-center gap-1.5 pr-1">
+              {displayedChatModels.map((m) => (
+                <Chip
+                  key={m}
+                  size="sm"
+                  selected={form.llmModel === m}
+                  onClick={() => setForm((prev) => ({ ...prev, llmModel: m }))}
+                >
+                  {m}
+                </Chip>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="block text-secondary">
+              API Key（本地网关支持免密直连时可留空）
+            </label>
+            <div className="flex gap-2">
+              <FieldInput
+                type="password"
+                value={form.llmApiKey}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, llmApiKey: e.target.value }))
+                }
+                placeholder="sk-... 或网关密钥"
+                className="flex-1 !bg-surface-base !text-[12px]"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={testingGateway}
+                onClick={() => void handleTestGateway()}
+                className="shrink-0 !rounded-[var(--r-md)] !h-auto py-2"
+              >
+                {testingGateway ? "检测中..." : "测试连通"}
+              </Button>
+            </div>
+
+            {gatewayTestResult && (
+              <div
+                className={`p-3 rounded-[var(--r-md)] border text-[12px] ${
+                  gatewayTestResult.authStatus === "ok"
+                    ? "bg-success-soft border-[var(--sem-success)]/30 text-success"
+                    : gatewayTestResult.authStatus === "unauthorized"
+                      ? "bg-warning-soft border-[var(--sem-warning)]/30 text-warning"
+                      : "bg-danger-soft border-[var(--sem-danger)]/30 text-danger"
+                }`}
+              >
+                <div className="font-medium">{gatewayTestResult.message}</div>
+                {gatewayTestResult.authStatus === "offline" && (
+                  <div className="mt-2 space-y-1.5 text-secondary">
+                    <p>暂时连不上模型服务，对话将使用离线演示回复。你可以检查：</p>
+                    <ol className="list-decimal pl-4 space-y-0.5">
+                      <li>确认本地网关客户端已开启并正在运行</li>
+                      <li>核对上方地址与端口（默认 127.0.0.1:18630/v1）</li>
+                      <li>如使用云端接口，确认 API Key 已填写且有效</li>
+                    </ol>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={testingGateway}
+                      onClick={() => void handleTestGateway()}
+                      className="mt-1"
+                    >
+                      {testingGateway ? "检测中…" : "重新检测"}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
 
-        {/* API Key + Gateway Connectivity Check */}
-        <div className="space-y-2">
-          <label className="block text-secondary">
-            调用密钥 API Key（若本地网关显示「未登录」，请在网关客户端登录后复制密钥填入；支持免密直连也可留空）
-          </label>
-          <div className="flex gap-2">
-            <FieldInput
-              type="password"
-              value={form.llmApiKey}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, llmApiKey: e.target.value }))
-              }
-              placeholder="sk-... / 本地网关调用密钥（可留空尝试直连）"
-              className="flex-1 !bg-surface-base !text-[12px]"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={testingGateway}
-              onClick={() => void handleTestGateway()}
-              className="shrink-0 !rounded-[var(--r-md)] !h-auto py-2"
+          <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[12px]">
+            <span className="text-muted">对比各渠道模型定价与支持列表</span>
+            <Link
+              href="/models"
+              onClick={onClose}
+              className="text-brand font-medium hover:underline"
             >
-              {testingGateway ? "拉取中..." : "↻ 拉取模型 / 测试连通"}
-            </Button>
+              查看模型价格表 →
+            </Link>
           </div>
+        </Card>
 
-          {gatewayTestResult && (
-            <div
-              className={`p-3 rounded-[var(--r-md)] border text-[12px] ${
-                gatewayTestResult.authStatus === "ok"
-                  ? "bg-success-soft border-[var(--sem-success)]/30 text-success"
-                  : gatewayTestResult.authStatus === "unauthorized"
-                    ? "bg-warning-soft border-[var(--sem-warning)]/30 text-warning"
-                    : "bg-danger-soft border-[var(--sem-danger)]/30 text-danger"
-              }`}
-            >
-              <div className="font-medium">{gatewayTestResult.message}</div>
-              {gatewayTestResult.authStatus === "offline" && (
-                <div className="mt-2 space-y-1.5 text-secondary">
-                  <p>暂时连不上模型服务，聊天会先用离线演示回复。可以这样排查：</p>
-                  <ol className="list-decimal pl-4 space-y-0.5">
-                    <li>打开本地网关客户端，确认它正在运行</li>
-                    <li>核对上面的地址和端口（默认 127.0.0.1:18630/v1）</li>
-                    <li>用的是云端服务的话，检查 API Key 是否填写</li>
-                  </ol>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={testingGateway}
-                    onClick={() => void handleTestGateway()}
-                    className="mt-1"
-                  >
-                    {testingGateway ? "检测中…" : "重新检测"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 2. Image & Sticker Model Settings */}
-        <div className="pt-3 border-t border-[var(--border-subtle)] space-y-3">
+        {/* Card 2: 生图模型 */}
+        <Card variant="flat" padding="md" className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="font-semibold text-primary">
-              2. 🎨 图片与表情包生成模型（Image &amp; Sticker Engine）
-            </label>
+            <h3 className="text-[14px] font-semibold text-primary">生图模型</h3>
             {liveImageModels.length > 0 && (
               <span className="text-[11px] text-success font-medium">
-                已实时拉取 {liveImageModels.length} 个模型
+                已拉取 {liveImageModels.length} 个模型
               </span>
             )}
           </div>
+
           <div className="flex flex-wrap gap-1.5">
-            {displayedImageModels.map((imgModel) => {
-              const active = (form.imageModel || "gpt-image-2.6") === imgModel;
-              return (
-                <Chip
-                  key={imgModel}
-                  size="sm"
-                  tone="brand"
-                  selected={active}
-                  onClick={() =>
-                    setForm((prev) => ({ ...prev, imageModel: imgModel }))
-                  }
-                >
-                  {imgModel}
-                </Chip>
-              );
-            })}
+            {displayedImageModels.map((imgModel) => (
+              <Chip
+                key={imgModel}
+                size="sm"
+                selected={(form.imageModel || "gpt-image-2.6") === imgModel}
+                onClick={() => setForm((prev) => ({ ...prev, imageModel: imgModel }))}
+              >
+                {imgModel}
+              </Chip>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-            <label className="p-3 rounded-[var(--r-lg)] bg-surface-raised border border-[var(--border-subtle)] flex items-center justify-between cursor-pointer">
+            <label className="p-3 rounded-[var(--r-md)] bg-surface-base border border-[var(--border-subtle)] flex items-center justify-between cursor-pointer">
               <div>
-                <div className="font-medium text-primary">
-                  自动配发贴纸表情包
-                </div>
+                <div className="font-medium text-primary">自动配发表情包</div>
                 <div className="text-[11px] text-muted">
-                  吐槽/开心/哄你时适度生成表情包
+                  吐槽或开心时适度发送表情包
                 </div>
               </div>
               <input
@@ -472,13 +489,11 @@ export default function SettingsModal({
               />
             </label>
 
-            <label className="p-3 rounded-[var(--r-lg)] bg-surface-raised border border-[var(--border-subtle)] flex items-center justify-between cursor-pointer">
+            <label className="p-3 rounded-[var(--r-md)] bg-surface-base border border-[var(--border-subtle)] flex items-center justify-between cursor-pointer">
               <div>
-                <div className="font-medium text-primary">
-                  自动生成情境实拍图
-                </div>
+                <div className="font-medium text-primary">自动发送情境照片</div>
                 <div className="text-[11px] text-muted">
-                  要照片或情境契合时真实生图并存盘
+                  索要自拍或日常照时真实生成并保存
                 </div>
               </div>
               <input
@@ -494,49 +509,31 @@ export default function SettingsModal({
               />
             </label>
           </div>
-        </div>
+        </Card>
 
-        {/* 3. DeepSearch Engine Config */}
-        <div className="pt-3 border-t border-[var(--border-subtle)] space-y-3">
-          <label className="font-semibold text-primary block">
-            3. 🌐 DeepSearch 实时联网搜索引擎
-          </label>
-          <div className="grid grid-cols-3 gap-2">
+        {/* Card 3: 联网搜索 */}
+        <Card variant="flat" padding="md" className="space-y-3">
+          <h3 className="text-[14px] font-semibold text-primary">联网搜索</h3>
+
+          <div className="flex flex-wrap gap-1.5">
             {[
-              {
-                id: "builtin",
-                title: "内置免配置搜索",
-                desc: "Wikipedia + DuckDuckGo",
-              },
-              {
-                id: "tavily",
-                title: "Tavily AI 搜索",
-                desc: "Agent 优化实时检索",
-              },
-              {
-                id: "serper",
-                title: "Google Serper",
-                desc: "Google 实时结果接口",
-              },
+              { id: "builtin", title: "内置免配置搜索" },
+              { id: "tavily", title: "Tavily 搜索" },
+              { id: "serper", title: "Google Serper" },
             ].map((sp) => (
-              <button
+              <Chip
                 key={sp.id}
-                type="button"
+                tone="info"
+                selected={form.searchProvider === sp.id}
                 onClick={() =>
                   setForm((prev) => ({
                     ...prev,
                     searchProvider: sp.id as RuntimeSettings["searchProvider"],
                   }))
                 }
-                className={`p-2.5 rounded-[var(--r-lg)] border text-left transition-colors cursor-pointer ${
-                  form.searchProvider === sp.id
-                    ? "border-[var(--sem-info)] bg-info-soft text-info"
-                    : "border-[var(--border-subtle)] bg-surface-raised text-secondary"
-                }`}
               >
-                <div className="font-semibold">{sp.title}</div>
-                <div className="text-[11px] opacity-75 mt-0.5">{sp.desc}</div>
-              </button>
+                {sp.title}
+              </Chip>
             ))}
           </div>
 
@@ -564,46 +561,64 @@ export default function SettingsModal({
             />
           )}
 
-          {/* Live Search Tester */}
-          <div className="p-3 rounded-[var(--r-lg)] bg-surface-raised border border-[var(--border-subtle)] space-y-2">
-            <div className="flex gap-2">
-              <FieldInput
-                type="text"
-                value={testQuery}
-                onChange={(e) => setTestQuery(e.target.value)}
-                placeholder="输入测试搜索词..."
-                className="flex-1 !bg-surface-base !text-[12px] !rounded-[var(--r-sm)] !py-1.5"
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={testingSearch}
-                onClick={handleTestSearch}
-                className="!rounded-[var(--r-sm)] !bg-info-soft !text-info !border-[var(--sem-info)]/30"
-              >
-                {testingSearch ? "检索中..." : "测试联网搜索"}
-              </Button>
-            </div>
-            {testResults && (
-              <div className="space-y-1 pt-1">
-                {testResults.map((r, idx) => (
-                  <div
-                    key={idx}
-                    className="text-[11px] text-secondary truncate"
-                  >
-                    🌐 <span className="text-info">[{r.source}]</span>{" "}
-                    {r.title} — {r.snippet}
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="flex gap-2">
+            <FieldInput
+              type="text"
+              value={testQuery}
+              onChange={(e) => setTestQuery(e.target.value)}
+              placeholder="输入测试搜索词..."
+              className="flex-1 !bg-surface-base !text-[12px] !py-1.5"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={testingSearch}
+              onClick={handleTestSearch}
+              className="!rounded-[var(--r-md)] shrink-0"
+            >
+              {testingSearch ? "检索中..." : "测试搜索"}
+            </Button>
           </div>
-        </div>
+
+          {testResults && (
+            <div className="space-y-1 pt-1">
+              {testResults.map((r, idx) => (
+                <div key={idx} className="text-[11px] text-secondary truncate">
+                  <span className="text-info">[{r.source}]</span> {r.title} — {r.snippet}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Card 4: 外观 */}
+        <Card variant="flat" padding="md" className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-[14px] font-semibold text-primary">外观</h3>
+              <p className="text-[11px] text-muted mt-0.5">
+                全站自动同步浅色极简与深空暗色主题
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Chip
+                selected={form.theme === "light"}
+                onClick={() => handleSelectTheme("light")}
+              >
+                浅色极简
+              </Chip>
+              <Chip
+                selected={form.theme === "dark"}
+                onClick={() => handleSelectTheme("dark")}
+              >
+                深空暗色
+              </Chip>
+            </div>
+          </div>
+        </Card>
 
         {statusMsg && (
-          <div className="text-success font-medium text-center">
-            {statusMsg}
-          </div>
+          <div className="text-success font-medium text-center">{statusMsg}</div>
         )}
       </div>
 
@@ -612,12 +627,7 @@ export default function SettingsModal({
         <Button variant="ghost" size="sm" onClick={onClose}>
           取消
         </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          loading={saving}
-          onClick={handleSave}
-        >
+        <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>
           {saving ? "保存中..." : "保存配置"}
         </Button>
       </div>

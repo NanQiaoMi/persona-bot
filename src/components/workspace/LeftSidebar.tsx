@@ -307,7 +307,7 @@ export default function LeftSidebar({
               className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-primary cursor-pointer"
             >
               <span>✨</span>
-              <span>聊天记录蒸馏工作室</span>
+              <span>创建角色工作室</span>
             </button>
             <button
               type="button"

@@ -1,118 +1,109 @@
 "use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
+import Link from "next/link";
+import { useState } from "react";
+import { Button, Card, Field, FieldInput } from "@/components/primitives";
+import BlobMascot from "@/components/workspace/BlobMascot";
+import { BLUE_MASCOT_COLOR } from "@/components/workspace/mascot-palette";
 
 export default function LoginForm() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        localStorage.setItem('token', data.data.token);
-        window.location.href = '/';
+        localStorage.setItem("token", data.data.token);
+        window.location.href = "/";
       } else {
-        setError(data.error?.message || '登录失败');
+        setError(data.error?.message || "用户名或密码不正确，请检查后重试");
       }
     } catch {
-      setError('网络错误，请稍后重试');
+      setError("连不上服务器，请稍后再试");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-[#07C160] flex items-center justify-center">
-              <span className="text-white text-xl">💬</span>
-            </div>
-            <span className="text-xl font-bold text-[#353535]">PersonaBot</span>
+    <div className="min-h-screen bg-surface-base text-primary flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[420px] space-y-6">
+        <div className="text-center space-y-3">
+          <Link href="/" className="inline-flex flex-col items-center gap-2">
+            <BlobMascot shape="circle" color={BLUE_MASCOT_COLOR} size={48} trackPointer />
+            <span className="text-[16px] font-bold text-primary">PersonaBot</span>
           </Link>
-          <h1 className="text-2xl font-bold text-[#353535] mb-2">欢迎回来</h1>
-          <p className="text-[#999999]">登录你的账号继续对话</p>
+          <div>
+            <h1 className="text-[20px] font-bold text-primary">欢迎回来</h1>
+            <p className="text-[13px] text-secondary mt-1">登录账号继续你的对话</p>
+          </div>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-2xl p-8 border border-[#E5E5E5] shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-[#353535] mb-2">
-                用户名
-              </label>
-              <input
+        <Card variant="raised" padding="lg" className="bg-surface-base">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Field label="用户名" htmlFor="login-username">
+              <FieldInput
+                id="login-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20 transition-all"
                 placeholder="输入你的用户名"
                 required
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-[#353535] mb-2">
-                密码
-              </label>
-              <input
+            <Field label="密码" htmlFor="login-password">
+              <FieldInput
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] text-[#353535] placeholder-[#CCCCCC] focus:outline-none focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20 transition-all"
                 placeholder="输入你的密码"
                 required
               />
-            </div>
+            </Field>
 
             {error && (
-              <div className="p-4 rounded-xl bg-[#FA5151]/10 border border-[#FA5151]/20 text-[#FA5151] text-sm">
+              <div
+                role="alert"
+                className="p-3 rounded-[var(--r-md)] bg-danger-soft border border-[var(--sem-danger)]/25 text-danger text-[12px]"
+              >
                 {error}
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              className="w-full"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  登录中...
-                </span>
-              ) : (
-                '登录'
-              )}
-            </button>
+              {loading ? "登录中..." : "登录"}
+            </Button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-[#E5E5E5] text-center">
-            <p className="text-[#999999]">
-              还没有账号？{' '}
-              <Link href="/register" className="text-[#576B95] hover:text-[#07C160] font-medium transition-colors">
-                立即注册
-              </Link>
-            </p>
+          <div className="mt-5 pt-5 border-t border-[var(--border-subtle)] text-center text-[13px] text-secondary">
+            还没有账号？{" "}
+            <Link href="/register" className="text-brand hover:underline font-medium">
+              立即注册
+            </Link>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
