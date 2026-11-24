@@ -20,6 +20,7 @@ import {
   PersonaSoulBundle,
   PersonaSummary,
   RuntimeSettings,
+  SceneAsset,
   SnapshotKind,
 } from './types';
 
@@ -765,6 +766,38 @@ export class UnifiedStorageRepository {
       const current = await this.getMoments(safeSlug);
       const next = await mutator(current);
       return this.saveMoments(safeSlug, next);
+    });
+  }
+
+  async getSceneAssets(slug: string): Promise<SceneAsset[]> {
+    const safeSlug = sanitizeSlug(slug);
+    const filePath = path.join(this.getPersonaDir(safeSlug), 'assets.json');
+    const parsed = await readJsonSafe<SceneAsset[]>(filePath, []);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
+  async saveSceneAssets(slug: string, assets: SceneAsset[]): Promise<SceneAsset[]> {
+    const safeSlug = sanitizeSlug(slug);
+    const dir = this.getPersonaDir(safeSlug);
+    await fs.mkdir(dir, { recursive: true });
+    const trimmed = assets.slice(0, 30);
+    await fs.writeFile(
+      path.join(dir, 'assets.json'),
+      JSON.stringify(trimmed, null, 2),
+      'utf-8'
+    );
+    return trimmed;
+  }
+
+  async updateSceneAssets(
+    slug: string,
+    mutator: (current: SceneAsset[]) => SceneAsset[] | Promise<SceneAsset[]>
+  ): Promise<SceneAsset[]> {
+    const safeSlug = sanitizeSlug(slug);
+    return this.withLock(`assets:${safeSlug}`, async () => {
+      const current = await this.getSceneAssets(safeSlug);
+      const next = await mutator(current);
+      return this.saveSceneAssets(safeSlug, next);
     });
   }
 }

@@ -7,6 +7,7 @@ import {
   PersonaRecord,
 } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
+import SaveSceneAssetButton from "./SaveSceneAssetButton";
 
 interface MomentsFeedProps {
   persona: PersonaRecord;
@@ -522,8 +523,15 @@ export default function MomentsFeed({ persona }: MomentsFeedProps) {
               alt={lightboxImage.caption}
               className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
             />
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+            <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-black/60 text-white text-xs">
               <span className="max-w-xs truncate">{lightboxImage.caption}</span>
+              <SaveSceneAssetButton
+                key={lightboxImage.url}
+                slug={persona.slug}
+                imageUrl={lightboxImage.url}
+                defaultName={lightboxImage.caption.slice(0, 14) || "常去场景"}
+                defaultDescription={lightboxImage.caption}
+              />
               <button
                 type="button"
                 onClick={() => setLightboxImage(null)}

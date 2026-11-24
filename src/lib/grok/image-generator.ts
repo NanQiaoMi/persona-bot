@@ -25,12 +25,16 @@ export function buildMediaGenerationPrompt(
   caption: string,
   personaName: string,
   personaStyle?: string,
-  appearanceAnchor?: string
+  appearanceAnchor?: string,
+  sceneAnchor?: string
 ): string {
   const cleanCaption = caption.trim() || '日常开心瞬间';
   const styleHint = personaStyle ? ` (${personaStyle})` : '';
   const anchorLine = appearanceAnchor?.trim()
     ? `Consistent character appearance anchor: "${appearanceAnchor.trim()}".`
+    : '';
+  const sceneLine = sceneAnchor?.trim()
+    ? `Consistent room/environment setting: "${sceneAnchor.trim()}".`
     : '';
 
   if (kind === 'sticker') {
@@ -47,6 +51,7 @@ export function buildMediaGenerationPrompt(
   return [
     `Natural candid lifestyle photograph matching this exact description: "${cleanCaption}".`,
     anchorLine,
+    sceneLine,
     `Style tone matching "${personaName}"${styleHint}.`,
     'Realistic photography, natural lighting, authentic lens depth of field, high detail, aesthetic framing, no watermark, no text overlays.',
   ]
@@ -59,11 +64,15 @@ export function buildReferenceAwarePrompt(
   caption: string,
   personaName: string,
   personaStyle?: string,
-  appearanceAnchor?: string
+  appearanceAnchor?: string,
+  sceneAnchor?: string
 ): string {
   const cleanCaption = caption.trim() || '日常开心瞬间';
   const anchorLine = appearanceAnchor?.trim()
     ? `Maintain consistent traits: "${appearanceAnchor.trim()}".`
+    : '';
+  const sceneLine = sceneAnchor?.trim()
+    ? `Consistent room/environment setting: "${sceneAnchor.trim()}".`
     : '';
   const styleHint = personaStyle ? ` (${personaStyle})` : '';
 
@@ -80,6 +89,7 @@ export function buildReferenceAwarePrompt(
   return [
     `Generate a natural candid photograph of the EXACT same person shown in the reference image (${personaName}${styleHint}), preserving her exact face, facial features, hairstyle, and identity.`,
     anchorLine,
+    sceneLine,
     `New scene, pose, outfit and lighting: "${cleanCaption}".`,
     'Realistic smartphone candid photography, natural skin texture, authentic lighting, no watermark, no text overlays.',
   ]
@@ -190,6 +200,7 @@ export interface GenerateMediaParams {
   personaName: string;
   personaStyle?: string;
   appearanceAnchor?: string;
+  sceneAnchor?: string;
   referenceImageUrl?: string;
   baseUrl: string;
   apiKey?: string;
@@ -405,7 +416,8 @@ export async function generatePersonaMedia(
     params.caption,
     params.personaName,
     params.personaStyle,
-    params.appearanceAnchor
+    params.appearanceAnchor,
+    params.sceneAnchor
   );
   const authHeaders = buildAuthHeaders(params.apiKey);
 
@@ -418,7 +430,8 @@ export async function generatePersonaMedia(
         params.caption,
         params.personaName,
         params.personaStyle,
-        params.appearanceAnchor
+        params.appearanceAnchor,
+        params.sceneAnchor
       );
       const editAttempt = await runImageEdit({
         editsEndpoint,
