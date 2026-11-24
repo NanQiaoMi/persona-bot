@@ -5,7 +5,10 @@ import {
   PERSONA_ANALYZER_PROMPT,
   PERSONA_BUILDER_PROMPT,
 } from './prompts';
-import { chatCompletion, resolveLlmConfig } from '@/lib/llm/client';
+import { chatCompletion, parseJsonFromLlmOutput, resolveLlmConfig } from '@/lib/llm/client';
+import { buildFingerprintFromLines } from '@/lib/persona/fingerprint';
+import { parseLearnedFromMarkdown, PERSONA_SPEC_VERSION } from '@/lib/persona/spec';
+import { heuristicTraits, normalizeTraits } from '@/lib/persona/traits';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
 
@@ -48,6 +51,8 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
   participants: string[];
   topCatchphrases: string[];
   sampleQuotes: string[];
+  /** 目标人物的全部文字发言（最多 400 条），用于构建本人风格指纹 */
+  targetLines: string[];
 } {
   if (!content || !content.trim()) {
     return {
@@ -56,6 +61,7 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
       participants: [],
       topCatchphrases: [],
       sampleQuotes: [],
+      targetLines: [],
     };
   }
 
@@ -125,6 +131,7 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
     participants: Array.from(participants),
     topCatchphrases: topCatchphrases.length > 0 ? topCatchphrases : ['说真的', '好家伙', '看我心情', '行吧'],
     sampleQuotes,
+    targetLines: effectiveMsgs.map((m) => m.content.trim()).filter(Boolean).slice(-400),
   };
 }
 
@@ -161,6 +168,10 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
   let personaMd = '';
   let memoriesMd = '';
   let isLiveLLM = false;
+  let traits = heuristicTraits(
+    `${input.personalityInfo || ''}\n${input.basicInfo || ''}`,
+    { mbti, attachment, personalityTags }
+  );
 
   if (llm.canCall) {
     try {
@@ -205,6 +216,16 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
         0.5
       );
       isLiveLLM = Boolean(personaMd && memoriesMd);
+      try {
+        const traitsRaw = await callLLM(
+          '你是人格心理测量专家，只输出合法 JSON。',
+          `根据以下人物分析，给出 0~1 之间的大五人格与情绪参数，键为 openness, conscientiousness, extraversion, agreeableness, neuroticism, emotionalStability, recoveryRate（recoveryRate 表示生气/难过后恢复得多快）。\n${analysis}`,
+          0.2
+        );
+        traits = normalizeTraits(parseJsonFromLlmOutput(traitsRaw), traits);
+      } catch {
+        // 保留启发式特质
+      }
     } catch {
       // Fallback to high-precision deterministic distillation below
       isLiveLLM = false;
@@ -333,6 +354,16 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
       decayRate: 0.08,
     },
     corrections: [],
+    spec: {
+      specVersion: PERSONA_SPEC_VERSION,
+      // 有原始聊天记录时用本人真实发言做风格锚点，否则从人设示例原话推导
+      fingerprint:
+        corpus.targetLines.length >= 3
+          ? buildFingerprintFromLines(corpus.targetLines, 'chatlog')
+          : undefined,
+      traits,
+      learned: parseLearnedFromMarkdown(personaMd),
+    },
     createdAt: now,
     updatedAt: now,
   });

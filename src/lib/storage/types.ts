@@ -1,3 +1,5 @@
+import type { PersonaSpec } from '@/lib/persona/spec';
+
 export type PersonaMode = 'authentic' | 'fun' | 'companion' | 'analytical';
 
 export interface PersonaProfile {
@@ -53,6 +55,8 @@ export interface PersonaRecord {
   emotionState: PersonaEmotionSnapshot;
   intimacy: number;
   corrections: CorrectionItem[];
+  /** 结构化人格规格：本人风格指纹、性格特质与习得条目（persona.md 的 6/7/纠偏小节由它渲染） */
+  spec?: PersonaSpec;
   /** 自进化游标（持久化，重启不丢） */
   evolution?: PersonaEvolutionState;
   /** 关系账本：好感度每日增量上限与冷落衰减依据 */
@@ -221,6 +225,7 @@ export interface PersonaSnapshot {
   corrections: CorrectionItem[];
   intimacy: number;
   emotionState: PersonaEmotionSnapshot;
+  spec?: PersonaSpec;
 }
 
 export interface PersonaSnapshotMeta {

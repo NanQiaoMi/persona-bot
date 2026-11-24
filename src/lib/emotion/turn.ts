@@ -1,4 +1,5 @@
-import { EmotionEngine, inferPersonalityTraits } from './engine';
+import { EmotionEngine } from './engine';
+import { resolvePersonalityTraits } from '@/lib/persona/traits';
 import { EmotionVector } from './types';
 import { createDefaultEmotionVector } from './vector';
 import {
@@ -127,12 +128,13 @@ export interface TurnEmotionResult {
  * 跨轮情绪演进：从上一轮持久化的情绪出发 → 按间隔时间自然衰减 → 处理本轮用户消息 → 有界更新好感度
  */
 export function evolveTurnEmotion(
-  persona: Pick<PersonaRecord, 'personaMd' | 'emotionState' | 'intimacy' | 'relationship'>,
+  persona: Pick<PersonaRecord, 'personaMd' | 'emotionState' | 'intimacy' | 'relationship'> &
+    Partial<Pick<PersonaRecord, 'profile' | 'spec'>>,
   userText: string,
   mode: PersonaMode,
   now: Date = new Date()
 ): TurnEmotionResult {
-  const traits = inferPersonalityTraits(persona.personaMd);
+  const traits = resolvePersonalityTraits(persona);
   const engine = new EmotionEngine(traits, snapshotToVector(persona.emotionState));
 
   const lastUpdatedMs = persona.emotionState?.lastUpdated

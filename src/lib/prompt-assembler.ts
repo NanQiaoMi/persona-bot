@@ -1,6 +1,7 @@
 import { DeepSearchResponse, formatSearchContextForPrompt } from '@/lib/grok/deep-search';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
+import { fitPersonaToBudget, fitProfileToBudget } from '@/lib/persona/prompt-budget';
 import { OOC_GUARD_PROMPT } from '@/lib/persona/prompts';
 import { BlendedStyle } from '@/lib/persona/style-blend';
 import { UserChatStyleProfile } from '@/lib/persona/style-loop';
@@ -121,12 +122,12 @@ export class PromptAssembler {
 
     if (data.ai_profile) {
       sections.push('## 完整人物全息画像');
-      sections.push(data.ai_profile);
+      sections.push(fitProfileToBudget(data.ai_profile));
       sections.push('');
     }
 
     sections.push('## 五层性格与行为约束 (Persona Core)');
-    sections.push(data.persona_md || '（请根据角色身份自然发挥）');
+    sections.push(fitPersonaToBudget(data.persona_md) || '（请根据角色身份自然发挥）');
     sections.push('');
 
     sections.push('## 共同记忆锚点 (Shared Memories)');

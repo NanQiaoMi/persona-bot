@@ -843,7 +843,7 @@ export async function executeGrokChatTurn(
   // Stage 3: Prompt Assembly & Streaming LLM Call
   const userStyleProfile = analyzeUserChatStyle(req.messages);
   const blendedStyle = blendStyle(
-    fingerprintFromPersonaMd(persona.personaMd),
+    persona.spec?.fingerprint ?? fingerprintFromPersonaMd(persona.personaMd),
     req.messages
       .filter((m) => m.role === 'user' && typeof m.content === 'string')
       .map((m) => m.content)

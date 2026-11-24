@@ -144,12 +144,14 @@ describe('Memory Evolution, Learned Habits, Snapshot Rollback & Soul Bundle', ()
     expect(evo.evolved).toBe(true);
     expect(evo.snapshotId).toBeTruthy();
     expect(evo.addedMemories.some((m) => m.includes('辣火锅'))).toBe(true);
-    expect(evo.addedHabits.some((h) => h.includes('幽默调侃'))).toBe(true);
+    // 纠偏不再被复制成「互动风格调整」习惯（它本身已在 Correction 节生效）
+    expect(evo.addedHabits.some((h) => h.includes('互动风格调整'))).toBe(false);
     expect(evo.addedStyleRules.length).toBeGreaterThanOrEqual(1);
     expect(evo.prunedSchedules).toBe(1);
     expect(evo.persona?.personaMd).toContain('# Layer 0: Core');
-    expect(evo.persona?.personaMd).toContain(LEARNED_HABITS_HEADING);
+    expect(evo.persona?.personaMd).not.toContain('互动风格调整');
     expect(evo.persona?.personaMd).toContain(STYLE_LOOP_HEADING);
+    expect(evo.persona?.spec?.learned.some((it) => it.kind === 'style')).toBe(true);
 
     const snaps = await storageRepo.listSnapshots(TEST_SLUG);
     expect(snaps.length).toBeGreaterThanOrEqual(1);
@@ -165,12 +167,14 @@ describe('Memory Evolution, Learned Habits, Snapshot Rollback & Soul Bundle', ()
     const rolledBack = await storageRepo.rollbackSnapshot(TEST_SLUG, evo.snapshotId!);
     expect(rolledBack).not.toBeNull();
     expect(rolledBack?.memoriesMd).not.toContain('辣火锅');
-    expect(rolledBack?.personaMd).not.toContain(LEARNED_HABITS_HEADING);
+    expect(rolledBack?.personaMd).not.toContain(STYLE_LOOP_HEADING);
+    expect(rolledBack?.spec?.learned.some((it) => it.kind === 'style')).toBe(false);
 
     // Import exported soul bundle back and verify full restoration
     const reimported = await storageRepo.importSoulBundle(TEST_SLUG, bundle!);
     expect(reimported.memoriesMd).toContain('辣火锅');
-    expect(reimported.personaMd).toContain(LEARNED_HABITS_HEADING);
+    expect(reimported.personaMd).toContain(STYLE_LOOP_HEADING);
+    expect(reimported.spec?.learned.some((it) => it.kind === 'style')).toBe(true);
     expect(reimported.profile.appearanceAnchor).toBe('短发黑色针织衫');
   });
 

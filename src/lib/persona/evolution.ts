@@ -4,11 +4,16 @@ import {
   mergeMemoryIntoMarkdown,
 } from '@/lib/persona/auto-memory';
 import { analyzeUserChatStyle } from '@/lib/persona/style-loop';
+import { mergeLearnedCandidates } from '@/lib/persona/learned';
+import {
+  ensurePersonaSpec,
+  LEARNED_HABITS_HEADING,
+  STYLE_LOOP_HEADING,
+} from '@/lib/persona/spec';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaRecord, SnapshotKind } from '@/lib/storage/types';
 
-export const LEARNED_HABITS_HEADING = '## 6. 相处中习得的习惯与偏好';
-export const STYLE_LOOP_HEADING = '## 7. 对话方式自学习循环 (Style Loop)';
+export { LEARNED_HABITS_HEADING, STYLE_LOOP_HEADING };
 
 export interface EvolutionResult {
   evolved: boolean;
@@ -295,12 +300,7 @@ ${transcript}`;
       }
     }
   }
-  for (const corr of (persona.corrections || []).slice(-5)) {
-    const habitRule = `互动风格调整：${corr.correction.trim()}`;
-    if (!candidateHabits.includes(habitRule)) {
-      candidateHabits.push(habitRule);
-    }
-  }
+  // 纠偏已作为 locked 条目渲染在 Correction 节，不再复制成「互动风格调整」习惯重复占用 Prompt
 
   if (userStyle.sampleCount > 0) {
     if (userStyle.maxBotEmojiPerTurn === 0) {
@@ -336,18 +336,18 @@ ${transcript}`;
       }
     }
 
-    const habitMerge = mergePersonaSectionEntries(
-      fresh.personaMd,
-      LEARNED_HABITS_HEADING,
-      candidateHabits,
-      20
-    );
-    const styleMerge = mergeStyleLoopIntoPersona(habitMerge.personaMd, candidateStyleRules);
+    const source = usedLLM ? 'llm' : 'heuristic';
+    const learnedMerge = mergeLearnedCandidates(ensurePersonaSpec(fresh.personaMd, fresh.spec), [
+      ...candidateHabits.map((text) => ({ kind: 'habit' as const, text, source: source as 'llm' | 'heuristic' })),
+      ...candidateStyleRules.map((text) => ({ kind: 'style' as const, text, source: source as 'llm' | 'heuristic' })),
+    ]);
+    const addedHabits = learnedMerge.added.filter((it) => it.kind === 'habit').map((it) => it.text);
+    const addedStyleRules = learnedMerge.added.filter((it) => it.kind === 'style').map((it) => it.text);
 
     const hasChanges =
       addedMemories.length > 0 ||
-      habitMerge.addedItems.length > 0 ||
-      styleMerge.addedItems.length > 0 ||
+      addedHabits.length > 0 ||
+      addedStyleRules.length > 0 ||
       pruned.prunedCount > 0;
 
     const evolutionState =
@@ -363,7 +363,7 @@ ${transcript}`;
 
     const summaryText =
       llmSummary ||
-      `新增 ${addedMemories.length} 条记忆、${habitMerge.addedItems.length} 条习惯、${styleMerge.addedItems.length} 条口吻学习${
+      `新增 ${addedMemories.length} 条记忆、${addedHabits.length} 条习惯、${addedStyleRules.length} 条口吻学习${
         pruned.prunedCount > 0 ? `，归档 ${pruned.prunedCount} 条过期日程` : ''
       }`;
 
@@ -372,14 +372,14 @@ ${transcript}`;
       evolved: true,
       snapshotId: snap.id,
       addedMemories,
-      addedHabits: habitMerge.addedItems,
-      addedStyleRules: styleMerge.addedItems,
+      addedHabits,
+      addedStyleRules,
       prunedSchedules: pruned.prunedCount,
       summary: summaryText,
     };
     return {
       ...fresh,
-      personaMd: styleMerge.personaMd,
+      spec: learnedMerge.spec,
       memoriesMd: nextMemoriesMd,
       evolution: evolutionState,
       updatedAt: new Date().toISOString(),
