@@ -68,6 +68,8 @@ export interface PersonaRecord {
 export interface PersonaEvolutionState {
   lastEvolvedUserTurn: number;
   lastEvolvedAt?: string;
+  /** 上次整理后累计的负面/显式反馈信号数，用于信号驱动触发 */
+  pendingSignals?: number;
 }
 
 export interface PersonaRelationshipState {
