@@ -1,5 +1,4 @@
 import { EmotionEngine, inferPersonalityTraits } from '../emotion/engine';
-import { EmotionVector } from '../emotion/types';
 
 export interface PersonaContext {
   slug: string;

@@ -162,6 +162,7 @@ export default function ChatStage({
   onTriggerProactive,
   onClearHistory,
   onStopStreaming,
+  onQuickCorrect,
   onSelectPersona,
   thinkMode,
   onToggleThink,
@@ -188,6 +189,10 @@ export default function ChatStage({
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
+  // 聊天气泡右键「不像 TA」快捷纠偏
+  const [correctingIdx, setCorrectingIdx] = useState<number | null>(null);
+  const [correctionDraft, setCorrectionDraft] = useState("");
+  const [correctionState, setCorrectionState] = useState<"idle" | "saving" | "done">("idle");
   const [lightboxMedia, setLightboxMedia] = useState<{
     url: string;
     caption: string;
@@ -266,6 +271,32 @@ export default function ChatStage({
       });
     }
   }, [messages, streaming]);
+
+  useEffect(() => {
+    if (correctingIdx === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCorrectingIdx(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [correctingIdx]);
+
+  const submitCorrection = async (msgIdx: number, reason: string) => {
+    const text = reason.trim();
+    if (!text || correctionState === "saving") return;
+    setCorrectionState("saving");
+    try {
+      await onQuickCorrect(msgIdx, text);
+      setCorrectionState("done");
+      setTimeout(() => {
+        setCorrectingIdx(null);
+        setCorrectionState("idle");
+        setCorrectionDraft("");
+      }, 1200);
+    } catch {
+      setCorrectionState("idle");
+    }
+  };
 
   useEffect(() => {
     if (!lightboxMedia) return;
@@ -787,8 +818,17 @@ export default function ChatStage({
                       searchResults={msg.searchResults}
                     />
 
-                    {/* Multi-Bubble IM Style Grok Bot Reply Stack */}
-                    <div className="flex flex-col items-start gap-1.5 w-full">
+                    {/* Multi-Bubble IM Style Grok Bot Reply Stack（右键打开「不像 TA」快捷纠偏） */}
+                    <div
+                      className="flex flex-col items-start gap-1.5 w-full"
+                      onContextMenu={(e) => {
+                        if (msg.isFollowup && !msg.content) return;
+                        e.preventDefault();
+                        setCorrectingIdx(correctingIdx === idx ? null : idx);
+                        setCorrectionDraft("");
+                        setCorrectionState("idle");
+                      }}
+                    >
                       {bursts.map((burstText, bIdx) => (
                         <div
                           key={bIdx}
@@ -798,6 +838,63 @@ export default function ChatStage({
                         </div>
                       ))}
                     </div>
+
+                    {correctingIdx === idx && (
+                      <div className="mt-1.5 w-full max-w-[420px] rounded-[18px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] p-3 space-y-2 text-xs animate-fade-in">
+                        {correctionState === "done" ? (
+                          <div className="text-[#18a999] font-medium">已记下，下一轮 TA 就会改</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between text-[var(--text-secondary)]">
+                              <span className="font-medium text-[var(--text-primary)]">这句不像 TA？</span>
+                              <button
+                                type="button"
+                                onClick={() => setCorrectingIdx(null)}
+                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                aria-label="关闭"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {["太像AI", "太油腻", "表情太多", "太长了", "老是反问", "不是TA会说的话"].map((chip) => (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  disabled={correctionState === "saving"}
+                                  onClick={() => void submitCorrection(idx, chip)}
+                                  className="px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] disabled:opacity-40 cursor-pointer"
+                                >
+                                  {chip}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                value={correctionDraft}
+                                onChange={(e) => setCorrectionDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                                    e.preventDefault();
+                                    void submitCorrection(idx, correctionDraft);
+                                  }
+                                }}
+                                placeholder="或者说说 TA 平时会怎么说…"
+                                className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                disabled={!correctionDraft.trim() || correctionState === "saving"}
+                                onClick={() => void submitCorrection(idx, correctionDraft)}
+                                className="px-3 py-1.5 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-medium cursor-pointer"
+                              >
+                                {correctionState === "saving" ? "记录中" : "纠正"}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
 
                     {/* Elevated White Interactive "Page" Artifact Card */}
                     {msg.pageCard && <PageArtifactCard card={msg.pageCard} />}

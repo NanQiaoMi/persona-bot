@@ -3,6 +3,7 @@ import path from 'path';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
 import {
   ensurePersonaSpec,
+  inferStyleDimension,
   newLearnedId,
   PersonaSpec,
   renderPersonaMarkdown,
@@ -419,10 +420,17 @@ export class UnifiedStorageRepository {
     // 纠偏写成 learned 条目（locked，不会被自动淘汰），写入时渲染到 persona.md 的 Correction 节立即生效
     const spec = ensurePersonaSpec(persona.personaMd, persona.spec);
     const nowIso = item.timestamp;
+    // 纠偏命中的方面里还在试用的风格规则说明没通过用户这一关，直接淘汰
+    const dimension = inferStyleDimension(item.correction);
+    const learnedAfterCorrection = spec.learned.map((it) =>
+      it.kind === 'style' && it.status === 'trial' && dimension !== 'other' && it.dimension === dimension
+        ? { ...it, status: 'retired' as const, retiredReason: '被你的纠偏否决', updatedAt: nowIso }
+        : it
+    );
     persona.spec = {
       ...spec,
       learned: [
-        ...spec.learned,
+        ...learnedAfterCorrection,
         {
           id: newLearnedId(),
           kind: 'correction',
