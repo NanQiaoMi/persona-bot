@@ -30,8 +30,19 @@ export function inferSnapshotKind(snap: Pick<PersonaSnapshot, 'kind' | 'reason'>
   return /第\s*\d+\s*轮自动/.test(snap.reason || '') ? 'auto' : 'manual';
 }
 
-const EXES_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), 'exes');
-const DATA_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), '.data');
+/**
+ * 本地数据根目录：默认是项目根目录（exes/ 与 .data/ 都在这里）。
+ * 设置 PERSONABOT_DATA_ROOT 可改到别处——测试会指向临时目录，避免改动真实角色与聊天记录。
+ */
+export function resolveDataRoot(): string {
+  const override = process.env.PERSONABOT_DATA_ROOT?.trim();
+  return override
+    ? path.resolve(/*turbopackIgnore: true*/ override)
+    : /*turbopackIgnore: true*/ process.cwd();
+}
+
+const EXES_DIR = path.join(/*turbopackIgnore: true*/ resolveDataRoot(), 'exes');
+const DATA_DIR = path.join(/*turbopackIgnore: true*/ resolveDataRoot(), '.data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
