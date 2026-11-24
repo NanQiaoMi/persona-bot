@@ -113,15 +113,12 @@ export async function autoPersistTurnMemory(
   const fact = extractMemorableFactFromTurn(userText, assistantReply);
   if (!fact) return false;
 
-  const persona = await storageRepo.getPersona(slug);
-  if (!persona) return false;
-
-  const merged = mergeMemoryIntoMarkdown(persona.memoriesMd, fact);
-  if (!merged.updated) return false;
-
-  await storageRepo.savePersona({
-    ...persona,
-    memoriesMd: merged.memoriesMd,
+  let updated = false;
+  await storageRepo.updatePersona(slug, (persona) => {
+    const merged = mergeMemoryIntoMarkdown(persona.memoriesMd, fact);
+    if (!merged.updated) return null;
+    updated = true;
+    return { ...persona, memoriesMd: merged.memoriesMd };
   });
-  return true;
+  return updated;
 }

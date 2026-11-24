@@ -5,12 +5,10 @@ import {
 } from '@/lib/persona/auto-memory';
 import { analyzeUserChatStyle } from '@/lib/persona/style-loop';
 import { storageRepo } from '@/lib/storage/repository';
-import { PersonaRecord } from '@/lib/storage/types';
+import { PersonaRecord, SnapshotKind } from '@/lib/storage/types';
 
 export const LEARNED_HABITS_HEADING = '## 6. 相处中习得的习惯与偏好';
 export const STYLE_LOOP_HEADING = '## 7. 对话方式自学习循环 (Style Loop)';
-
-const lastEvolvedTurnBySlug = new Map<string, number>();
 
 export interface EvolutionResult {
   evolved: boolean;
@@ -218,7 +216,13 @@ function parseJsonFromLlmOutput(raw: string): {
  */
 export async function consolidatePersonaEvolution(
   slug: string,
-  options?: { force?: boolean; reason?: string }
+  options?: {
+    force?: boolean;
+    reason?: string;
+    snapshotKind?: SnapshotKind;
+    /** 自动触发时记录的用户轮次游标（持久化，重启不重复整理） */
+    userTurnCursor?: number;
+  }
 ): Promise<EvolutionResult> {
   const persona = await storageRepo.getPersona(slug);
   if (!persona) {
@@ -388,82 +392,76 @@ ${transcript}`;
     }
   }
 
-  const pruned = pruneExpiredScheduleLines(persona.memoriesMd);
-  let nextMemoriesMd = pruned.memoriesMd;
-  const addedMemories: string[] = [];
-
-  for (const mem of candidateMemories) {
-    const merged = mergeMemoryIntoMarkdown(nextMemoriesMd, mem);
-    if (merged.updated) {
-      nextMemoriesMd = merged.memoriesMd;
-      addedMemories.push(mem);
-    }
-  }
-
-  const habitMerge = mergeLearnedHabitsIntoPersona(
-    persona.personaMd,
-    candidateHabits
-  );
-  const addedHabits: string[] = habitMerge.updated
-    ? candidateHabits.filter((h) => {
-        const core = h.replace(/^[-*]\s*/, '').replace(/^\[[^\]]+\]\s*/, '').trim();
-        return !persona.personaMd.includes(core) && habitMerge.personaMd.includes(core);
-      })
-    : [];
-
-  const styleMerge = mergeStyleLoopIntoPersona(
-    habitMerge.personaMd,
-    candidateStyleRules
-  );
-  const addedStyleRules = styleMerge.addedItems;
-
-  const hasChanges =
-    addedMemories.length > 0 ||
-    addedHabits.length > 0 ||
-    addedStyleRules.length > 0 ||
-    pruned.prunedCount > 0;
-
-  if (!hasChanges && !options?.force) {
-    return {
-      evolved: false,
-      addedMemories: [],
-      addedHabits: [],
-      addedStyleRules: [],
-      prunedSchedules: 0,
-      usedLLM,
-      summary: '记忆与对话风格已处于最新状态，暂无新增改动',
-      persona,
-    };
-  }
-
   const reason = options?.reason || '记忆与说话方式自省整理';
-  const summaryText =
-    llmSummary ||
-    `新增 ${addedMemories.length} 条记忆、${addedHabits.length} 条习惯、${addedStyleRules.length} 条口吻学习${
-      pruned.prunedCount > 0 ? `，归档 ${pruned.prunedCount} 条过期日程` : ''
-    }`;
+  const snapshotKind: SnapshotKind = options?.snapshotKind || 'manual';
+  const cursor = options?.userTurnCursor;
 
-  let snapshotId: string | undefined;
-  if (hasChanges) {
-    const snap = await storageRepo.createSnapshot(slug, reason, summaryText);
-    snapshotId = snap?.id;
-    const saved = await storageRepo.savePersona({
-      ...persona,
+  // LLM 调用期间角色可能已被其他写入修改：在锁内基于最新记录重新合并，避免覆盖并发写入
+  let outcome: Omit<EvolutionResult, 'usedLLM' | 'persona'> | null = null;
+  const saved = await storageRepo.updatePersona(slug, async (fresh) => {
+    const pruned = pruneExpiredScheduleLines(fresh.memoriesMd);
+    let nextMemoriesMd = pruned.memoriesMd;
+    const addedMemories: string[] = [];
+    for (const mem of candidateMemories) {
+      const merged = mergeMemoryIntoMarkdown(nextMemoriesMd, mem);
+      if (merged.updated) {
+        nextMemoriesMd = merged.memoriesMd;
+        addedMemories.push(mem);
+      }
+    }
+
+    const habitMerge = mergePersonaSectionEntries(
+      fresh.personaMd,
+      LEARNED_HABITS_HEADING,
+      candidateHabits,
+      20
+    );
+    const styleMerge = mergeStyleLoopIntoPersona(habitMerge.personaMd, candidateStyleRules);
+
+    const hasChanges =
+      addedMemories.length > 0 ||
+      habitMerge.addedItems.length > 0 ||
+      styleMerge.addedItems.length > 0 ||
+      pruned.prunedCount > 0;
+
+    const evolutionState =
+      typeof cursor === 'number'
+        ? { lastEvolvedUserTurn: cursor, lastEvolvedAt: new Date().toISOString() }
+        : fresh.evolution;
+
+    if (!hasChanges) {
+      outcome = null;
+      // 仍需持久化游标，避免重启后重复整理同一轮
+      return typeof cursor === 'number' ? { ...fresh, evolution: evolutionState } : null;
+    }
+
+    const summaryText =
+      llmSummary ||
+      `新增 ${addedMemories.length} 条记忆、${habitMerge.addedItems.length} 条习惯、${styleMerge.addedItems.length} 条口吻学习${
+        pruned.prunedCount > 0 ? `，归档 ${pruned.prunedCount} 条过期日程` : ''
+      }`;
+
+    const snap = await storageRepo.writeSnapshotFrom(fresh, reason, summaryText, snapshotKind);
+    outcome = {
+      evolved: true,
+      snapshotId: snap.id,
+      addedMemories,
+      addedHabits: habitMerge.addedItems,
+      addedStyleRules: styleMerge.addedItems,
+      prunedSchedules: pruned.prunedCount,
+      summary: summaryText,
+    };
+    return {
+      ...fresh,
       personaMd: styleMerge.personaMd,
       memoriesMd: nextMemoriesMd,
+      evolution: evolutionState,
       updatedAt: new Date().toISOString(),
-    });
-    return {
-      evolved: true,
-      snapshotId,
-      addedMemories,
-      addedHabits,
-      addedStyleRules,
-      prunedSchedules: pruned.prunedCount,
-      usedLLM,
-      summary: summaryText,
-      persona: saved,
     };
+  });
+
+  if (outcome) {
+    return { ...(outcome as Omit<EvolutionResult, 'usedLLM' | 'persona'>), usedLLM, persona: saved || persona };
   }
 
   return {
@@ -473,29 +471,55 @@ ${transcript}`;
     addedStyleRules: [],
     prunedSchedules: 0,
     usedLLM,
-    summary: '近期对话中暂无新的可沉淀记忆或说话习惯',
-    persona,
+    summary: options?.force
+      ? '已强制整理：记忆与对话风格已处于最新状态'
+      : '记忆与对话风格已处于最新状态，暂无新增改动',
+    persona: saved || persona,
   };
 }
 
 /**
  * 每累计 4 轮用户对话静默触发一次后台记忆与说话方式自省循环（同轮次防重入）
  */
+const inFlightEvolution = new Set<string>();
+
 export async function maybeRunAutoEvolution(slug: string): Promise<boolean> {
   if (process.env.VITEST) return false;
-  const allMsgs = await storageRepo.getConversation(slug, 0);
-  const userTurnCount = allMsgs.filter((m) => m.role === 'user').length;
-  if (userTurnCount <= 0 || userTurnCount % 4 !== 0) {
+  return runAutoEvolutionIfDue(slug);
+}
+
+/**
+ * 判断是否到了自动整理的轮次（游标持久化在角色元数据中），到期则执行；可在测试中直接调用
+ */
+export async function runAutoEvolutionIfDue(slug: string, every = 4): Promise<boolean> {
+  if (inFlightEvolution.has(slug)) return false;
+  const [allMsgs, persona] = await Promise.all([
+    storageRepo.getConversation(slug, 0),
+    storageRepo.getPersona(slug),
+  ]);
+  if (!persona) return false;
+  // 会话文件只保留最近 200 条消息，所以按「上次整理之后的新用户消息数」判断，而不是总条数取模
+  const since = persona.evolution?.lastEvolvedAt;
+  const sinceMs = since ? new Date(since).getTime() : NaN;
+  const newUserTurns = allMsgs.filter(
+    (m) =>
+      m.role === 'user' &&
+      (!Number.isFinite(sinceMs) || new Date(m.timestamp).getTime() > sinceMs)
+  ).length;
+  if (newUserTurns < every) {
     return false;
   }
+  const userTurnCount = (persona.evolution?.lastEvolvedUserTurn ?? 0) + newUserTurns;
 
-  if (lastEvolvedTurnBySlug.get(slug) === userTurnCount) {
-    return false;
+  inFlightEvolution.add(slug);
+  try {
+    const res = await consolidatePersonaEvolution(slug, {
+      reason: `第 ${userTurnCount} 轮自动记忆与风格自省`,
+      snapshotKind: 'auto',
+      userTurnCursor: userTurnCount,
+    });
+    return res.evolved;
+  } finally {
+    inFlightEvolution.delete(slug);
   }
-  lastEvolvedTurnBySlug.set(slug, userTurnCount);
-
-  const res = await consolidatePersonaEvolution(slug, {
-    reason: `第 ${userTurnCount} 轮自动记忆与风格自省`,
-  });
-  return res.evolved;
 }

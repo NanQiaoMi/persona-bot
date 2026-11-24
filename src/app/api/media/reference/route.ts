@@ -49,14 +49,14 @@ export async function POST(request: Request) {
     const buf = Buffer.from(match[2], 'base64');
     const referenceImageUrl = await saveGeneratedMediaBuffer(buf, ext, 'ref');
 
-    const updated = await storageRepo.savePersona({
-      ...persona,
+    const updated = await storageRepo.updatePersona(persona.slug, (current) => ({
+      ...current,
       profile: {
-        ...persona.profile,
+        ...current.profile,
         referenceImageUrl,
       },
       updatedAt: new Date().toISOString(),
-    });
+    }));
 
     return NextResponse.json({
       success: true,

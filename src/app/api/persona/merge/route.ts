@@ -22,19 +22,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, persona: updated });
     }
 
-    const persona = await storageRepo.getPersona(slug);
-    if (!persona) {
+    const updated = await storageRepo.updatePersona(slug, (persona) => {
+      const dateLabel = new Date().toLocaleDateString('zh-CN');
+      if (newData?.personaUpdate) {
+        persona.personaMd = `${persona.personaMd.trimEnd()}\n\n## 追加更新 (${dateLabel})\n${newData.personaUpdate}`;
+      }
+      if (newData?.memoriesUpdate) {
+        persona.memoriesMd = `${persona.memoriesMd.trimEnd()}\n\n## 追加记忆 (${dateLabel})\n${newData.memoriesUpdate}`;
+      }
+      return persona;
+    });
+    if (!updated) {
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
     }
-
-    if (newData?.personaUpdate) {
-      persona.personaMd = `${persona.personaMd.trimEnd()}\n\n## 追加更新 (${new Date().toLocaleDateString('zh-CN')})\n${newData.personaUpdate}`;
-    }
-    if (newData?.memoriesUpdate) {
-      persona.memoriesMd = `${persona.memoriesMd.trimEnd()}\n\n## 追加记忆 (${new Date().toLocaleDateString('zh-CN')})\n${newData.memoriesUpdate}`;
-    }
-
-    await storageRepo.savePersona(persona);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Merge API Error:', error);
