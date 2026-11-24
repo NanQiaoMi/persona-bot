@@ -39,6 +39,8 @@ export interface LearnedItem {
   trialBaseline?: number;
   trialScores?: number[];
   retiredReason?: string;
+  /** 试用通过后要取代的同维度旧规则 id */
+  supersedes?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,11 +56,21 @@ export interface PersonaTraitsSpec {
   source: 'llm' | 'heuristic';
 }
 
+export interface MemoryStat {
+  importance: number;
+  recallCount: number;
+  lastRecalledAt?: string;
+}
+
 export interface PersonaSpec {
   specVersion: number;
   fingerprint?: StyleFingerprint;
   traits?: PersonaTraitsSpec;
   learned: LearnedItem[];
+  /** 最近若干轮回复的质量分（风格分 × 用户反应），作为试用规则的对照基线 */
+  recentQuality?: number[];
+  /** 记忆条目的重要度与被想起次数，key 为规范化后的记忆正文 */
+  memoryStats?: Record<string, MemoryStat>;
 }
 
 const LEARNED_SECTION_HEADINGS: Array<{ heading: string; kind: LearnedKind; max: number }> = [
@@ -180,9 +192,18 @@ function formatDate(iso: string): string {
 export function renderPersonaMarkdown(personaMd: string, learned: LearnedItem[]): string {
   const base = stripLearnedSections(personaMd);
   const blocks: string[] = [base];
+  // 试用中的新规则会暂时替换掉它要取代的旧规则，这样才能真正比较效果
+  const supersededIds = new Set(
+    learned.filter((it) => it.status === 'trial' && it.supersedes).map((it) => it.supersedes as string)
+  );
   for (const { heading, kind, max } of LEARNED_SECTION_HEADINGS) {
     const items = learned
-      .filter((it) => it.kind === kind && RENDERED_STATUSES.includes(it.status))
+      .filter(
+        (it) =>
+          it.kind === kind &&
+          RENDERED_STATUSES.includes(it.status) &&
+          !(it.status === 'active' && supersededIds.has(it.id))
+      )
       .slice(-max);
     if (items.length === 0) {
       if (kind === 'correction' && personaMd.includes(CORRECTION_HEADING)) {
@@ -209,6 +230,8 @@ export function ensurePersonaSpec(personaMd: string, spec?: Partial<PersonaSpec>
       fingerprint: spec.fingerprint,
       traits: spec.traits,
       learned: spec.learned.filter((it) => it && typeof it.text === 'string'),
+      recentQuality: Array.isArray(spec.recentQuality) ? spec.recentQuality.slice(-12) : undefined,
+      memoryStats: spec.memoryStats && typeof spec.memoryStats === 'object' ? spec.memoryStats : undefined,
     };
   }
   const fp = fingerprintFromPersonaMd(personaMd);

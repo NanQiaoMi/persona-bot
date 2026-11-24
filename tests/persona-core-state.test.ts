@@ -243,16 +243,16 @@ describe('B4/B5 snapshot quotas, atomic writes and persistent evolution cursor',
         timestamp: new Date(base + i * 1000).toISOString(),
       }))
     );
-    await runAutoEvolutionIfDue(TEST_SLUG);
+    await runAutoEvolutionIfDue(TEST_SLUG, { quietTurns: 4 });
     const after = await storageRepo.getPersona(TEST_SLUG);
     expect(after?.evolution?.lastEvolvedUserTurn).toBe(4);
     expect(after?.evolution?.lastEvolvedAt).toBeTruthy();
 
-    const again = await runAutoEvolutionIfDue(TEST_SLUG);
+    const again = await runAutoEvolutionIfDue(TEST_SLUG, { quietTurns: 4 });
     expect(again).toBe(false);
     const list = await storageRepo.listSnapshots(TEST_SLUG);
     const autoCount = list.filter((s) => s.kind === 'auto').length;
-    await runAutoEvolutionIfDue(TEST_SLUG);
+    await runAutoEvolutionIfDue(TEST_SLUG, { quietTurns: 4 });
     expect((await storageRepo.listSnapshots(TEST_SLUG)).filter((s) => s.kind === 'auto').length).toBe(autoCount);
   });
 });

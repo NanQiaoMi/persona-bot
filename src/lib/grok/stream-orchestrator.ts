@@ -6,8 +6,8 @@ import {
 } from '@/lib/grok/deep-search';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
-import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
-import { maybeRunAutoEvolution } from '@/lib/persona/evolution';
+import { runPostTurnPipeline } from '@/lib/persona/evolution';
+import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { scoreReply, toMessageStyleMetrics } from '@/lib/persona/eval/scorer';
 import { fingerprintFromPersonaMd } from '@/lib/persona/fingerprint';
 import { blendStyle } from '@/lib/persona/style-blend';
@@ -842,6 +842,7 @@ export async function executeGrokChatTurn(
 
   // Stage 3: Prompt Assembly & Streaming LLM Call
   const userStyleProfile = analyzeUserChatStyle(req.messages);
+  const recalledMemories = retrieveRelevantMemories(persona.memoriesMd, lastUserText).relevant;
   const blendedStyle = blendStyle(
     persona.spec?.fingerprint ?? fingerprintFromPersonaMd(persona.personaMd),
     req.messages
@@ -1071,9 +1072,13 @@ export async function executeGrokChatTurn(
       userMessageRecord,
       combinedMessage,
     ]);
-    void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply)
-      .then(() => maybeRunAutoEvolution(persona.slug))
-      .catch(() => {});
+    void runPostTurnPipeline({
+    slug: persona.slug,
+    conversationSlug: channelPersona.slug,
+    userText: lastUserText,
+    reply: parsed.cleanReply,
+    recalledMemories,
+  }).catch(() => {});
 
     return combinedMessage;
   }
@@ -1195,9 +1200,13 @@ export async function executeGrokChatTurn(
     userMessageRecord,
     ...assistantMessages,
   ]);
-  void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply)
-    .then(() => maybeRunAutoEvolution(persona.slug))
-    .catch(() => {});
+  void runPostTurnPipeline({
+    slug: persona.slug,
+    conversationSlug: channelPersona.slug,
+    userText: lastUserText,
+    reply: parsed.cleanReply,
+    recalledMemories,
+  }).catch(() => {});
 
   const pendingFollowup: PendingFollowup | undefined = parsed.followup
     ? {

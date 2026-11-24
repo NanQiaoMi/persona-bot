@@ -1,10 +1,16 @@
 import { chatCompletion, parseJsonFromLlmOutput, resolveLlmConfig } from '@/lib/llm/client';
 import {
+  autoPersistTurnMemory,
   extractMemorableFactFromTurn,
-  mergeMemoryIntoMarkdown,
 } from '@/lib/persona/auto-memory';
 import { analyzeUserChatStyle } from '@/lib/persona/style-loop';
-import { mergeLearnedCandidates } from '@/lib/persona/learned';
+import { evaluateLastTurn } from '@/lib/persona/feedback-signals';
+import {
+  addMemoryWithRetention,
+  archiveExpiredSchedules,
+  recordRecall,
+} from '@/lib/persona/memory-lifecycle';
+import { admitCandidates, applyTurnQuality, TrialTransition } from '@/lib/persona/trial';
 import {
   ensurePersonaSpec,
   LEARNED_HABITS_HEADING,
@@ -23,6 +29,8 @@ export interface EvolutionResult {
   addedStyleRules: string[];
   prunedSchedules: number;
   usedLLM: boolean;
+  /** 被护栏或冲突消解拒绝的候选规则 */
+  rejectedRules?: Array<{ text: string; reason: string }>;
   summary: string;
   persona?: PersonaRecord;
 }
@@ -323,26 +331,36 @@ ${transcript}`;
   const cursor = options?.userTurnCursor;
 
   // LLM 调用期间角色可能已被其他写入修改：在锁内基于最新记录重新合并，避免覆盖并发写入
-  let outcome: Omit<EvolutionResult, 'usedLLM' | 'persona'> | null = null;
+  let outcome: Omit<EvolutionResult, 'usedLLM' | 'persona' | 'rejectedRules'> | null = null;
+  let rejectedRules: Array<{ text: string; reason: string }> = [];
   const saved = await storageRepo.updatePersona(slug, async (fresh) => {
-    const pruned = pruneExpiredScheduleLines(fresh.memoriesMd);
+    const pruned = (() => {
+      const r = archiveExpiredSchedules(fresh.memoriesMd);
+      return { prunedCount: r.archivedCount, memoriesMd: r.memoriesMd };
+    })();
     let nextMemoriesMd = pruned.memoriesMd;
+    const freshSpec = ensurePersonaSpec(fresh.personaMd, fresh.spec);
+    let memoryStats = freshSpec.memoryStats || {};
     const addedMemories: string[] = [];
     for (const mem of candidateMemories) {
-      const merged = mergeMemoryIntoMarkdown(nextMemoriesMd, mem);
+      const merged = addMemoryWithRetention(nextMemoriesMd, mem, memoryStats);
       if (merged.updated) {
         nextMemoriesMd = merged.memoriesMd;
+        memoryStats = merged.stats;
         addedMemories.push(mem);
       }
     }
 
+    // 新学到的习惯 / 风格规则先经过护栏与冲突消解，再以「试用」状态进入 Prompt
     const source = usedLLM ? 'llm' : 'heuristic';
-    const learnedMerge = mergeLearnedCandidates(ensurePersonaSpec(fresh.personaMd, fresh.spec), [
+    const admitted = admitCandidates({ ...freshSpec, memoryStats }, [
       ...candidateHabits.map((text) => ({ kind: 'habit' as const, text, source: source as 'llm' | 'heuristic' })),
       ...candidateStyleRules.map((text) => ({ kind: 'style' as const, text, source: source as 'llm' | 'heuristic' })),
     ]);
-    const addedHabits = learnedMerge.added.filter((it) => it.kind === 'habit').map((it) => it.text);
-    const addedStyleRules = learnedMerge.added.filter((it) => it.kind === 'style').map((it) => it.text);
+    const learnedMerge = { spec: admitted.spec };
+    const addedHabits = admitted.trialed.filter((it) => it.kind === 'habit').map((it) => it.text);
+    const addedStyleRules = admitted.trialed.filter((it) => it.kind === 'style').map((it) => it.text);
+    rejectedRules = admitted.rejected;
 
     const hasChanges =
       addedMemories.length > 0 ||
@@ -352,7 +370,7 @@ ${transcript}`;
 
     const evolutionState =
       typeof cursor === 'number'
-        ? { lastEvolvedUserTurn: cursor, lastEvolvedAt: new Date().toISOString() }
+        ? { lastEvolvedUserTurn: cursor, lastEvolvedAt: new Date().toISOString(), pendingSignals: 0 }
         : fresh.evolution;
 
     if (!hasChanges) {
@@ -363,7 +381,7 @@ ${transcript}`;
 
     const summaryText =
       llmSummary ||
-      `新增 ${addedMemories.length} 条记忆、${addedHabits.length} 条习惯、${addedStyleRules.length} 条口吻学习${
+      `新增 ${addedMemories.length} 条记忆，${addedHabits.length} 条习惯与 ${addedStyleRules.length} 条口吻规则进入试用${
         pruned.prunedCount > 0 ? `，归档 ${pruned.prunedCount} 条过期日程` : ''
       }`;
 
@@ -387,7 +405,12 @@ ${transcript}`;
   });
 
   if (outcome) {
-    return { ...(outcome as Omit<EvolutionResult, 'usedLLM' | 'persona'>), usedLLM, persona: saved || persona };
+    return {
+      ...(outcome as Omit<EvolutionResult, 'usedLLM' | 'persona' | 'rejectedRules'>),
+      usedLLM,
+      rejectedRules,
+      persona: saved || persona,
+    };
   }
 
   return {
@@ -397,6 +420,7 @@ ${transcript}`;
     addedStyleRules: [],
     prunedSchedules: 0,
     usedLLM,
+    rejectedRules,
     summary: options?.force
       ? '已强制整理：记忆与对话风格已处于最新状态'
       : '记忆与对话风格已处于最新状态，暂无新增改动',
@@ -409,18 +433,37 @@ ${transcript}`;
  */
 const inFlightEvolution = new Set<string>();
 
+export const QUIET_EVOLUTION_TURNS = 8;
+export const SIGNAL_EVOLUTION_TURNS = 3;
+
+/**
+ * 信号驱动触发：上次整理后有显式/负面反馈时 3 轮就整理；一切平稳时 8 轮整理一次
+ */
+export function isEvolutionDue(
+  newUserTurns: number,
+  pendingSignals: number,
+  opts: { quietTurns?: number; signalTurns?: number } = {}
+): boolean {
+  const quiet = opts.quietTurns ?? QUIET_EVOLUTION_TURNS;
+  const signal = opts.signalTurns ?? SIGNAL_EVOLUTION_TURNS;
+  return newUserTurns >= quiet || (pendingSignals > 0 && newUserTurns >= signal);
+}
+
 export async function maybeRunAutoEvolution(slug: string): Promise<boolean> {
   if (process.env.VITEST) return false;
   return runAutoEvolutionIfDue(slug);
 }
 
 /**
- * 判断是否到了自动整理的轮次（游标持久化在角色元数据中），到期则执行；可在测试中直接调用
+ * 判断是否到了自动整理的时机（游标持久化在角色元数据中），到期则执行；可在测试中直接调用
  */
-export async function runAutoEvolutionIfDue(slug: string, every = 4): Promise<boolean> {
+export async function runAutoEvolutionIfDue(
+  slug: string,
+  opts: { quietTurns?: number; signalTurns?: number; conversationSlug?: string } = {}
+): Promise<boolean> {
   if (inFlightEvolution.has(slug)) return false;
   const [allMsgs, persona] = await Promise.all([
-    storageRepo.getConversation(slug, 0),
+    storageRepo.getConversation(opts.conversationSlug || slug, 0),
     storageRepo.getPersona(slug),
   ]);
   if (!persona) return false;
@@ -432,7 +475,7 @@ export async function runAutoEvolutionIfDue(slug: string, every = 4): Promise<bo
       m.role === 'user' &&
       (!Number.isFinite(sinceMs) || new Date(m.timestamp).getTime() > sinceMs)
   ).length;
-  if (newUserTurns < every) {
+  if (!isEvolutionDue(newUserTurns, persona.evolution?.pendingSignals ?? 0, opts)) {
     return false;
   }
   const userTurnCount = (persona.evolution?.lastEvolvedUserTurn ?? 0) + newUserTurns;
@@ -447,5 +490,71 @@ export async function runAutoEvolutionIfDue(slug: string, every = 4): Promise<bo
     return res.evolved;
   } finally {
     inFlightEvolution.delete(slug);
+  }
+}
+
+export interface PostTurnLearningResult {
+  quality?: number;
+  transitions: TrialTransition[];
+  signalCounted: boolean;
+}
+
+/**
+ * 每轮回复落库后执行：用「上一轮回复的风格分 + 用户这句话的反应」推进试用规则状态机，
+ * 记录本轮被想起的记忆，并累计反馈信号供信号驱动触发使用
+ */
+export async function runPostTurnLearning(
+  slug: string,
+  options: { conversationSlug?: string; recalledMemories?: string[] } = {}
+): Promise<PostTurnLearningResult> {
+  const messages = await storageRepo.getConversation(options.conversationSlug || slug, 40);
+  const turn = evaluateLastTurn(messages);
+  const recalled = options.recalledMemories || [];
+  const result: PostTurnLearningResult = { transitions: [], signalCounted: false };
+  if (!turn && recalled.length === 0) return result;
+
+  await storageRepo.updatePersona(slug, (persona) => {
+    let spec = ensurePersonaSpec(persona.personaMd, persona.spec);
+    let evolution = persona.evolution;
+    if (turn) {
+      const applied = applyTurnQuality(spec, turn);
+      spec = applied.spec;
+      result.quality = turn.quality;
+      result.transitions = applied.transitions;
+      if (turn.signal.explicit || turn.signal.polarity === 'negative') {
+        result.signalCounted = true;
+        evolution = {
+          lastEvolvedUserTurn: evolution?.lastEvolvedUserTurn ?? 0,
+          lastEvolvedAt: evolution?.lastEvolvedAt,
+          pendingSignals: (evolution?.pendingSignals ?? 0) + 1,
+        };
+      }
+    }
+    if (recalled.length) {
+      spec = { ...spec, memoryStats: recordRecall(spec.memoryStats, recalled) };
+    }
+    return { ...persona, spec, evolution };
+  });
+  return result;
+}
+
+/**
+ * 每轮对话结束后的后台学习流水线：沉淀记忆 → 推进试用 → 必要时触发整理
+ */
+export async function runPostTurnPipeline(params: {
+  slug: string;
+  conversationSlug: string;
+  userText: string;
+  reply: string;
+  recalledMemories: string[];
+}): Promise<void> {
+  await autoPersistTurnMemory(params.slug, params.userText, params.reply);
+  await runPostTurnLearning(params.slug, {
+    conversationSlug: params.conversationSlug,
+    recalledMemories: params.recalledMemories,
+  });
+  // @ 唤起的角色只记忆，不在别的角色的会话里做整理
+  if (params.slug === params.conversationSlug) {
+    await maybeRunAutoEvolution(params.slug);
   }
 }

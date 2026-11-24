@@ -1,3 +1,5 @@
+import { addMemoryWithRetention } from '@/lib/persona/memory-lifecycle';
+import { ensurePersonaSpec } from '@/lib/persona/spec';
 import { storageRepo } from '@/lib/storage/repository';
 
 const AUTO_MEMORY_HEADING = '## 4. 对话自动沉淀的长期记忆';
@@ -115,10 +117,12 @@ export async function autoPersistTurnMemory(
 
   let updated = false;
   await storageRepo.updatePersona(slug, (persona) => {
-    const merged = mergeMemoryIntoMarkdown(persona.memoriesMd, fact);
+    const spec = ensurePersonaSpec(persona.personaMd, persona.spec);
+    // 按重要度 + 新近度 + 被想起次数淘汰，近义记忆合并为最新表述
+    const merged = addMemoryWithRetention(persona.memoriesMd, fact, spec.memoryStats);
     if (!merged.updated) return null;
     updated = true;
-    return { ...persona, memoriesMd: merged.memoriesMd };
+    return { ...persona, memoriesMd: merged.memoriesMd, spec: { ...spec, memoryStats: merged.stats } };
   });
   return updated;
 }
