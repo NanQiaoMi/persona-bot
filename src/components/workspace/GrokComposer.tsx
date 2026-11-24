@@ -55,6 +55,8 @@ export default function GrokComposer({
   >(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const plusBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const el = textInputRef.current;
@@ -62,6 +64,26 @@ export default function GrokComposer({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, [value]);
+
+  useEffect(() => {
+    textInputRef.current?.focus();
+  }, [personaName]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        popoverRef.current?.contains(target) ||
+        plusBtnRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setMenuOpen(false);
+    };
+    window.addEventListener("mousedown", handleOutside);
+    return () => window.removeEventListener("mousedown", handleOutside);
+  }, [menuOpen]);
 
   const handlePasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
@@ -209,7 +231,10 @@ export default function GrokComposer({
       <div className="relative max-w-3xl mx-auto">
         {/* Floating "+" Toolbox Popover */}
         {menuOpen && (
-          <div className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in">
+          <div
+            ref={popoverRef}
+            className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in"
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--text-primary)]">
                 Grok 能力与人格工具箱
@@ -440,6 +465,7 @@ export default function GrokComposer({
           />
 
           <button
+            ref={plusBtnRef}
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="打开功能菜单"

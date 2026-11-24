@@ -231,6 +231,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     loadPersonaList,
   ]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (streaming && activePersona) {
+      document.title = `${activePersona.name} 正在输入... · PersonaBot`;
+    } else if (activePersona) {
+      document.title = `${activePersona.name} — PersonaBot`;
+    } else {
+      document.title = "PersonaBot — Grok Bot 拟人桌面工作台";
+    }
+  }, [streaming, activePersona]);
+
   const handleToggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);

@@ -18,6 +18,36 @@ interface LeftSidebarProps {
   onCollapse?: () => void;
 }
 
+function formatSidebarTime(iso?: string): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs >= 0 && diffMs < 60_000) return "刚刚";
+
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  const yesterdayStart = todayStart - 86_400_000;
+  const dayStart = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  ).getTime();
+
+  if (dayStart === todayStart) {
+    return date.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  if (dayStart === yesterdayStart) return "昨天";
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 export default function LeftSidebar({
   personas,
   activeSlug,
@@ -166,12 +196,18 @@ export default function LeftSidebar({
       <div className="flex-1 overflow-y-auto px-3 space-y-1">
         {subBots.map((p, index) => {
           const isActive = p.slug === activeSlug;
+          const isBotTyping = isActive && isStreaming;
           const mascotCfg = getMascotConfigForPersona(p.slug, p.profile, index);
-          const snippet =
-            p.lastMessage ||
-            p.profile.bio ||
-            p.emotionState?.moodLabel ||
-            "点击开启实时对话...";
+          const cleanLastMessage = (p.lastMessage || "")
+            .replace(/^\[来自主控\s*Bot[^\]]*\]\s*/i, "")
+            .trim();
+          const snippet = isBotTyping
+            ? "正在输入..."
+            : cleanLastMessage ||
+              p.profile.bio ||
+              p.emotionState?.moodLabel ||
+              "点击开启实时对话...";
+          const timeLabel = formatSidebarTime(p.lastActive);
 
           return (
             <button
@@ -198,7 +234,7 @@ export default function LeftSidebar({
                 size={34}
                 trackPointer
                 blinkDelayMs={index * 750}
-                state={isActive && isStreaming ? "working" : "idle"}
+                state={isBotTyping ? "working" : "idle"}
               />
 
               <div className="flex-1 min-w-0">
@@ -206,14 +242,26 @@ export default function LeftSidebar({
                   <span className="text-[13.5px] font-semibold text-[var(--text-primary)] truncate">
                     {p.name}
                   </span>
-                  {isActive && isStreaming && (
+                  {isBotTyping ? (
                     <span
                       className="w-2 h-2 rounded-full animate-pulse-dot shrink-0"
                       style={{ backgroundColor: mascotCfg.color }}
                     />
+                  ) : (
+                    timeLabel && (
+                      <span className="text-[10.5px] text-[var(--text-muted)] tabular-nums shrink-0">
+                        {timeLabel}
+                      </span>
+                    )
                   )}
                 </div>
-                <p className="text-[11.5px] text-[var(--text-secondary)] truncate mt-0.5">
+                <p
+                  className={`text-[11.5px] truncate mt-0.5 ${
+                    isBotTyping
+                      ? "animate-text-shimmer font-medium"
+                      : "text-[var(--text-secondary)]"
+                  }`}
+                >
                   {snippet}
                 </p>
               </div>

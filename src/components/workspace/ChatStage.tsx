@@ -214,6 +214,17 @@ export default function ChatStage({
     }
   }, [messages, streaming]);
 
+  useEffect(() => {
+    if (!lightboxMedia) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxMedia(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxMedia]);
+
   const speakMessage = (id: string, text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
@@ -528,14 +539,24 @@ export default function ChatStage({
                       {timeDividerNode}
                       <div className="flex flex-col items-end animate-msg-user">
                         {msg.imageUrl && (
-                          <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLightboxMedia({
+                                url: msg.imageUrl!,
+                                caption: "我发送的图片",
+                                kind: "photo",
+                              })
+                            }
+                            className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
+                          >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={msg.imageUrl}
                               alt="用户上传图片"
                               className="w-full max-h-56 object-cover"
                             />
-                          </div>
+                          </button>
                         )}
                         <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
                           <p className="whitespace-pre-wrap break-words">
