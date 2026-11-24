@@ -36,6 +36,10 @@ interface RightInspectorProps {
   onDismissGrowthNotice?: () => void;
   onReportGrowth?: (notice: string) => void;
   onRefineReferencePortrait?: (sourceImageUrl?: string) => Promise<void>;
+  hasUnreadMoments?: boolean;
+  momentsRefreshSignal?: number;
+  onClearUnreadMoments?: () => void;
+  onMomentsFeedLoaded?: (latestPostId?: string) => void;
   onOpenAvatarPicker: () => void;
   onClose: () => void;
 }
@@ -61,6 +65,10 @@ export default function RightInspector({
   onDismissGrowthNotice,
   onReportGrowth,
   onRefineReferencePortrait,
+  hasUnreadMoments = false,
+  momentsRefreshSignal = 0,
+  onClearUnreadMoments,
+  onMomentsFeedLoaded,
   onOpenAvatarPicker,
   onClose,
 }: RightInspectorProps) {
@@ -235,14 +243,23 @@ export default function RightInspector({
         <div className="mt-3 inline-flex items-center p-0.5 rounded-full bg-black/[0.05] dark:bg-white/[0.06]">
           <button
             type="button"
-            onClick={() => setSection("activity")}
-            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
+            onClick={() => {
+              setSection("activity");
+              onClearUnreadMoments?.();
+            }}
+            className={`relative px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
               section === "activity"
                 ? "bg-[var(--bg-composer)] text-[var(--text-primary)] grok-active-row"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
-            动态
+            <span>动态</span>
+            {hasUnreadMoments && section !== "activity" && (
+              <span
+                aria-label="有新朋友圈动态"
+                className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[var(--bg-secondary)]"
+              />
+            )}
           </button>
           <button
             type="button"
@@ -261,7 +278,12 @@ export default function RightInspector({
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 pb-5 space-y-4 text-xs">
         {section === "activity" ? (
-          <MomentsFeed key={persona.slug} persona={persona} />
+          <MomentsFeed
+            key={persona.slug}
+            persona={persona}
+            refreshSignal={momentsRefreshSignal}
+            onFeedLoaded={onMomentsFeedLoaded}
+          />
         ) : (
           <div className="space-y-3.5 animate-fade-in">
             {/* Sub-tabs inside 资料库 */}
