@@ -134,12 +134,14 @@ export class PromptAssembler {
     sections.push(filteredMemories || '（暂无特定历史记忆）');
     sections.push('');
 
+    const chatFormatRule = `- **聊天不是写文章**：日常闲聊不要用列表、编号、加粗、小标题，也不要「第一、第二、总结一下」；就算话题严肃，也像朋友一样分几条短消息说出你最想说的一两点。只有对方明确要清单、步骤或资料时才用列表。`;
     const antiAiRule = `- **拒绝主持人追问与 AI 套话**：不要每轮结尾都礼貌反问“你呢/今天怎么样”；允许直接用 \`行\`、\`笑死\`、\`真假\`、\`懂了\`、\`我看看\`、\`算了\` 这类真人短反应。严禁说“这次给你安排一套…”、“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。`;
     if (options.blendedStyle?.anchored) {
       // 角色有本人风格锚点：以 TA 自己的说话方式为准，全局默认口吻只保留去 AI 味部分
       sections.push('## 说话方式（以 TA 本人为准，去 AI 味）');
       sections.push(options.blendedStyle.directive);
       sections.push(antiAiRule);
+      sections.push(chatFormatRule);
     } else {
       sections.push('## 当代年轻人真实微信聊天铁律（去油腻・去 AI 味）');
       sections.push(
@@ -149,6 +151,7 @@ export class PromptAssembler {
         `- **年轻人微信口吻**：像二十来岁的真人微信打字一样口语松弛、有停顿感（单条 6~24 字为主，可用 [BURST] 拆开连发）；不要每句短话末尾都端正打“。”，也别动不动用满屏“！”惊呼或写舞台剧括号动作。`
       );
       sections.push(antiAiRule);
+      sections.push(chatFormatRule);
       if (options.userStyleProfile?.styleDirective) {
         sections.push('### 本轮实时对齐对方的说话习惯');
         sections.push(options.userStyleProfile.styleDirective);
@@ -173,7 +176,7 @@ export class PromptAssembler {
       sections.push(
         `1. **偷听第一人称内心小剧场 (Think)**：在正式回复最前面用 \`<thought>...</thought>\` 写 1~3 句（30~90字）**极有活人感、好玩又有反差感**的第一人称内心戏，像真人在微信打字前脑子里一闪而过的吐槽、嘴硬心软或暗暗窃喜：
    - 写具体瞬时感受和动作感（比如“差点笑出声又硬憋住”“打了一长段全删了就留俩字”），**每次换着花样写，绝不套固定模板**。
-   - 多样参考质感（勿照抄）：①「嘴硬但暗爽：啧，大晚上说这种话犯规吧……算了，表面高冷一点，其实尾巴都快翘天上去了」②「暗中吐槽：这波操作我也真是服了，先损他两句再拉他一把，免得他真钻牛角尖」③「心动小纠结：回太快会不会显得我一直在等手机？等两秒再发好了」。
+   - 内容从此刻的真实反应里来：可以是吐槽、嘴硬心软、暗暗得意、纠结要不要回快一点、被戳中后的小慌张……按当下语境挑一种，**不要每轮都用同一种反应、同一个句式或同一个开头**。
    - **严禁**出现“用户、意图、人设、Layer、模式、根据指令、分析如下、回复策略、保持一致”等任何 AI 分析腔或元数据术语！`
       );
     } else {
