@@ -62,11 +62,58 @@ function botMeta(persona: Pick<PersonaRecord, 'slug' | 'name' | 'profile'>, idx 
   return { slug: persona.slug, name: persona.name, shape: m.shape, color: m.color };
 }
 
-/** 群聊里去掉单聊专属的标签与多余空白，只保留 1~2 条短消息 */
-function normalizeGroupBursts(bursts: string[] | undefined, content: string): string[] {
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * 模型会模仿上下文里「名字：内容」的格式，给自己的话也加上名字前缀。
+ * 这里认出本人的全名，以及空格前的第一段名字（如「陆凛 Zero」→「陆凛」），全角/半角冒号都算。
+ */
+function buildSelfPrefixPattern(speakerName?: string): RegExp | null {
+  const full = (speakerName || '').trim();
+  if (!full) return null;
+  const variants = new Set<string>([full]);
+  const first = full.split(/\s+/)[0];
+  if (first) variants.add(first);
+  const alts = [...variants]
+    .sort((a, b) => b.length - a.length)
+    .map((v) => escapeRegExp(v).replace(/\s+/g, '\\s*'));
+  return new RegExp(`^\\s*(?:${alts.join('|')})\\s*[：:]\\s*`);
+}
+
+/** 去掉一个气泡里的本人名字前缀；多行都带前缀时拆成多个气泡 */
+function stripSelfPrefix(bubble: string, pattern: RegExp | null): string[] {
+  if (!pattern) return [bubble];
+  const lines = bubble.split('\n');
+  const prefixedCount = lines.filter((l) => pattern.test(l)).length;
+  if (prefixedCount === 0) return [bubble];
+  if (prefixedCount === 1) {
+    return [lines.map((l) => l.replace(pattern, '')).join('\n')];
+  }
+  const segments: string[] = [];
+  for (const line of lines) {
+    if (pattern.test(line) || segments.length === 0) {
+      segments.push(line.replace(pattern, ''));
+    } else {
+      segments[segments.length - 1] += `\n${line}`;
+    }
+  }
+  return segments;
+}
+
+/** 群聊里去掉单聊专属的标签、本人名字前缀与多余空白，只保留 1~2 条短消息 */
+export function normalizeGroupBursts(
+  bursts: string[] | undefined,
+  content: string,
+  speakerName?: string
+): string[] {
   const source = bursts && bursts.length > 0 ? bursts : content.split(/\n{2,}/);
+  const selfPrefix = buildSelfPrefixPattern(speakerName);
   return source
     .map((b) => b.replace(/\[(?:FOLLOWUP|EARLY|PHOTO|VOICE)[^\]]*\]/gi, '').trim())
+    .flatMap((b) => stripSelfPrefix(b, selfPrefix))
+    .map((b) => b.trim())
     .filter(Boolean)
     .slice(0, 2);
 }
@@ -311,7 +358,7 @@ async function generateMemberReply(params: {
       console.warn(`[group] ${persona.slug} 模型未返回有效回复，改用离线群聊话术`);
       return offline();
     }
-    const bursts = normalizeGroupBursts(result.bursts, result.content);
+    const bursts = normalizeGroupBursts(result.bursts, result.content, persona.name);
     return bursts.length > 0 ? dedupeFirst(bursts) : offline();
   } catch (err) {
     console.warn(`[group] ${persona.slug} 生成失败，改用离线群聊话术：`, err);

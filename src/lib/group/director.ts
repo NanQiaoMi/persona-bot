@@ -269,6 +269,7 @@ export function buildGroupSystemDirective(params: {
     `- 群名「${params.groupName}」，群里有：我（群主，也就是和你单聊的那个人）、${others}，以及你自己（${params.speakerName}）。`,
     params.topic ? `- 这个群的话题：${params.topic}` : '',
     '- 上下文里「名字：内容」是别人说的话，不带前缀的是你自己之前说的。',
+    `- 回复时不要加自己的名字前缀（不要写「${params.speakerName}：」），直接说内容。`,
     '- 像真实群聊一样说话：一次只发 1~2 条短消息，比单聊更短更随意；可以接别人的话、吐槽、附和或唱反调，必要时用「@名字」点名某个人。',
     '- 不要复述别人刚说过的话，不要总结全场，不要当主持人挨个点名，也不要替别人说话。',
     '- 本轮不要输出 <thought>、[FOLLOWUP]、[EARLY]、[PHOTO] 标签；最多 1 个 [STICKER]。',
