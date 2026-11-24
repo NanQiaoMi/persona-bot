@@ -1,9 +1,11 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/primitives";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { Button, Skeleton } from "@/components/primitives";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { buildStarterSuggestions } from "@/lib/persona/starters";
 import {
   ConversationMessage,
   MediaCard,
@@ -39,6 +41,9 @@ interface ChatStageProps {
   persona: PersonaRecord | null;
   personas?: PersonaSummary[];
   messages: ConversationMessage[];
+  isLoadingHistory?: boolean;
+  failedMessageIds?: Set<string>;
+  onRetryMessage?: (msgId: string) => void;
   streaming: StreamingState | null;
   input: string;
   onChangeInput: (val: string) => void;
@@ -185,6 +190,9 @@ export default function ChatStage({
   persona,
   personas = [],
   messages,
+  isLoadingHistory = false,
+  failedMessageIds,
+  onRetryMessage,
   streaming,
   input,
   onChangeInput,
@@ -221,6 +229,7 @@ export default function ChatStage({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mobileMoreRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
+  const { toast } = useFeedback();
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -411,15 +420,36 @@ export default function ChatStage({
       .slice(-6)
       .map((m) => `${m.role === "user" ? "我" : persona.name}: ${m.content}`)
       .join("\n\n");
+    const shareText = `【PersonaBot · ${persona.name} 对话片段】\n\n${summary || persona.profile.bio || ""}`;
+    const isCoarsePointer =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches;
+    if (
+      isCoarsePointer &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function"
+    ) {
+      try {
+        await navigator.share({
+          title: `PersonaBot · ${persona.name}`,
+          text: shareText,
+        });
+        toast("已调起系统分享", { tone: "success" });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+      }
+    }
     try {
-      await navigator.clipboard.writeText(
-        `【PersonaBot · ${persona.name} 对话片段】\n\n${summary || persona.profile.bio || ""}`
-      );
+      await navigator.clipboard.writeText(shareText);
       setSharedToast(true);
+      toast("已复制对话片段", { tone: "success" });
       setTimeout(() => setSharedToast(false), 1800);
     } catch {
-      setSharedToast(true);
-      setTimeout(() => setSharedToast(false), 1800);
+      toast("复制失败，请手动选中复制", { tone: "error" });
     }
   };
 
@@ -619,10 +649,30 @@ export default function ChatStage({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label="对话消息列表"
         className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 md:px-8 pt-2 pb-6"
       >
         <div key={persona.slug} className="max-w-[720px] mx-auto animate-stage-swap">
-          {messages.length === 0 && !streaming ? (
+          {isLoadingHistory && !streaming ? (
+            <div className="space-y-6 py-8" aria-label="正在加载历史对话">
+              <div className="flex justify-end">
+                <Skeleton variant="card" className="h-12 w-48 !rounded-[20px]" />
+              </div>
+              <div className="flex items-start gap-3">
+                <Skeleton variant="circle" className="h-8 w-8 shrink-0" />
+                <div className="flex-1 space-y-2 max-w-md">
+                  <Skeleton variant="line" className="w-24" />
+                  <Skeleton variant="card" className="h-20 w-full" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Skeleton variant="card" className="h-10 w-36 !rounded-[20px]" />
+              </div>
+            </div>
+          ) : messages.length === 0 && !streaming ? (
             /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
             <div className="pt-10 pb-8 flex flex-col items-center text-center space-y-6 animate-fade-in">
               <button
@@ -664,101 +714,27 @@ export default function ChatStage({
                 </div>
               </div>
 
-              {/* 4 One-Click Interactive Starter Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-1">
-                {(persona.isMaster || persona.slug === "master-bot"
-                  ? [
-                      {
-                        icon: "🧩",
-                        badgeBg: "bg-info-soft text-info",
-                        title: "全军协同调研今日科技动态",
-                        sub: "同时调度 3 个子 Bot 分头查证并汇总报告",
-                        text: "请帮我调度大家分头梳理今天最值得关注的 AI 工具与开源动态，分别汇报关键亮点和待核查项",
-                        enableSearch: true,
-                      },
-                      {
-                        icon: "📋",
-                        badgeBg: "bg-success-soft text-success",
-                        title: "让 艾拉 和 Zero 联合分析",
-                        sub: "跨 Bot 观点碰撞 + 汇总执行明细",
-                        text: "让 艾拉 和 Zero 帮我分析一下现在做个人 AI 助手最容易踩的 3 个坑，并给出可执行建议",
-                        enableSearch: false,
-                      },
-                      {
-                        icon: "🔍",
-                        badgeBg: "bg-brand-soft text-brand",
-                        title: "开启联网核查追踪清单",
-                        sub: "触发 DeepSearch 并记录覆盖来源",
-                        text: "帮我联网核查 GitHub 上最近热门的开源 Agent 项目，保留来源并标注未覆盖项",
-                        enableSearch: true,
-                      },
-                      {
-                        icon: "⚡",
-                        badgeBg: "bg-danger-soft text-danger",
-                        title: "检查全部子 Bot 当前状态",
-                        sub: "拉取团队成员最新工作记忆摘要",
-                        text: "向所有助手确认目前各自的专长与工作状态，给我一份简洁的总控状态简报",
-                        enableSearch: false,
-                      },
-                    ]
-                  : [
-                      {
-                        icon: "📊",
-                        badgeBg: "bg-info-soft text-info",
-                        title: "聊聊今天的热门新鲜事",
-                        sub: "实时翻一翻网上的最新动态给你锐评",
-                        text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
-                        enableSearch: true,
-                      },
-                      {
-                        icon: "💭",
-                        badgeBg: "bg-brand-soft text-brand",
-                        title: "说说你现在心里在想啥",
-                        sub: "听听 TA 没直说出口的真实小想法",
-                        text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
-                        enableSearch: false,
-                      },
-                      {
-                        icon: "📸",
-                        badgeBg: "bg-success-soft text-success",
-                        title: "发张你那边的随手拍",
-                        sub: "看看 TA 此刻身边的日常画面",
-                        text: "发张你现在手边的随手拍给我看看呗",
-                        enableSearch: false,
-                      },
-                      {
-                        icon: "🌙",
-                        badgeBg: "bg-danger-soft text-danger",
-                        title: "忙完了一天，求安慰",
-                        sub: "听几句贴合 TA 脾气的连环宽慰",
-                        text: "今天工作累麻了，快按你的脾气哄我两句",
-                        enableSearch: false,
-                      },
-                    ]
-                ).map((chip) => (
+              {/* 3 Personality-Tailored Starter Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl pt-1">
+                {buildStarterSuggestions(persona).map((starter, sIdx) => (
                   <button
-                    key={chip.title}
+                    key={starter.label}
                     type="button"
                     onClick={() =>
-                      onQuickSend(chip.text, { deepSearch: chip.enableSearch })
+                      onQuickSend(starter.prompt, {
+                        deepSearch: Boolean(persona.isMaster && sIdx === 0),
+                      })
                     }
-                    className="group/chip p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-transform duration-[var(--motion-base)] flex items-start gap-3 cursor-pointer"
+                    className="group/chip p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-transform duration-[var(--motion-base)] flex flex-col gap-1 cursor-pointer"
                   >
-                    <div
-                      className={`w-8 h-8 rounded-[var(--r-md)] flex items-center justify-center text-[14px] shrink-0 ${chip.badgeBg}`}
-                    >
-                      {chip.icon}
+                    <div className="text-[13px] font-semibold text-primary flex items-center justify-between gap-1">
+                      <span className="truncate">{starter.label}</span>
+                      <span className="text-muted opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-[transform,opacity] duration-[var(--motion-fast)]">
+                        →
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-semibold text-primary flex items-center justify-between gap-1">
-                        <span className="truncate">{chip.title}</span>
-                        <span className="text-muted opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-[transform,opacity] duration-[var(--motion-fast)]">
-                          →
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-secondary mt-0.5 line-clamp-1">
-                        {chip.sub}
-                      </div>
+                    <div className="text-[11px] text-secondary line-clamp-2 leading-relaxed">
+                      {starter.prompt}
                     </div>
                   </button>
                 ))}
@@ -794,6 +770,7 @@ export default function ChatStage({
                 ) : null;
 
                 if (isUser) {
+                  const isFailed = Boolean(msg.id && failedMessageIds?.has(msg.id));
                   return (
                     <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
                       {timeDividerNode}
@@ -818,11 +795,27 @@ export default function ChatStage({
                             />
                           </button>
                         )}
-                        <div className="max-w-[85%] sm:max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
+                        <div
+                          className={`max-w-[85%] sm:max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs ${
+                            isFailed ? "ring-1 ring-[var(--status-danger)]" : ""
+                          }`}
+                        >
                           <p className="whitespace-pre-wrap break-words">
                             {msg.content}
                           </p>
                         </div>
+                        {isFailed && onRetryMessage && (
+                          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-danger">
+                            <span>发送未成功</span>
+                            <button
+                              type="button"
+                              onClick={() => onRetryMessage(msg.id)}
+                              className="px-2 py-0.5 rounded-full border border-[var(--border-default)] bg-surface-raised text-primary hover:border-[var(--border-strong)] cursor-pointer"
+                            >
+                              重试发送
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </Fragment>
                   );

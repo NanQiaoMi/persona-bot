@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImportModal from "@/components/ImportModal";
 import {
   COMPACT_QUERY,
@@ -12,6 +12,11 @@ import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { shouldOpenLeftDrawerBySwipe } from "@/lib/responsive/gestures";
 import { describeRequestError, useFeedback } from "@/components/feedback/FeedbackProvider";
 import SettingsModal from "@/components/settings/SettingsModal";
+import {
+  DRAFTS_STORAGE_KEY,
+  parseDraftsJson,
+  serializeDrafts,
+} from "@/lib/storage/drafts";
 import {
   ConversationMessage,
   MediaCard,
@@ -27,6 +32,7 @@ import CommandPalette from "./CommandPalette";
 import CreateBotModal from "./CreateBotModal";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
+import ShortcutsModal from "./ShortcutsModal";
 
 interface GrokWorkspaceProps {
   initialSlug?: string;
@@ -83,6 +89,21 @@ export default function GrokWorkspace({
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showCreateBot, setShowCreateBot] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [draftsHydrated, setDraftsHydrated] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [loadedSlug, setLoadedSlug] = useState<string>("");
+  const [failedRequestsByMsgId, setFailedRequestsByMsgId] = useState<
+    Record<
+      string,
+      {
+        requestPhoto?: boolean;
+        requestSticker?: boolean;
+        mentionedSlug?: string;
+        deepSearchOverride?: boolean;
+      }
+    >
+  >({});
   const [autoNudgeEnabled, setAutoNudgeEnabled] = useState(true);
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const followupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,15 +111,40 @@ export default function GrokWorkspace({
   const idleNudgeCountRef = useRef<number>(0);
   const activeSlugRef = useRef(activeSlug);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const hadLoadErrorRef = useRef(false);
+
+  const failedMessageIds = useMemo(
+    () => new Set(Object.keys(failedRequestsByMsgId)),
+    [failedRequestsByMsgId]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem("personabot-theme");
+    const savedDrafts = window.localStorage.getItem(DRAFTS_STORAGE_KEY);
     if (saved === "dark" || saved === "light") {
       document.documentElement.setAttribute("data-theme", saved);
-      queueMicrotask(() => setTheme(saved));
     }
+    queueMicrotask(() => {
+      if (saved === "dark" || saved === "light") {
+        setTheme(saved);
+      }
+      setDraftsBySlug(parseDraftsJson(savedDrafts));
+      setDraftsHydrated(true);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!draftsHydrated || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        DRAFTS_STORAGE_KEY,
+        serializeDrafts(draftsBySlug)
+      );
+    } catch {
+      // Ignore quota errors
+    }
+  }, [draftsBySlug, draftsHydrated]);
 
   useEffect(() => {
     activeSlugRef.current = activeSlug;
@@ -160,6 +206,7 @@ export default function GrokWorkspace({
           setPersonas(data.personas);
         }
       } catch (err) {
+        hadLoadErrorRef.current = true;
         toast("角色列表没加载出来", {
           tone: "error",
           description: describeRequestError(err),
@@ -172,6 +219,7 @@ export default function GrokWorkspace({
 
   const loadActivePersonaDetail = useCallback(async (slug: string) => {
     const run = async (): Promise<void> => {
+      setLoadingHistory(true);
       try {
         const [pRes, cRes] = await Promise.all([
           fetch(`/api/personas/${encodeURIComponent(slug)}`),
@@ -189,12 +237,16 @@ export default function GrokWorkspace({
         } else {
           setMessages([]);
         }
+        setLoadedSlug(slug);
       } catch (err) {
+        hadLoadErrorRef.current = true;
         toast("聊天记录没加载出来", {
           tone: "error",
           description: describeRequestError(err),
           action: { label: "重试", onClick: () => void run() },
         });
+      } finally {
+        setLoadingHistory(false);
       }
     };
     await run();
@@ -215,19 +267,56 @@ export default function GrokWorkspace({
   }, [activeSlug, loadPersonaList, loadActivePersonaDetail]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onOnline = () => {
+      if (!hadLoadErrorRef.current) return;
+      hadLoadErrorRef.current = false;
+      toast("网络已恢复，正在同步数据...", { tone: "info" });
+      void loadPersonaList();
+      void loadActivePersonaDetail(activeSlugRef.current);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [loadPersonaList, loadActivePersonaDetail, toast]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setShowCommandPalette((prev) => !prev);
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         setShowCreateBot(true);
+      } else if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "i"
+      ) {
+        e.preventDefault();
+        setShowInspector((prev) => !prev);
       } else if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
         const idx = Number(e.key) - 1;
         if (personas[idx]) {
           e.preventDefault();
           setActiveSlug(personas[idx].slug);
         }
+      } else if (
+        !isEditable &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        e.key === "?"
+      ) {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -334,10 +423,19 @@ export default function GrokWorkspace({
       requestSticker?: boolean;
       mentionedSlug?: string;
       deepSearchOverride?: boolean;
+      userMsgId?: string;
     }
   ) => {
     clearScheduledFollowup();
     idleNudgeCountRef.current = 0;
+    if (options?.userMsgId) {
+      setFailedRequestsByMsgId((prev) => {
+        if (!(options.userMsgId! in prev)) return prev;
+        const next = { ...prev };
+        delete next[options.userMsgId!];
+        return next;
+      });
+    }
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
 
     setStreaming({
@@ -613,6 +711,17 @@ export default function GrokWorkspace({
       await loadPersonaList();
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
+        if (options?.userMsgId) {
+          setFailedRequestsByMsgId((prev) => ({
+            ...prev,
+            [options.userMsgId!]: {
+              requestPhoto: options.requestPhoto,
+              requestSticker: options.requestSticker,
+              mentionedSlug: options.mentionedSlug,
+              deepSearchOverride: options.deepSearchOverride,
+            },
+          }));
+        }
         toast("这条消息没发出去", {
           tone: "error",
           description: describeRequestError(error),
@@ -661,6 +770,7 @@ export default function GrokWorkspace({
       requestPhoto: options?.requestPhoto,
       requestSticker: options?.requestSticker,
       mentionedSlug: options?.mentionedSlug,
+      userMsgId: userMsg.id,
     });
   };
 
@@ -684,6 +794,19 @@ export default function GrokWorkspace({
     setInput("");
     await runStreamRequest(nextHistory, activeMode, {
       deepSearchOverride: options?.deepSearch,
+      userMsgId: userMsg.id,
+    });
+  };
+
+  const handleRetryMessage = async (msgId: string) => {
+    if (streaming) return;
+    const idx = messages.findIndex((m) => m.id === msgId);
+    if (idx < 0) return;
+    const storedOptions = failedRequestsByMsgId[msgId] || {};
+    const historyUpToMsg = messages.slice(0, idx + 1);
+    await runStreamRequest(historyUpToMsg, activeMode, {
+      ...storedOptions,
+      userMsgId: msgId,
     });
   };
 
@@ -759,6 +882,7 @@ export default function GrokWorkspace({
       const data = await res.json();
       if (data.success && data.persona) {
         setActivePersona(data.persona);
+        toast("已保存修改", { tone: "success" });
         await loadPersonaList();
       } else {
         throw new Error(data?.error?.message || `HTTP ${res.status}`);
@@ -908,6 +1032,9 @@ export default function GrokWorkspace({
         persona={activePersona}
         personas={personas}
         messages={messages}
+        isLoadingHistory={loadingHistory && loadedSlug !== activeSlug}
+        failedMessageIds={failedMessageIds}
+        onRetryMessage={handleRetryMessage}
         streaming={streaming}
         input={input}
         onChangeInput={setInput}
@@ -1016,6 +1143,12 @@ export default function GrokWorkspace({
         onToggleTheme={handleToggleTheme}
         onOpenSettings={() => setShowSettings(true)}
         onOpenCreateBot={() => setShowCreateBot(true)}
+        onOpenShortcuts={() => setShowShortcuts(true)}
+      />
+
+      <ShortcutsModal
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
       />
 
       <ImportModal
