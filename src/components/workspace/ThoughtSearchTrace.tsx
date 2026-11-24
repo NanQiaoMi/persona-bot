@@ -59,13 +59,13 @@ export default function ThoughtSearchTrace({
           setUserToggled(true);
           setExpanded(!isOpen);
         }}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer ${
-          isLive ? "border-[#18a999]/35" : "border-[var(--border-subtle)]"
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-raised hover:bg-surface-sunken border text-[12px] text-secondary hover:text-primary transition-colors cursor-pointer ${
+          isLive ? "border-brand/35" : "border-[var(--border-subtle)]"
         }`}
       >
         <span
-          className={`inline-flex items-center justify-center w-3 h-3 text-[10px] ${
-            isLive ? "animate-orbit-spin text-[#18a999]" : "text-[var(--text-muted)]"
+          className={`inline-flex items-center justify-center w-3 h-3 text-[11px] ${
+            isLive ? "animate-orbit-spin text-brand" : "text-muted"
           }`}
         >
           ✦
@@ -76,7 +76,7 @@ export default function ThoughtSearchTrace({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
-          className={`w-3 h-3 text-[var(--text-muted)] transition-transform duration-200 ${
+          className={`w-3 h-3 text-muted transition-transform duration-[var(--motion-base)] ${
             isOpen ? "rotate-180" : ""
           }`}
         >
@@ -92,9 +92,9 @@ export default function ThoughtSearchTrace({
         <div className="mt-2 ml-2 pl-3.5 border-l-2 border-[var(--border-subtle)] space-y-2.5 animate-fade-in">
           {hasSearch && (
             <div className="space-y-1.5">
-              <div className="text-[11px] text-[var(--text-secondary)]">
+              <div className="text-[11px] text-secondary">
                 🌐 顺手搜了下：
-                <span className="font-medium text-[var(--text-primary)]">
+                <span className="font-medium text-primary">
                   {searchQuery || "最近动态"}
                 </span>
               </div>
@@ -107,9 +107,9 @@ export default function ThoughtSearchTrace({
                       target="_blank"
                       rel="noreferrer"
                       title={item.snippet}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all max-w-[260px]"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--r-sm)] bg-surface-raised hover:bg-surface-sunken border border-[var(--border-subtle)] text-[11px] text-secondary hover:text-primary transition-colors max-w-[260px]"
                     >
-                      <span className="text-[10px] font-mono px-1 rounded bg-black/5 dark:bg-white/10 text-[var(--text-primary)]">
+                      <span className="text-[11px] font-mono px-1 rounded-[var(--r-sm)] bg-black/5 dark:bg-white/10 text-primary">
                         {idx + 1}
                       </span>
                       <span className="truncate">{item.title}</span>
@@ -121,11 +121,11 @@ export default function ThoughtSearchTrace({
           )}
 
           {hasThought && (
-            <div className="rounded-2xl bg-[var(--bg-secondary)]/75 border border-dashed border-[var(--border-strong)] px-3.5 py-2.5 space-y-1">
-              <div className="text-[11px] text-[var(--text-muted)]">
+            <div className="rounded-[var(--r-lg)] bg-surface-raised/75 border border-dashed border-[var(--border-strong)] px-3.5 py-2.5 space-y-1">
+              <div className="text-[11px] text-muted">
                 💭 心里嘀咕
               </div>
-              <div className="space-y-1 text-xs italic text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+              <div className="space-y-1 text-[12px] italic text-secondary leading-relaxed whitespace-pre-wrap">
                 {(thought || "正在想怎么回你...")
                   .split(/\n+/)
                   .map((beat) => beat.trim())

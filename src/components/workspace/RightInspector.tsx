@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button, FieldTextarea, IconButton } from "@/components/primitives";
 import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
+import { IDLE_MASCOT_COLOR } from "./mascot-palette";
 
 type LibraryTab = "emotion" | "persona" | "memories" | "growth" | "corrections";
 
@@ -95,17 +97,18 @@ export default function RightInspector({
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
 
   return (
-    <aside className="w-[312px] shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen animate-fade-in">
-      {/* Top Close & Centered Hero Avatar (Screenshot 3 Layout) */}
+    <aside className="w-[312px] shrink-0 border-l border-[var(--border-subtle)] bg-surface-raised flex flex-col h-screen animate-fade-in">
+      {/* Top Close & Centered Hero Avatar */}
       <div className="relative px-4 pt-4 pb-3 flex flex-col items-center">
-        <button
-          type="button"
+        <IconButton
+          label="收起右侧面板"
+          size={32}
+          variant="secondary"
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
-          title="收起右侧面板"
+          className="absolute top-3.5 right-3.5 !rounded-full bg-surface-base text-[12px]"
         >
           ✕
-        </button>
+        </IconButton>
 
         <button
           type="button"
@@ -121,7 +124,7 @@ export default function RightInspector({
             trackPointer
             state={isStreaming ? "working" : "idle"}
           />
-          <h3 className="mt-2.5 text-[15px] font-semibold text-[var(--text-primary)] group-hover:opacity-75 transition-opacity">
+          <h3 className="mt-2.5 text-[16px] font-semibold text-primary group-hover:opacity-75 transition-opacity">
             {persona.name}
           </h3>
         </button>
@@ -131,10 +134,10 @@ export default function RightInspector({
           <button
             type="button"
             onClick={() => setSection("activity")}
-            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
+            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-colors cursor-pointer ${
               section === "activity"
-                ? "bg-[var(--bg-composer)] text-[var(--text-primary)] grok-active-row"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                ? "bg-surface-base text-primary grok-active-row"
+                : "text-muted hover:text-primary"
             }`}
           >
             动态
@@ -142,10 +145,10 @@ export default function RightInspector({
           <button
             type="button"
             onClick={() => setSection("library")}
-            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
+            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-colors cursor-pointer ${
               section === "library"
-                ? "bg-[var(--bg-composer)] text-[var(--text-primary)] grok-active-row"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                ? "bg-surface-base text-primary grok-active-row"
+                : "text-muted hover:text-primary"
             }`}
           >
             资料库
@@ -154,24 +157,24 @@ export default function RightInspector({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-4 pb-5 space-y-4 text-xs">
+      <div className="flex-1 overflow-y-auto px-4 pb-5 space-y-4 text-[12px]">
         {section === "activity" ? (
           <div className="space-y-4 animate-fade-in">
             {/* 即将进行 */}
             <div>
-              <div className="px-1 pb-1.5 text-[11.5px] font-medium text-[var(--text-muted)]">
+              <div className="px-1 pb-1.5 text-[12px] font-medium text-muted">
                 即将进行
               </div>
-              <div className="p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
+              <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[13px] text-[var(--text-secondary)] shrink-0">
+                  <span className="w-7 h-7 rounded-full bg-surface-raised flex items-center justify-center text-[13px] text-secondary shrink-0">
                     🕒
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                    <div className="text-[13px] font-semibold text-primary truncate">
                       {persona.name} 每日三次汇报
                     </div>
-                    <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                    <div className="text-[11px] text-muted truncate mt-0.5">
                       每天 9:00、14:00 和 19:00 左右
                     </div>
                   </div>
@@ -180,10 +183,11 @@ export default function RightInspector({
                   type="button"
                   role="switch"
                   aria-checked={routineEnabled}
+                  aria-label="每日三次汇报"
                   onClick={() => setRoutineEnabled((v) => !v)}
                   className={`w-10 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
                     routineEnabled
-                      ? "bg-[#1683FF]"
+                      ? "bg-info"
                       : "bg-black/15 dark:bg-white/20"
                   }`}
                 >
@@ -196,16 +200,16 @@ export default function RightInspector({
               </div>
 
               {onToggleAutoNudge && (
-                <div className="mt-2 p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
+                <div className="mt-2 p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[13px] text-[var(--text-secondary)] shrink-0">
+                    <span className="w-7 h-7 rounded-full bg-surface-raised flex items-center justify-center text-[13px] text-secondary shrink-0">
                       💬
                     </span>
                     <div className="min-w-0">
-                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                      <div className="text-[13px] font-semibold text-primary truncate">
                         未回复主动追问
                       </div>
-                      <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                      <div className="text-[11px] text-muted truncate mt-0.5">
                         沉默 45 秒后结合语境轻敲追问
                       </div>
                     </div>
@@ -214,10 +218,11 @@ export default function RightInspector({
                     type="button"
                     role="switch"
                     aria-checked={autoNudgeEnabled}
+                    aria-label="未回复主动追问"
                     onClick={onToggleAutoNudge}
                     className={`w-10 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
                       autoNudgeEnabled
-                        ? "bg-[#1683FF]"
+                        ? "bg-info"
                         : "bg-black/15 dark:bg-white/20"
                     }`}
                   >
@@ -233,36 +238,36 @@ export default function RightInspector({
 
             {/* 电脑 ("Bot 的电脑") */}
             <div>
-              <div className="px-1 pb-1.5 text-[11.5px] font-medium text-[var(--text-muted)]">
+              <div className="px-1 pb-1.5 text-[12px] font-medium text-muted">
                 电脑
               </div>
               <button
                 type="button"
                 onClick={() => void onTriggerProactive(1)}
-                className="w-full p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-3 text-left hover:border-[var(--border-strong)] transition-all cursor-pointer"
-                title="点击唤醒 Bot 主动发一条最新动态"
+                className="w-full p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] flex items-center justify-between gap-3 text-left hover:border-[var(--border-strong)] transition-colors cursor-pointer"
+                title="点击唤醒角色主动发一条最新动态"
               >
                 <div>
-                  <div className="text-[13px] font-semibold text-[var(--text-primary)]">
-                    Bot 的电脑
+                  <div className="text-[13px] font-semibold text-primary">
+                    角色的电脑
                   </div>
-                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  <div className="text-[11px] text-muted mt-0.5">
                     {isStreaming ? "工作运转中..." : "休眠中"}
                   </div>
                 </div>
 
                 {/* Mini Screen Card */}
-                <div className="relative w-[76px] h-[46px] rounded-[10px] bg-gradient-to-br from-neutral-400/70 to-neutral-500/80 dark:from-neutral-700 dark:to-neutral-800 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
+                <div className="relative w-[76px] h-[46px] rounded-[var(--r-md)] bg-surface-sunken border border-[var(--border-subtle)] flex items-center justify-center overflow-hidden shadow-inner shrink-0">
                   <BlobMascot
                     shape={mascotCfg.shape}
-                    color={isStreaming ? mascotCfg.color : "#3A3A3E"}
+                    color={isStreaming ? mascotCfg.color : IDLE_MASCOT_COLOR}
                     size={22}
                     trackPointer={false}
                     state={isStreaming ? "working" : "idle"}
                   />
                   {!isStreaming && (
-                    <span className="absolute top-1 right-1.5 text-[9px] font-semibold text-white/75 select-none">
-                      z<sup className="text-[7px]">z</sup>
+                    <span className="absolute top-1 right-1.5 text-[11px] font-semibold text-muted select-none">
+                      z
                     </span>
                   )}
                 </div>
@@ -271,18 +276,18 @@ export default function RightInspector({
 
             {/* 语音聊天 */}
             <div>
-              <div className="px-1 pb-1.5 text-[11.5px] font-medium text-[var(--text-muted)]">
+              <div className="px-1 pb-1.5 text-[12px] font-medium text-muted">
                 语音聊天
               </div>
-              <div className="rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+              <div className="rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
                 <div className="px-3.5 py-2.5 flex items-center justify-between">
-                  <span className="text-[12.5px] text-[var(--text-primary)]">
+                  <span className="text-[13px] text-primary">
                     语音
                   </span>
                   <select
                     value={voicePreset}
                     onChange={(e) => setVoicePreset(e.target.value)}
-                    className="bg-transparent text-[12px] text-[var(--text-secondary)] focus:outline-none cursor-pointer"
+                    className="bg-transparent text-[12px] text-secondary focus:outline-none cursor-pointer"
                   >
                     <option value="Helix 1.0x">Helix 1.0x</option>
                     <option value="Sol 1.1x">Sol 1.1x</option>
@@ -290,13 +295,13 @@ export default function RightInspector({
                   </select>
                 </div>
                 <div className="px-3.5 py-2.5 flex items-center justify-between">
-                  <span className="text-[12.5px] text-[var(--text-primary)]">
+                  <span className="text-[13px] text-primary">
                     语言
                   </span>
                   <select
                     value={voiceLang}
                     onChange={(e) => setVoiceLang(e.target.value)}
-                    className="bg-transparent text-[12px] text-[var(--text-secondary)] focus:outline-none cursor-pointer"
+                    className="bg-transparent text-[12px] text-secondary focus:outline-none cursor-pointer"
                   >
                     <option value="Auto-detect">Auto-detect</option>
                     <option value="简体中文">简体中文</option>
@@ -307,22 +312,22 @@ export default function RightInspector({
             </div>
 
             {/* 时间感知快速触发 */}
-            <div className="p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
-              <div className="text-[12px] font-semibold text-[var(--text-primary)]">
+            <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2">
+              <div className="text-[12px] font-semibold text-primary">
                 ⏰ 时间感知与主动破冰
               </div>
               <div className="grid grid-cols-1 gap-1.5">
                 <button
                   type="button"
                   onClick={() => void onTriggerProactive(1)}
-                  className="py-2 px-3 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[var(--text-primary)] transition-all cursor-pointer"
+                  className="py-2 px-3 rounded-[var(--r-md)] bg-surface-raised hover:bg-[var(--bg-hover)] text-left text-primary transition-colors cursor-pointer"
                 >
                   ⚡ 结合当前时段主动找你开口
                 </button>
                 <button
                   type="button"
                   onClick={() => void onTriggerProactive(12)}
-                  className="py-2 px-3 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[var(--text-primary)] transition-all cursor-pointer"
+                  className="py-2 px-3 rounded-[var(--r-md)] bg-surface-raised hover:bg-[var(--bg-hover)] text-left text-primary transition-colors cursor-pointer"
                 >
                   🌙 模拟冷落 TA 12 小时后的吐槽
                 </button>
@@ -332,7 +337,7 @@ export default function RightInspector({
         ) : (
           <div className="space-y-3.5 animate-fade-in">
             {/* Sub-tabs inside 资料库 */}
-            <div className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px]">
+            <div className="grid grid-cols-5 gap-1 p-1 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] text-[11px]">
               {[
                 { id: "emotion", label: "情绪雷达" },
                 { id: "persona", label: "五层人格" },
@@ -344,10 +349,10 @@ export default function RightInspector({
                   key={tab.id}
                   type="button"
                   onClick={() => setLibraryTab(tab.id as LibraryTab)}
-                  className={`py-1.5 rounded-xl font-medium transition-all cursor-pointer ${
+                  className={`py-1.5 rounded-[var(--r-md)] font-medium transition-colors cursor-pointer ${
                     libraryTab === tab.id
-                      ? "bg-[var(--bg-secondary)] text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      ? "bg-surface-raised text-primary"
+                      : "text-muted hover:text-primary"
                   }`}
                 >
                   {tab.label}
@@ -357,105 +362,105 @@ export default function RightInspector({
 
             {libraryTab === "emotion" && (
               <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-secondary)]">当前心情</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-semibold">
+                    <span className="text-secondary">当前心情</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-brand-soft text-brand font-semibold">
                       {persona.emotionState.moodLabel ||
                         persona.emotionState.primary}
                     </span>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[var(--text-secondary)]">
+                      <span className="text-secondary">
                         亲密度 / 好感度
                       </span>
-                      <span className="text-rose-500 font-bold tabular-nums">
+                      <span className="text-danger font-bold tabular-nums">
                         ♥ {persona.intimacy}%
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-2 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-[#18a999] transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-[var(--sem-danger)] via-[var(--sem-warning)] to-[var(--brand)] transition-all duration-[var(--motion-slow)]"
                         style={{ width: `${persona.intimacy}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
-                  <div className="font-semibold text-[var(--text-primary)]">
+                <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2.5">
+                  <div className="font-semibold text-primary">
                     PAD 三维情绪状态机
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] mb-1">
-                      <span className="text-[var(--text-secondary)]">
+                      <span className="text-secondary">
                         愉悦度 (Pleasure)
                       </span>
                       <span className="tabular-nums font-medium">
                         {pleasurePct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#18a999]"
+                        className="h-full rounded-full bg-brand"
                         style={{ width: `${pleasurePct}%` }}
                       />
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] mb-1">
-                      <span className="text-[var(--text-secondary)]">
+                      <span className="text-secondary">
                         激活度 (Arousal)
                       </span>
                       <span className="tabular-nums font-medium">
                         {arousalPct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-sky-500"
+                        className="h-full rounded-full bg-info"
                         style={{ width: `${arousalPct}%` }}
                       />
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] mb-1">
-                      <span className="text-[var(--text-secondary)]">
+                      <span className="text-secondary">
                         掌控感 (Dominance)
                       </span>
                       <span className="tabular-nums font-medium">
                         {dominancePct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-purple-500"
+                        className="h-full rounded-full bg-[var(--accent-violet)]"
                         style={{ width: `${dominancePct}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
-                  <div className="font-semibold text-[var(--text-primary)]">
+                <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2">
+                  <div className="font-semibold text-primary">
                     人格指纹
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {persona.profile.mbti && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-medium">
+                      <span className="px-2.5 py-0.5 rounded-full bg-brand-soft text-brand font-medium">
                         {persona.profile.mbti}
                       </span>
                     )}
                     {persona.profile.zodiac && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-purple-500/12 text-purple-600 dark:text-purple-300 font-medium">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-violet)]/12 text-[var(--accent-violet)] font-medium">
                         {persona.profile.zodiac}
                       </span>
                     )}
                     {persona.profile.personalityTags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+                        className="px-2.5 py-0.5 rounded-full bg-surface-raised text-secondary border border-[var(--border-subtle)]"
                       >
                         {tag}
                       </span>
@@ -464,9 +469,9 @@ export default function RightInspector({
                 </div>
 
                 {/* Consistent Photo Appearance Anchor Editor */}
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+                <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[var(--text-primary)]">
+                    <span className="font-semibold text-primary">
                       固定外貌与画风锚点
                     </span>
                     {editingAppearance === null ? (
@@ -477,7 +482,7 @@ export default function RightInspector({
                             persona.profile.appearanceAnchor || ""
                           )
                         }
-                        className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer"
+                        className="text-brand text-[11px] font-medium hover:underline cursor-pointer"
                       >
                         {persona.profile.appearanceAnchor ? "修改" : "设定"}
                       </button>
@@ -486,7 +491,7 @@ export default function RightInspector({
                         <button
                           type="button"
                           onClick={() => setEditingAppearance(null)}
-                          className="text-[var(--text-muted)] cursor-pointer"
+                          className="text-muted cursor-pointer"
                         >
                           取消
                         </button>
@@ -505,7 +510,7 @@ export default function RightInspector({
                             setEditingAppearance(null);
                             setSaving(false);
                           }}
-                          className="text-[#18a999] font-semibold cursor-pointer"
+                          className="text-brand font-semibold cursor-pointer"
                         >
                           保存
                         </button>
@@ -514,15 +519,15 @@ export default function RightInspector({
                   </div>
 
                   {editingAppearance !== null ? (
-                    <textarea
+                    <FieldTextarea
                       value={editingAppearance}
                       onChange={(e) => setEditingAppearance(e.target.value)}
                       rows={3}
                       placeholder="例如：20出头黑长直甜酷少女，常穿卫衣或短裙配长靴，拍照时保持一致外貌特征..."
-                      className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] focus:outline-none"
+                      className="!text-[12px]"
                     />
                   ) : (
-                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                    <p className="text-[12px] text-muted leading-relaxed">
                       {persona.profile.appearanceAnchor ||
                         "未设定固定外貌特征；设定后每次自拍/生图都会自动保持同一人物外貌与画风。"}
                     </p>
@@ -531,7 +536,7 @@ export default function RightInspector({
                   {/* Reference Image Identity Lock */}
                   <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-medium text-[var(--text-secondary)]">
+                      <span className="font-medium text-secondary">
                         人物一致性参考图
                       </span>
                       {persona.profile.referenceImageUrl && (
@@ -545,7 +550,7 @@ export default function RightInspector({
                               },
                             });
                           }}
-                          className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
+                          className="text-muted hover:text-danger cursor-pointer"
                         >
                           清除
                         </button>
@@ -553,40 +558,42 @@ export default function RightInspector({
                     </div>
 
                     {persona.profile.referenceImageUrl ? (
-                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+                      <div className="flex items-center gap-2.5 p-2 rounded-[var(--r-md)] bg-surface-raised border border-[var(--border-subtle)]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={persona.profile.referenceImageUrl}
                           alt="人物参考图"
-                          className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[var(--border-strong)]"
+                          className="w-12 h-12 rounded-[var(--r-sm)] object-cover shrink-0 border border-[var(--border-strong)]"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-medium text-[#18a999]">
+                          <div className="text-[11px] font-medium text-brand">
                             ✓ 已锁定参考图底稿
                           </div>
-                          <div className="text-[10px] text-[var(--text-muted)] truncate">
+                          <div className="text-[11px] text-muted truncate">
                             后续发自拍将参考此图五官与形象
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[10.5px] text-[var(--text-muted)]">
+                      <div className="text-[11px] text-muted">
                         尚未锁定参考图；发送首张自拍后会自动锁定，也可手动上传：
                       </div>
                     )}
 
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled={uploadingRef}
+                      loading={uploadingRef}
                       onClick={() => refImageInputRef.current?.click()}
-                      className="w-full py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                      className="w-full !rounded-[var(--r-md)]"
                     >
                       {uploadingRef
                         ? "正在保存参考图..."
                         : persona.profile.referenceImageUrl
                           ? "📷 更换人物参考图"
                           : "📷 上传人物参考图"}
-                    </button>
+                    </Button>
                     <input
                       ref={refImageInputRef}
                       type="file"
@@ -639,7 +646,7 @@ export default function RightInspector({
                     <button
                       type="button"
                       onClick={() => setEditingPersonaMd(persona.personaMd)}
-                      className="text-[#18a999] font-medium hover:underline cursor-pointer"
+                      className="text-brand font-medium hover:underline cursor-pointer"
                     >
                       编辑设定
                     </button>
@@ -648,7 +655,7 @@ export default function RightInspector({
                       <button
                         type="button"
                         onClick={() => setEditingPersonaMd(null)}
-                        className="text-[var(--text-muted)] cursor-pointer"
+                        className="text-muted cursor-pointer"
                       >
                         取消
                       </button>
@@ -663,7 +670,7 @@ export default function RightInspector({
                           setEditingPersonaMd(null);
                           setSaving(false);
                         }}
-                        className="text-[#18a999] font-semibold cursor-pointer"
+                        className="text-brand font-semibold cursor-pointer"
                       >
                         保存
                       </button>
@@ -672,14 +679,14 @@ export default function RightInspector({
                 </div>
 
                 {editingPersonaMd !== null ? (
-                  <textarea
+                  <FieldTextarea
                     value={editingPersonaMd}
                     onChange={(e) => setEditingPersonaMd(e.target.value)}
                     rows={18}
-                    className="w-full p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
+                    className="!font-mono !text-[12px] !rounded-[var(--r-lg)]"
                   />
                 ) : (
-                  <pre className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                  <pre className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[12px] text-secondary leading-relaxed font-sans">
                     {persona.personaMd}
                   </pre>
                 )}
@@ -694,7 +701,7 @@ export default function RightInspector({
                     <button
                       type="button"
                       onClick={() => setEditingMemoriesMd(persona.memoriesMd)}
-                      className="text-[#18a999] font-medium hover:underline cursor-pointer"
+                      className="text-brand font-medium hover:underline cursor-pointer"
                     >
                       编辑记忆
                     </button>
@@ -703,7 +710,7 @@ export default function RightInspector({
                       <button
                         type="button"
                         onClick={() => setEditingMemoriesMd(null)}
-                        className="text-[var(--text-muted)] cursor-pointer"
+                        className="text-muted cursor-pointer"
                       >
                         取消
                       </button>
@@ -718,7 +725,7 @@ export default function RightInspector({
                           setEditingMemoriesMd(null);
                           setSaving(false);
                         }}
-                        className="text-[#18a999] font-semibold cursor-pointer"
+                        className="text-brand font-semibold cursor-pointer"
                       >
                         保存
                       </button>
@@ -727,32 +734,34 @@ export default function RightInspector({
                 </div>
 
                 {editingMemoriesMd !== null ? (
-                  <textarea
+                  <FieldTextarea
                     value={editingMemoriesMd}
                     onChange={(e) => setEditingMemoriesMd(e.target.value)}
                     rows={16}
-                    className="w-full p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
+                    className="!font-mono !text-[12px] !rounded-[var(--r-lg)]"
                   />
                 ) : (
-                  <pre className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                  <pre className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[12px] text-secondary leading-relaxed font-sans">
                     {persona.memoriesMd}
                   </pre>
                 )}
 
                 {/* Evolution, Snapshots & Soul Bundle Card */}
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[var(--text-primary)]">
+                    <span className="font-semibold text-primary">
                       ✨ 记忆自进化与灵魂备份
                     </span>
-                    <span className="text-[10.5px] text-[var(--text-muted)]">
+                    <span className="text-[11px] text-muted">
                       每 4 轮自省学习
                     </span>
                   </div>
 
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     disabled={evolving}
+                    loading={evolving}
                     onClick={async () => {
                       setEvolving(true);
                       setEvolutionNotice(null);
@@ -781,18 +790,18 @@ export default function RightInspector({
                         setEvolving(false);
                       }
                     }}
-                    className="w-full py-2 px-3 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white font-semibold text-xs transition-all cursor-pointer"
+                    className="w-full"
                   >
                     {evolving
                       ? "正在归纳记忆与习惯..."
                       : "✨ 立即整理记忆与习惯"}
-                  </button>
+                  </Button>
 
                   <div className="grid grid-cols-2 gap-1.5">
                     <a
                       href={`/api/personas/${encodeURIComponent(persona.slug)}/bundle`}
                       download={`persona-soul-${persona.slug}.json`}
-                      className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-center text-[11px] font-medium text-[var(--text-primary)] transition-colors"
+                      className="py-1.5 px-2.5 rounded-[var(--r-md)] bg-surface-raised hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-center text-[11px] font-medium text-primary transition-colors"
                     >
                       📦 导出灵魂包
                     </a>
@@ -800,7 +809,7 @@ export default function RightInspector({
                       type="button"
                       disabled={importingBundle}
                       onClick={() => bundleFileInputRef.current?.click()}
-                      className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                      className="py-1.5 px-2.5 rounded-[var(--r-md)] bg-surface-raised hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-primary transition-colors cursor-pointer disabled:opacity-50"
                     >
                       {importingBundle ? "导入中..." : "📥 导入灵魂包"}
                     </button>
@@ -850,7 +859,7 @@ export default function RightInspector({
                   </div>
 
                   {evolutionNotice && (
-                    <div className="px-2.5 py-1.5 rounded-xl bg-[#18a999]/10 border border-[#18a999]/25 text-[11px] text-[#18a999] leading-relaxed">
+                    <div className="px-2.5 py-1.5 rounded-[var(--r-md)] bg-brand-soft border border-brand/25 text-[11px] text-brand leading-relaxed">
                       {evolutionNotice}
                     </div>
                   )}
@@ -860,7 +869,7 @@ export default function RightInspector({
                     <button
                       type="button"
                       onClick={() => setSnapshotsExpanded((v) => !v)}
-                      className="w-full flex items-center justify-between py-1 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                      className="w-full flex items-center justify-between py-1 text-[11px] text-secondary hover:text-primary cursor-pointer"
                     >
                       <span>历史版本快照 ({snapshots.length})</span>
                       <span>{snapshotsExpanded ? "▲" : "▼"}</span>
@@ -869,25 +878,25 @@ export default function RightInspector({
                     {snapshotsExpanded && (
                       <div className="mt-1.5 space-y-1.5 max-h-52 overflow-y-auto">
                         {snapshots.length === 0 ? (
-                          <div className="p-2.5 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[11px] text-[var(--text-muted)]">
+                          <div className="p-2.5 rounded-[var(--r-md)] border border-dashed border-[var(--border-subtle)] text-center text-[11px] text-muted">
                             暂无历史快照，整理记忆或导入备份后会自动存档
                           </div>
                         ) : (
                           snapshots.map((snap) => (
                             <div
                               key={snap.id}
-                              className="p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-start justify-between gap-2"
+                              className="p-2 rounded-[var(--r-md)] bg-surface-raised border border-[var(--border-subtle)] flex items-start justify-between gap-2"
                             >
                               <div className="min-w-0 flex-1">
-                                <div className="text-[11px] font-medium text-[var(--text-primary)] truncate">
+                                <div className="text-[11px] font-medium text-primary truncate">
                                   {snap.reason}
                                 </div>
                                 {snap.summary && (
-                                  <div className="text-[10px] text-[var(--text-secondary)] truncate">
+                                  <div className="text-[11px] text-secondary truncate">
                                     {snap.summary}
                                   </div>
                                 )}
-                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                <div className="text-[11px] text-muted mt-0.5">
                                   {new Date(snap.createdAt).toLocaleString(
                                     "zh-CN",
                                     {
@@ -940,7 +949,7 @@ export default function RightInspector({
                                     setRollingBackId(null);
                                   }
                                 }}
-                                className="px-2 py-1 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] hover:border-[#18a999] text-[10.5px] font-medium text-[var(--text-primary)] shrink-0 cursor-pointer disabled:opacity-50"
+                                className="px-2 py-1 rounded-[var(--r-sm)] bg-surface-base border border-[var(--border-subtle)] hover:border-brand text-[11px] font-medium text-primary shrink-0 cursor-pointer disabled:opacity-50"
                               >
                                 {rollingBackId === snap.id
                                   ? "回退中..."
@@ -966,49 +975,51 @@ export default function RightInspector({
 
             {libraryTab === "corrections" && (
               <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2.5">
                   <div className="font-semibold">新增行为纠偏 (OOC Guard)</div>
-                  <textarea
+                  <FieldTextarea
                     value={newCorrection}
                     onChange={(e) => setNewCorrection(e.target.value)}
                     rows={3}
                     placeholder="例如：她生气时绝不会主动讲道理，只会发个冷笑话或说“随便你”..."
-                    className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
+                    className="!text-[12px]"
                   />
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     disabled={!newCorrection.trim() || saving}
+                    loading={saving}
                     onClick={async () => {
                       setSaving(true);
                       await onAddCorrection(newCorrection.trim(), "style");
                       setNewCorrection("");
                       setSaving(false);
                     }}
-                    className="w-full py-2 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-semibold text-xs transition-all cursor-pointer"
+                    className="w-full"
                   >
                     写入永久纠偏层
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-[11px] text-[var(--text-muted)]">
+                  <div className="text-[11px] text-muted">
                     已生效纠偏记录 ({persona.corrections?.length || 0})
                   </div>
                   {!persona.corrections || persona.corrections.length === 0 ? (
-                    <div className="p-4 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
+                    <div className="p-4 rounded-[var(--r-lg)] border border-dashed border-[var(--border-subtle)] text-center text-muted">
                       暂无纠偏记录，也可以在聊天气泡上右键选「不像 TA」
                     </div>
                   ) : (
                     persona.corrections.map((item) => (
                       <div
                         key={item.id}
-                        className="p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-1"
+                        className="p-3 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-1"
                       >
-                        <div className="text-[#18a999] font-medium">
+                        <div className="text-brand font-medium">
                           ✓ {item.correction}
                         </div>
                         {item.botResponse && (
-                          <div className="text-[10.5px] text-[var(--text-muted)] truncate">
+                          <div className="text-[11px] text-muted truncate">
                             针对原回复：{item.botResponse}
                           </div>
                         )}

@@ -815,7 +815,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="flex h-screen w-screen overflow-hidden bg-surface-base text-primary">
       {sidebarOpen && (
         <>
           {isNarrow && (
@@ -828,7 +828,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           <div
             className={
               isNarrow
-                ? "fixed inset-y-0 left-0 z-50 shadow-[var(--shadow-overlay)] animate-drawer-left"
+                ? "fixed inset-y-0 left-0 z-50 shadow-overlay animate-drawer-left"
                 : "contents"
             }
           >
@@ -904,7 +904,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           <div
             className={
               isCompact
-                ? "fixed inset-y-0 right-0 z-50 max-w-full shadow-[var(--shadow-overlay)] animate-drawer-right"
+                ? "fixed inset-y-0 right-0 z-50 max-w-full shadow-overlay animate-drawer-right"
                 : "contents"
             }
           >

@@ -3,6 +3,7 @@
 import { toPlainPreview } from "@/lib/text/preview";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { IconButton } from "@/components/primitives";
 import { PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
@@ -94,36 +95,39 @@ export default function LeftSidebar({
   );
 
   return (
-    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
+    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-surface-raised flex flex-col h-screen select-none">
       {/* Top Action Row */}
       <div className="px-4 pt-4 pb-1 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
+          <IconButton
+            label={theme === "dark" ? "切换浅色模式" : "切换深色模式"}
+            size={32}
+            variant="secondary"
             onClick={onToggleTheme}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            title={theme === "dark" ? "切换清爽浅色 (Grok Bot)" : "切换深空暗色"}
+            className="!rounded-full bg-surface-base shadow-[var(--pill-shadow)] text-[12px]"
           >
             {theme === "dark" ? "☀️" : "🌙"}
-          </button>
+          </IconButton>
           {onCollapse && (
-            <button
-              type="button"
+            <IconButton
+              label="收起侧边栏"
+              size={32}
+              variant="secondary"
               onClick={onCollapse}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title="收起侧边栏"
+              className="!rounded-full bg-surface-base shadow-[var(--pill-shadow)] text-[12px]"
             >
               ◧
-            </button>
+            </IconButton>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <IconButton
+            label="搜索或切换 (⌘K)"
+            size={32}
+            variant="secondary"
             onClick={onOpenCommandPalette}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            title="搜索或切换 (⌘K)"
+            className="!rounded-full bg-surface-base shadow-[var(--pill-shadow)]"
           >
             <svg
               className="w-4 h-4"
@@ -138,13 +142,14 @@ export default function LeftSidebar({
                 d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18a7.5 7.5 0 006.15-3.35z"
               />
             </svg>
-          </button>
+          </IconButton>
 
-          <button
-            type="button"
+          <IconButton
+            label="创建新角色"
+            size={32}
+            variant="secondary"
             onClick={onOpenCreateBot}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-sm text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            title="创建新 Bot"
+            className="!rounded-full bg-surface-base shadow-[var(--pill-shadow)]"
           >
             <svg
               className="w-4 h-4"
@@ -159,7 +164,7 @@ export default function LeftSidebar({
                 d="M12 4.5v15m7.5-7.5h-15"
               />
             </svg>
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -168,12 +173,12 @@ export default function LeftSidebar({
         <button
           type="button"
           onClick={() => onSelectPersona(masterSlug)}
-          className={`group w-full max-w-[148px] py-2.5 px-3 rounded-[20px] flex flex-col items-center justify-center transition-all cursor-pointer ${
+          className={`group w-full max-w-[148px] py-2.5 px-3 rounded-[var(--r-lg)] flex flex-col items-center justify-center transition-colors cursor-pointer ${
             isMasterActive
-              ? "bg-[var(--bg-composer)] grok-active-row ring-1 ring-[var(--border-subtle)]"
+              ? "bg-surface-base grok-active-row ring-1 ring-[var(--border-subtle)]"
               : "hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
           }`}
-          title="切换到主控 Bot（可统一指挥所有子 Bot 并接收汇报）"
+          title="切换到主控角色（可统一指挥所有角色并接收汇报）"
         >
           <BlobMascot
             shape={masterMascot.shape}
@@ -184,11 +189,11 @@ export default function LeftSidebar({
             trackPointer
             state={isMasterActive && isStreaming ? "working" : "idle"}
           />
-          <span className="mt-2 text-[12.5px] font-semibold tracking-tight text-[var(--text-primary)] flex items-center gap-1">
+          <span className="mt-2 text-[13px] font-semibold tracking-tight text-primary flex items-center gap-1">
             <span>{masterBot?.name || "猫咪的bot"}</span>
           </span>
           {isMasterActive && isStreaming && (
-            <span className="text-[10.5px] text-[var(--text-muted)] mt-0.5">
+            <span className="text-[11px] text-muted mt-0.5">
               正在调度子 Bot...
             </span>
           )}
@@ -217,16 +222,16 @@ export default function LeftSidebar({
               key={p.slug}
               type="button"
               onClick={() => onSelectPersona(p.slug)}
-              className={`group relative w-full text-left px-3 py-2.5 rounded-[16px] transition-all duration-200 flex items-center gap-3 cursor-pointer ${
+              className={`group relative w-full text-left px-3 py-2.5 rounded-[var(--r-lg)] transition-colors duration-[var(--motion-base)] flex items-center gap-3 cursor-pointer ${
                 isActive
-                  ? "bg-[var(--bg-composer)] grok-active-row"
+                  ? "bg-surface-base grok-active-row"
                   : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
               }`}
             >
               {isActive && (
                 <span
                   aria-hidden="true"
-                  className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full transition-all"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full transition-transform"
                   style={{ backgroundColor: mascotCfg.color }}
                 />
               )}
@@ -242,7 +247,7 @@ export default function LeftSidebar({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[13.5px] font-semibold text-[var(--text-primary)] truncate">
+                  <span className="text-[14px] font-semibold text-primary truncate">
                     {p.name}
                   </span>
                   {isBotTyping ? (
@@ -252,21 +257,21 @@ export default function LeftSidebar({
                     />
                   ) : (
                     timeLabel && (
-                      <span className="text-[10.5px] text-[var(--text-muted)] tabular-nums shrink-0">
+                      <span className="text-[11px] text-muted tabular-nums shrink-0">
                         {timeLabel}
                       </span>
                     )
                   )}
                 </div>
                 <p
-                  className={`text-[11.5px] truncate mt-0.5 ${
+                  className={`text-[12px] truncate mt-0.5 ${
                     isBotTyping
                       ? "animate-text-shimmer font-medium"
-                      : "text-[var(--text-secondary)]"
+                      : "text-secondary"
                   }`}
                 >
                   {draftText && (
-                    <span className="text-rose-500 font-medium mr-1">
+                    <span className="text-danger font-medium mr-1">
                       [草稿]
                     </span>
                   )}
@@ -281,17 +286,17 @@ export default function LeftSidebar({
       {/* Bottom Dock: User Popover Avatar + Floating "连接应用" Pill */}
       <div className="relative p-3.5 flex items-center gap-2.5" ref={menuRef}>
         {accountMenuOpen && (
-          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
+          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-overlay backdrop-blur-2xl shadow-overlay p-1.5 z-40 animate-popover-in">
             <button
               type="button"
               onClick={() => {
                 setAccountMenuOpen(false);
                 onOpenCreateBot();
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-primary cursor-pointer"
             >
               <span>➕</span>
-              <span>创建新 Bot</span>
+              <span>创建新角色</span>
             </button>
             <button
               type="button"
@@ -299,7 +304,7 @@ export default function LeftSidebar({
                 setAccountMenuOpen(false);
                 router.push("/create");
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-primary cursor-pointer"
             >
               <span>✨</span>
               <span>聊天记录蒸馏工作室</span>
@@ -310,10 +315,10 @@ export default function LeftSidebar({
                 setAccountMenuOpen(false);
                 router.push("/gallery");
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-primary cursor-pointer"
             >
               <span>🪐</span>
-              <span>角色引力场广场</span>
+              <span>角色广场</span>
             </button>
             <div className="my-1 border-t border-[var(--border-subtle)]" />
             <button
@@ -322,7 +327,7 @@ export default function LeftSidebar({
                 setAccountMenuOpen(false);
                 onOpenSettings();
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-primary cursor-pointer"
             >
               <span>⚙️</span>
               <span>设置与模型密钥舱</span>
@@ -333,7 +338,7 @@ export default function LeftSidebar({
                 setAccountMenuOpen(false);
                 onToggleTheme();
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center justify-between text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--bg-hover)] text-left flex items-center justify-between text-[13px] text-primary cursor-pointer"
             >
               <span className="flex items-center gap-2.5">
                 <span>{theme === "dark" ? "☀️" : "🌙"}</span>
@@ -346,7 +351,7 @@ export default function LeftSidebar({
         <button
           type="button"
           onClick={() => setAccountMenuOpen((prev) => !prev)}
-          className="w-9 h-9 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-base hover:scale-105 active:scale-95 transition-transform shrink-0 cursor-pointer"
+          className="w-9 h-9 rounded-full bg-surface-base border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-[16px] hover:scale-105 active:scale-95 transition-transform shrink-0 cursor-pointer"
           title="个人菜单（广场 / 蒸馏 / 设置 / 主题）"
         >
           🐱
@@ -355,17 +360,17 @@ export default function LeftSidebar({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex-1 py-2 px-3.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+          className="flex-1 py-2 px-3.5 rounded-full bg-surface-base border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-[12px] font-semibold text-primary hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-transform cursor-pointer"
         >
           <span>连接应用</span>
           <span className="inline-flex items-center gap-0.5 text-[11px]">
-            <span className="w-3.5 h-3.5 rounded-sm bg-sky-500/15 text-sky-500 inline-flex items-center justify-center text-[9px]">
+            <span className="w-3.5 h-3.5 rounded-[var(--r-sm)] bg-info-soft text-info inline-flex items-center justify-center text-[11px]">
               ⚡
             </span>
-            <span className="w-3.5 h-3.5 rounded-sm bg-emerald-500/15 text-emerald-600 inline-flex items-center justify-center text-[9px]">
+            <span className="w-3.5 h-3.5 rounded-[var(--r-sm)] bg-success-soft text-success inline-flex items-center justify-center text-[11px]">
               🌐
             </span>
-            <span className="w-3.5 h-3.5 rounded-sm bg-rose-500/15 text-rose-500 inline-flex items-center justify-center text-[9px]">
+            <span className="w-3.5 h-3.5 rounded-[var(--r-sm)] bg-danger-soft text-danger inline-flex items-center justify-center text-[11px]">
               ✦
             </span>
           </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/primitives";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import {
   ConversationMessage,
@@ -10,7 +11,11 @@ import {
   PersonaSummary,
   SearchResultItem,
 } from "@/lib/storage/types";
-import { MascotShapeId } from "./mascot-palette";
+import {
+  BLUE_MASCOT_COLOR,
+  DARK_MASCOT_COLOR,
+  MascotShapeId,
+} from "./mascot-palette";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrokComposer from "./GrokComposer";
 import PageArtifactCard from "./PageArtifactCard";
@@ -350,9 +355,9 @@ export default function ChatStage({
 
   if (!persona) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[var(--bg-primary)]">
-        <div className="flex flex-col items-center gap-3 text-xs text-[var(--text-muted)]">
-          <BlobMascot shape="circle" color="#0A0A0C" size={50} showOnlineDot state="thinking" />
+      <div className="flex-1 flex items-center justify-center bg-surface-base">
+        <div className="flex flex-col items-center gap-3 text-[12px] text-muted">
+          <BlobMascot shape="circle" color={DARK_MASCOT_COLOR} size={50} showOnlineDot state="thinking" />
           <span>正在连接 PersonaBot...</span>
         </div>
       </div>
@@ -368,12 +373,12 @@ export default function ChatStage({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDropFile}
-      className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden"
+      className="relative flex-1 flex flex-col h-screen bg-surface-base min-w-0 overflow-hidden"
     >
       {isDraggingFile && (
-        <div className="pointer-events-none absolute inset-3 z-40 rounded-3xl border-2 border-dashed border-[#18a999] bg-[var(--bg-elevated)]/85 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
-          <span className="text-3xl">🖼️</span>
-          <span className="text-sm font-semibold text-[var(--text-primary)]">
+        <div className="pointer-events-none absolute inset-3 z-40 rounded-[var(--r-xl)] border-2 border-dashed border-brand bg-surface-overlay backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
+          <span className="text-[28px]">🖼️</span>
+          <span className="text-[14px] font-semibold text-primary">
             松手即可发送图片给 {persona.name}
           </span>
         </div>
@@ -417,10 +422,10 @@ export default function ChatStage({
                 setConfirmClear(false);
                 onClearHistory();
               }}
-              className={`px-3 md:px-3.5 py-1.5 rounded-full border grok-floating-pill text-[11.5px] font-medium whitespace-nowrap hover:-translate-y-0.5 transition-all cursor-pointer ${
+              className={`px-3 md:px-3.5 py-1.5 rounded-full border grok-floating-pill text-[12px] font-medium whitespace-nowrap hover:-translate-y-0.5 transition-transform cursor-pointer ${
                 confirmClear
-                  ? "bg-rose-500/12 border-rose-500/40 text-rose-500"
-                  : "bg-[var(--bg-composer)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  ? "bg-danger-soft border-[var(--sem-danger)]/40 text-danger"
+                  : "bg-surface-base border-[var(--border-subtle)] text-secondary hover:text-primary"
               }`}
               title={confirmClear ? "再次点击确认清空当前对话" : "清空当前对话"}
             >
@@ -444,7 +449,7 @@ export default function ChatStage({
             trackPointer
             state={streaming ? "working" : "idle"}
           />
-          <span className="truncate text-[13.5px] font-semibold text-[var(--text-primary)]">
+          <span className="truncate text-[14px] font-semibold text-primary">
             {persona.name}
           </span>
           <span className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]">
@@ -497,20 +502,20 @@ export default function ChatStage({
                     trackPointer
                   />
                 </div>
-                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
+                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-surface-raised border border-[var(--border-subtle)] text-[11px] text-muted opacity-0 group-hover/hero:opacity-100 transition-opacity">
                   点击定制形状与颜色
                 </span>
               </button>
 
               <div className="space-y-2 max-w-md">
-                <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+                <h2 className="text-[28px] font-bold tracking-tight text-primary">
                   {persona.name}
                 </h2>
-                <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                <p className="text-[13px] text-secondary leading-relaxed">
                   {persona.profile.bio ||
                     "支持 DeepSearch 实时联网生成结构化页面、Think 内心潜台词与多档人格模式。"}
                 </p>
-                <div className="pt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)]">
+                <div className="pt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-raised border border-[var(--border-subtle)] text-[11px] text-secondary">
                   <span>
                     {modeSpec.badge} {modeSpec.shortLabel}
                   </span>
@@ -527,7 +532,7 @@ export default function ChatStage({
                   ? [
                       {
                         icon: "🧩",
-                        badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
+                        badgeBg: "bg-info-soft text-info",
                         title: "全军协同调研今日科技动态",
                         sub: "同时调度 3 个子 Bot 分头查证并汇总报告",
                         text: "请帮我调度大家分头梳理今天最值得关注的 AI 工具与开源动态，分别汇报关键亮点和待核查项",
@@ -535,8 +540,7 @@ export default function ChatStage({
                       },
                       {
                         icon: "📋",
-                        badgeBg:
-                          "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+                        badgeBg: "bg-success-soft text-success",
                         title: "让 艾拉 和 Zero 联合分析",
                         sub: "跨 Bot 观点碰撞 + 汇总执行明细",
                         text: "让 艾拉 和 Zero 帮我分析一下现在做个人 AI 助手最容易踩的 3 个坑，并给出可执行建议",
@@ -544,8 +548,7 @@ export default function ChatStage({
                       },
                       {
                         icon: "🔍",
-                        badgeBg:
-                          "bg-purple-500/12 text-purple-600 dark:text-purple-300",
+                        badgeBg: "bg-brand-soft text-brand",
                         title: "开启联网核查追踪清单",
                         sub: "触发 DeepSearch 并记录覆盖来源",
                         text: "帮我联网核查 GitHub 上最近热门的开源 Agent 项目，保留来源并标注未覆盖项",
@@ -553,8 +556,7 @@ export default function ChatStage({
                       },
                       {
                         icon: "⚡",
-                        badgeBg:
-                          "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+                        badgeBg: "bg-danger-soft text-danger",
                         title: "检查全部子 Bot 当前状态",
                         sub: "拉取团队成员最新工作记忆摘要",
                         text: "向所有助手确认目前各自的专长与工作状态，给我一份简洁的总控状态简报",
@@ -564,7 +566,7 @@ export default function ChatStage({
                   : [
                       {
                         icon: "📊",
-                        badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
+                        badgeBg: "bg-info-soft text-info",
                         title: "聊聊今天的热门新鲜事",
                         sub: "实时翻一翻网上的最新动态给你锐评",
                         text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
@@ -572,8 +574,7 @@ export default function ChatStage({
                       },
                       {
                         icon: "💭",
-                        badgeBg:
-                          "bg-purple-500/12 text-purple-600 dark:text-purple-300",
+                        badgeBg: "bg-brand-soft text-brand",
                         title: "说说你现在心里在想啥",
                         sub: "听听 TA 没直说出口的真实小想法",
                         text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
@@ -581,8 +582,7 @@ export default function ChatStage({
                       },
                       {
                         icon: "📸",
-                        badgeBg:
-                          "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+                        badgeBg: "bg-success-soft text-success",
                         title: "发张你那边的随手拍",
                         sub: "看看 TA 此刻身边的日常画面",
                         text: "发张你现在手边的随手拍给我看看呗",
@@ -590,8 +590,7 @@ export default function ChatStage({
                       },
                       {
                         icon: "🌙",
-                        badgeBg:
-                          "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+                        badgeBg: "bg-danger-soft text-danger",
                         title: "忙完了一天，求安慰",
                         sub: "听几句贴合 TA 脾气的连环宽慰",
                         text: "今天工作累麻了，快按你的脾气哄我两句",
@@ -605,21 +604,21 @@ export default function ChatStage({
                     onClick={() =>
                       onQuickSend(chip.text, { deepSearch: chip.enableSearch })
                     }
-                    className="group/chip p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-all duration-200 flex items-start gap-3"
+                    className="group/chip p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-transform duration-[var(--motion-base)] flex items-start gap-3 cursor-pointer"
                   >
                     <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 ${chip.badgeBg}`}
+                      className={`w-8 h-8 rounded-[var(--r-md)] flex items-center justify-center text-[14px] shrink-0 ${chip.badgeBg}`}
                     >
                       {chip.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] flex items-center justify-between gap-1">
+                      <div className="text-[13px] font-semibold text-primary flex items-center justify-between gap-1">
                         <span className="truncate">{chip.title}</span>
-                        <span className="text-[var(--text-muted)] opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-all">
+                        <span className="text-muted opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-all">
                           →
                         </span>
                       </div>
-                      <div className="text-[11px] text-[var(--text-secondary)] mt-0.5 line-clamp-1">
+                      <div className="text-[11px] text-secondary mt-0.5 line-clamp-1">
                         {chip.sub}
                       </div>
                     </div>
@@ -729,7 +728,7 @@ export default function ChatStage({
                                   shape={
                                     (rep.shape as MascotShapeId) || "circle"
                                   }
-                                  color={rep.color || "#1683FF"}
+                                  color={rep.color || BLUE_MASCOT_COLOR}
                                   size={16}
                                   trackPointer={false}
                                   animated={false}
@@ -737,30 +736,30 @@ export default function ChatStage({
                               </span>
                             ))}
                           </span>
-                          <span className="font-medium text-[var(--text-primary)]">
+                          <span className="font-medium text-primary">
                             {reports.length} 个 Bot
                           </span>
                         </button>
 
                         {reportsOpen && (
-                          <div className="mt-2 w-full max-w-[660px] rounded-[18px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] p-3 space-y-2 animate-fade-in">
+                          <div className="mt-2 w-full max-w-[660px] rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-base p-3 space-y-2 animate-fade-in">
                             {reports.map((rep) => (
                               <div
                                 key={`${msg.id}-${rep.slug}`}
-                                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] flex items-start gap-2.5 text-xs"
+                                className="p-2.5 rounded-[var(--r-md)] bg-surface-raised flex items-start gap-2.5 text-[12px]"
                               >
                                 <BlobMascot
                                   shape={
                                     (rep.shape as MascotShapeId) || "circle"
                                   }
-                                  color={rep.color || "#1683FF"}
+                                  color={rep.color || BLUE_MASCOT_COLOR}
                                   size={20}
                                   trackPointer={false}
                                   animated={false}
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="font-semibold text-[var(--text-primary)]">
+                                    <span className="font-semibold text-primary">
                                       {rep.name}
                                     </span>
                                     {onSelectPersona && (
@@ -769,13 +768,13 @@ export default function ChatStage({
                                         onClick={() =>
                                           onSelectPersona(rep.slug)
                                         }
-                                        className="text-[11px] text-[#2563EB] hover:underline cursor-pointer"
+                                        className="text-[11px] text-info hover:underline cursor-pointer"
                                       >
                                         前往频道 →
                                       </button>
                                     )}
                                   </div>
-                                  <p className="text-[var(--text-secondary)] mt-0.5 leading-relaxed">
+                                  <p className="text-secondary mt-0.5 leading-relaxed">
                                     {rep.summary}
                                   </p>
                                 </div>
@@ -789,18 +788,18 @@ export default function ChatStage({
                     {/* Incoming Relay Header ("消息来自 [mini mascot] {name}") */}
                     {msg.fromBot && !isContinuation && (
                       <div className="w-full mb-2.5 flex flex-col items-center gap-2">
-                        <div className="w-full flex items-center gap-3 text-[11px] text-[#2563EB]">
+                        <div className="w-full flex items-center gap-3 text-[11px] text-info">
                           <div className="h-px flex-1 bg-[var(--border-subtle)]" />
                           <span>新</span>
                           <div className="h-px flex-1 bg-[var(--border-subtle)]" />
                         </div>
-                        <div className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                        <div className="inline-flex items-center gap-1.5 text-[12px] text-muted">
                           <span>消息来自</span>
                           <BlobMascot
                             shape={
                               (msg.fromBot.shape as MascotShapeId) || "circle"
                             }
-                            color={msg.fromBot.color || "#1683FF"}
+                            color={msg.fromBot.color || BLUE_MASCOT_COLOR}
                             size={16}
                             trackPointer={false}
                             animated={false}
@@ -845,17 +844,17 @@ export default function ChatStage({
                     </div>
 
                     {correctingIdx === idx && (
-                      <div className="mt-1.5 w-full max-w-[420px] rounded-[18px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] p-3 space-y-2 text-xs animate-fade-in">
+                      <div className="mt-1.5 w-full max-w-[420px] rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-surface-base p-3 space-y-2 text-[12px] animate-fade-in">
                         {correctionState === "done" ? (
-                          <div className="text-[#18a999] font-medium">已记下，下一轮 TA 就会改</div>
+                          <div className="text-brand font-medium">已记下，下一轮 TA 就会改</div>
                         ) : (
                           <>
-                            <div className="flex items-center justify-between text-[var(--text-secondary)]">
-                              <span className="font-medium text-[var(--text-primary)]">这句不像 TA？</span>
+                            <div className="flex items-center justify-between text-secondary">
+                              <span className="font-medium text-primary">这句不像 TA？</span>
                               <button
                                 type="button"
                                 onClick={() => setCorrectingIdx(null)}
-                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                                className="text-muted hover:text-primary cursor-pointer"
                                 aria-label="关闭"
                               >
                                 ✕
@@ -868,7 +867,7 @@ export default function ChatStage({
                                   type="button"
                                   disabled={correctionState === "saving"}
                                   onClick={() => void submitCorrection(idx, chip)}
-                                  className="px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] disabled:opacity-40 cursor-pointer"
+                                  className="px-2.5 py-1 rounded-full bg-surface-raised hover:bg-[var(--bg-hover)] text-secondary disabled:opacity-40 cursor-pointer"
                                 >
                                   {chip}
                                 </button>
@@ -885,16 +884,17 @@ export default function ChatStage({
                                   }
                                 }}
                                 placeholder="或者说说 TA 平时会怎么说…"
-                                className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] focus:outline-none"
+                                className="flex-1 min-w-0 px-2.5 py-1.5 rounded-[var(--r-md)] bg-surface-raised border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--border-focus)]"
                               />
-                              <button
-                                type="button"
+                              <Button
+                                variant="primary"
+                                size="sm"
                                 disabled={!correctionDraft.trim() || correctionState === "saving"}
+                                loading={correctionState === "saving"}
                                 onClick={() => void submitCorrection(idx, correctionDraft)}
-                                className="px-3 py-1.5 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-medium cursor-pointer"
                               >
                                 {correctionState === "saving" ? "记录中" : "纠正"}
-                              </button>
+                              </Button>
                             </div>
                           </>
                         )}
@@ -1041,19 +1041,19 @@ export default function ChatStage({
                               className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5 cursor-pointer"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="w-7 h-7 rounded-full bg-[#18a999]/15 text-[#18a999] flex items-center justify-center text-xs shrink-0">
+                                <span className="w-7 h-7 rounded-full bg-brand-soft text-brand flex items-center justify-center text-[12px] shrink-0">
                                   {speakingId === `${msg.id}-v-${cIdx}` ? "🔊" : "▶"}
                                 </span>
                                 <div className="min-w-0">
-                                  <div className="text-xs font-semibold text-[var(--text-primary)]">
+                                  <div className="text-[12px] font-semibold text-primary">
                                     语音条 · {card.durationSec || 5}&Prime;
                                   </div>
-                                  <div className="text-[11px] text-[var(--text-secondary)] truncate">
+                                  <div className="text-[11px] text-secondary truncate">
                                     {card.caption}
                                   </div>
                                 </div>
                               </div>
-                              <span className="text-[10px] text-[#18a999] font-medium shrink-0">
+                              <span className="text-[11px] text-brand font-medium shrink-0">
                                 点击播放
                               </span>
                             </button>
@@ -1135,7 +1135,7 @@ export default function ChatStage({
                         <span className="typing-dot typing-dot-2" />
                         <span className="typing-dot typing-dot-3" />
                       </div>
-                      <span className="text-[12.5px] font-medium animate-text-shimmer">
+                      <span className="text-[13px] font-medium animate-text-shimmer">
                         {streaming.statusText ||
                           (streaming.isSearching
                             ? `正在搜索 ${streaming.searchQuery || "全网信息"}...`
@@ -1164,9 +1164,9 @@ export default function ChatStage({
             <img
               src={lightboxMedia.url}
               alt={lightboxMedia.caption}
-              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+              className="max-h-[75vh] max-w-full rounded-[var(--r-lg)] shadow-overlay object-contain bg-white/5"
             />
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-[12px]">
               <span className="max-w-xs truncate">{lightboxMedia.caption}</span>
               {lightboxMedia.kind === "photo" && onSetReferencePhoto && (
                 <button
@@ -1174,7 +1174,7 @@ export default function ChatStage({
                   onClick={() => void onSetReferencePhoto(lightboxMedia.url)}
                   className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
                     persona.profile.referenceImageUrl === lightboxMedia.url
-                      ? "bg-[#18a999] text-white"
+                      ? "bg-brand text-white"
                       : "bg-white/15 hover:bg-white/25 text-white"
                   }`}
                 >
@@ -1208,7 +1208,7 @@ export default function ChatStage({
           <button
             type="button"
             onClick={scrollToBottom}
-            className="pointer-events-auto px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all cursor-pointer"
+            className="pointer-events-auto px-3.5 py-1.5 rounded-full bg-surface-overlay backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-secondary hover:text-primary hover:-translate-y-0.5 transition-transform cursor-pointer"
           >
             ↓ 回到最新消息
           </button>
