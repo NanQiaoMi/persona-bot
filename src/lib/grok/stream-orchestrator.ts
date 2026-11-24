@@ -12,6 +12,8 @@ import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
 import { maybeRunAutoEvolution } from '@/lib/persona/evolution';
+import { scoreReply, toMessageStyleMetrics } from '@/lib/persona/eval/scorer';
+import { fingerprintFromPersonaMd } from '@/lib/persona/fingerprint';
 import {
   analyzeUserChatStyle,
   polishYoungAdultBursts,
@@ -966,6 +968,9 @@ export async function executeGrokChatTurn(
   const segments = splitIntoNaturalMessages(emojiTrimmedBursts);
   parsed.bursts = segments;
   parsed.cleanReply = segments.join('\n\n');
+  const styleMetrics = toMessageStyleMetrics(
+    scoreReply(segments, fingerprintFromPersonaMd(persona.personaMd))
+  );
 
   if (parsed.mood) {
     updatedEmotion.moodLabel = parsed.mood;
@@ -1063,6 +1068,7 @@ export async function executeGrokChatTurn(
       bursts: segments,
       modelUsed: modelLabel,
       isDemoMode,
+      styleMetrics,
     };
 
     const userMessageRecord: ConversationMessage = {
@@ -1110,6 +1116,7 @@ export async function executeGrokChatTurn(
       bursts: [seg],
       modelUsed: isLast ? modelLabel : undefined,
       isDemoMode: isLast ? isDemoMode : undefined,
+      styleMetrics: isLast ? styleMetrics : undefined,
     };
   });
 

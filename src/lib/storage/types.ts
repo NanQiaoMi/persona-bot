@@ -157,6 +157,18 @@ export interface ConversationMessage {
   bursts?: string[];
   modelUsed?: string;
   isDemoMode?: boolean;
+  /** 本轮回复的风格评测结果（仅供自进化与成长面板使用，不注入 Prompt） */
+  styleMetrics?: MessageStyleMetrics;
+}
+
+export interface MessageStyleMetrics {
+  likeness: number;
+  deAI: number;
+  emojiCount: number;
+  avgBubbleLen: number;
+  aiClicheHits: number;
+  oocHits: number;
+  hostQuestion: boolean;
 }
 
 export interface RuntimeSettings {
