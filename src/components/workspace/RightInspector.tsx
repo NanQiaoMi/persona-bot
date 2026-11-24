@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
+import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { PersonaMode, PersonaRecord, PersonaSnapshotMeta } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
 
@@ -12,6 +13,12 @@ interface RightInspectorProps {
   isStreaming?: boolean;
   autoNudgeEnabled?: boolean;
   onToggleAutoNudge?: () => void;
+  thinkMode?: boolean;
+  onToggleThink?: () => void;
+  deepSearch?: boolean;
+  onToggleDeepSearch?: () => void;
+  activeMode?: PersonaMode;
+  onChangeMode?: (mode: PersonaMode) => void;
   onSavePersonaPatch: (patch: Partial<PersonaRecord>) => Promise<void>;
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
@@ -31,6 +38,12 @@ export default function RightInspector({
   isStreaming = false,
   autoNudgeEnabled = true,
   onToggleAutoNudge,
+  thinkMode = true,
+  onToggleThink,
+  deepSearch = false,
+  onToggleDeepSearch,
+  activeMode = "authentic",
+  onChangeMode,
   onSavePersonaPatch,
   onAddCorrection,
   onTriggerProactive,
@@ -65,6 +78,7 @@ export default function RightInspector({
   const [importingBundle, setImportingBundle] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
   const [previewRefOpen, setPreviewRefOpen] = useState(false);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
   const bundleFileInputRef = useRef<HTMLInputElement>(null);
   const refImageInputRef = useRef<HTMLInputElement>(null);
@@ -1110,6 +1124,136 @@ export default function RightInspector({
                 </div>
               </div>
             )}
+
+            {/* Collapsible Chat Preferences & AI Advanced Controls */}
+            <div className="pt-2 border-t border-[var(--border-subtle)]">
+              <button
+                type="button"
+                onClick={() => setAdvancedExpanded((v) => !v)}
+                className="w-full px-3 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] flex items-center justify-between text-[11.5px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                <span>⚙️ 对话偏好与高级设定</span>
+                <span className="text-[10.5px] text-[var(--text-muted)]">
+                  {advancedExpanded ? "收起 ▲" : "展开 ▼"}
+                </span>
+              </button>
+
+              {advancedExpanded && (
+                <div className="mt-2 p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-2 gap-2">
+                    {onToggleThink && (
+                      <button
+                        type="button"
+                        onClick={onToggleThink}
+                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          thinkMode
+                            ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
+                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                        }`}
+                      >
+                        <span>✦</span>
+                        <span>内心心声</span>
+                      </button>
+                    )}
+                    {onToggleDeepSearch && (
+                      <button
+                        type="button"
+                        onClick={onToggleDeepSearch}
+                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          deepSearch
+                            ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                        }`}
+                      >
+                        <span>🌐</span>
+                        <span>联网搜素</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {onChangeMode && (
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] text-[var(--text-muted)]">
+                        说话尺度模式
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((mKey) => {
+                          const spec = PERSONA_MODES[mKey];
+                          const active = activeMode === mKey;
+                          return (
+                            <button
+                              key={mKey}
+                              type="button"
+                              onClick={() => onChangeMode(mKey)}
+                              className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium text-left flex items-center gap-1.5 transition-all cursor-pointer ${
+                                active
+                                  ? "bg-[var(--bg-secondary)] border-[#18a999] text-[var(--text-primary)]"
+                                  : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              }`}
+                            >
+                              <span>{spec.badge}</span>
+                              <span>{spec.shortLabel}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {onToggleAutoNudge && (
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
+                      <div className="min-w-0">
+                        <div className="text-[11.5px] font-medium text-[var(--text-primary)]">
+                          未回复主动追问
+                        </div>
+                        <div className="text-[10px] text-[var(--text-muted)]">
+                          沉默 45 秒后结合语境轻敲你
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={autoNudgeEnabled}
+                        onClick={onToggleAutoNudge}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                          autoNudgeEnabled
+                            ? "bg-[#18a999]"
+                            : "bg-black/15 dark:bg-white/20"
+                        }`}
+                      >
+                        <span
+                          className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            autoNudgeEnabled ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 pt-1 border-t border-[var(--border-subtle)]">
+                    <div className="text-[11px] text-[var(--text-muted)]">
+                      主动破冰模拟
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void onTriggerProactive(1)}
+                        className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[11px] text-[var(--text-primary)] transition-all cursor-pointer"
+                      >
+                        ⚡ 结合当前时段主动找你开口
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onTriggerProactive(12)}
+                        className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[11px] text-[var(--text-primary)] transition-all cursor-pointer"
+                      >
+                        🌙 模拟冷落 TA 12 小时后的吐槽
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
