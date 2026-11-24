@@ -8,8 +8,9 @@ import {
 
 export { LOCAL_CHAT_MODELS, LOCAL_GATEWAY_BASE_URL, LOCAL_IMAGE_MODELS };
 
+// 与存储层一致：PERSONABOT_DATA_ROOT 可把数据目录指到别处（测试时为临时目录）
 export const GENERATED_MEDIA_DIR = path.join(
-  /*turbopackIgnore: true*/ process.cwd(),
+  /*turbopackIgnore: true*/ process.env.PERSONABOT_DATA_ROOT?.trim() || process.cwd(),
   '.data',
   'generated-media'
 );
