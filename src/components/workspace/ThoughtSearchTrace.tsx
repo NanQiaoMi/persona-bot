@@ -59,7 +59,9 @@ export default function ThoughtSearchTrace({
           setUserToggled(true);
           setExpanded(!isOpen);
         }}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer ${
+          isLive ? "border-[#18a999]/35" : "border-[var(--border-subtle)]"
+        }`}
       >
         <span
           className={`inline-flex items-center justify-center w-3 h-3 text-[10px] ${
@@ -69,9 +71,21 @@ export default function ThoughtSearchTrace({
           ✦
         </span>
         <span className="font-medium">{summaryText}</span>
-        <span className="text-[9px] text-[var(--text-muted)]">
-          {isOpen ? "▲" : "▼"}
-        </span>
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className={`w-3 h-3 text-[var(--text-muted)] transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4 6l4 4 4-4"
+          />
+        </svg>
       </button>
 
       {isOpen && (

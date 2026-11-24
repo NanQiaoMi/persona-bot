@@ -181,7 +181,7 @@ export default function GrokComposer({
       <div className="relative max-w-3xl mx-auto">
         {/* Floating "+" Toolbox Popover */}
         {menuOpen && (
-          <div className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-msg-spring">
+          <div className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--text-primary)]">
                 Grok 能力与人格工具箱
@@ -368,7 +368,7 @@ export default function GrokComposer({
 
         {/* Floating "@" Bot Mention Picker (Grok Bot Style) */}
         {showMentionMenu && (
-          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl p-1.5 z-40 animate-fade-in">
+          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
             <div className="max-h-60 overflow-y-auto space-y-0.5">
               {filteredMentions.map((bot, idx) => {
                 const mascot = getMascotConfigForPersona(bot.slug, bot.profile);
@@ -409,7 +409,7 @@ export default function GrokComposer({
         )}
 
         {/* Main Floating Grok Bot Pill Capsule */}
-        <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:shadow-xl transition-all">
+        <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
           <input
             ref={fileInputRef}
             type="file"

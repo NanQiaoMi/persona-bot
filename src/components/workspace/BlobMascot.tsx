@@ -144,7 +144,14 @@ export default function BlobMascot({
       className={`relative inline-flex items-center justify-center shrink-0 blob-interactive ${className}`}
       style={{ width: size, height: size }}
     >
-      <svg viewBox="0 0 64 64" className="w-full h-full overflow-visible">
+      {isWorking && animated && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full blur-md animate-aura-pulse pointer-events-none"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      <svg viewBox="0 0 64 64" className="relative w-full h-full overflow-visible">
         <g className={`blob-body-layer ${bodyAnimClass}`}>
           {/* Pure Flat Solid Matte Vector Silhouette */}
           <path d={shapeDef.path} fill={color} />

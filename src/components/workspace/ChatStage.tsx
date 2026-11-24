@@ -242,6 +242,12 @@ export default function ChatStage({
 
   return (
     <div className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden">
+      {/* Subtle Ambient Mascot Glow behind Floating Header */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[520px] h-44 rounded-full blur-3xl opacity-[0.07] dark:opacity-[0.12] transition-colors duration-700"
+        style={{ backgroundColor: mascotCfg.color }}
+      />
       {/* Frosted Floating Header */}
       <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header backdrop-blur-xl pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
@@ -490,7 +496,7 @@ export default function ChatStage({
                   return (
                     <div
                       key={msg.id || `${msg.timestamp}-${idx}`}
-                      className="flex flex-col items-end animate-msg-spring"
+                      className="flex flex-col items-end animate-msg-user"
                     >
                       {msg.imageUrl && (
                         <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
@@ -541,7 +547,7 @@ export default function ChatStage({
                 return (
                   <div
                     key={msg.id || `${msg.timestamp}-${idx}`}
-                    className={`group flex flex-col items-start animate-msg-spring w-full ${
+                    className={`group flex flex-col items-start animate-msg-ai w-full ${
                       isContinuation ? "-mt-3" : ""
                     }`}
                   >
@@ -953,7 +959,7 @@ export default function ChatStage({
               {/* Live Streaming Turn with Animated Thinking Mascot */}
               {streaming && (
                 <div
-                  className={`flex flex-col items-start animate-msg-spring ${
+                  className={`flex flex-col items-start animate-msg-ai ${
                     messages[messages.length - 1]?.role === "assistant"
                       ? "-mt-3"
                       : ""
@@ -975,7 +981,7 @@ export default function ChatStage({
                       ).map((bText, bIdx, arr) => (
                         <div
                           key={bIdx}
-                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
                         >
                           <GrokMessageBody
                             content={bText}
@@ -984,36 +990,46 @@ export default function ChatStage({
                         </div>
                       ))}
                       {streaming.statusText && (
-                        <div className="py-1 flex items-center gap-2.5">
+                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
                           <BlobMascot
                             shape={mascotCfg.shape}
                             color={mascotCfg.color}
                             image={mascotCfg.image}
-                            size={22}
+                            size={20}
                             trackPointer
                             state="working"
                           />
-                          <span className="text-[12.5px] font-medium animate-text-shimmer">
+                          <div className="flex items-center gap-1" aria-hidden="true">
+                            <span className="typing-dot" />
+                            <span className="typing-dot typing-dot-2" />
+                            <span className="typing-dot typing-dot-3" />
+                          </div>
+                          <span className="text-[12px] font-medium animate-text-shimmer">
                             {streaming.statusText}
                           </span>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="py-1.5 flex items-center gap-3">
+                    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
                       <BlobMascot
                         shape={mascotCfg.shape}
                         color={mascotCfg.color}
                         image={mascotCfg.image}
-                        size={28}
+                        size={24}
                         trackPointer
                         state="working"
                       />
-                      <span className="text-[13.5px] font-medium animate-text-shimmer">
+                      <div className="flex items-center gap-1" aria-hidden="true">
+                        <span className="typing-dot" />
+                        <span className="typing-dot typing-dot-2" />
+                        <span className="typing-dot typing-dot-3" />
+                      </div>
+                      <span className="text-[12.5px] font-medium animate-text-shimmer">
                         {streaming.statusText ||
                           (streaming.isSearching
                             ? `正在搜索 ${streaming.searchQuery || "全网信息"}...`
-                            : `${persona.name} 正在思考与整理...`)}
+                            : `${persona.name} 正在输入...`)}
                       </span>
                     </div>
                   )}
@@ -1027,11 +1043,11 @@ export default function ChatStage({
       {/* Image / Sticker Lightbox Preview */}
       {lightboxMedia && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm p-6 animate-fade-in"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
           onClick={() => setLightboxMedia(null)}
         >
           <div
-            className="relative max-w-2xl w-full flex flex-col items-center gap-3"
+            className="relative max-w-2xl w-full flex flex-col items-center gap-3 animate-popover-in"
             onClick={(e) => e.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
