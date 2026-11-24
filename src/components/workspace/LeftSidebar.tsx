@@ -178,12 +178,19 @@ export default function LeftSidebar({
               key={p.slug}
               type="button"
               onClick={() => onSelectPersona(p.slug)}
-              className={`group w-full text-left px-3 py-2.5 rounded-[16px] transition-all duration-200 flex items-center gap-3 cursor-pointer ${
+              className={`group relative w-full text-left px-3 py-2.5 rounded-[16px] transition-all duration-200 flex items-center gap-3 cursor-pointer ${
                 isActive
-                  ? "bg-[var(--bg-composer)] grok-active-row scale-[1.01]"
+                  ? "bg-[var(--bg-composer)] grok-active-row"
                   : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
               }`}
             >
+              {isActive && (
+                <span
+                  aria-hidden="true"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full transition-all"
+                  style={{ backgroundColor: mascotCfg.color }}
+                />
+              )}
               <BlobMascot
                 shape={mascotCfg.shape}
                 color={mascotCfg.color}
@@ -195,10 +202,16 @@ export default function LeftSidebar({
               />
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center justify-between gap-1.5">
                   <span className="text-[13.5px] font-semibold text-[var(--text-primary)] truncate">
                     {p.name}
                   </span>
+                  {isActive && isStreaming && (
+                    <span
+                      className="w-2 h-2 rounded-full animate-pulse-dot shrink-0"
+                      style={{ backgroundColor: mascotCfg.color }}
+                    />
+                  )}
                 </div>
                 <p className="text-[11.5px] text-[var(--text-secondary)] truncate mt-0.5">
                   {snippet}
@@ -212,7 +225,7 @@ export default function LeftSidebar({
       {/* Bottom Dock: User Popover Avatar + Floating "连接应用" Pill */}
       <div className="relative p-3.5 flex items-center gap-2.5" ref={menuRef}>
         {accountMenuOpen && (
-          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl p-1.5 z-40 animate-fade-in">
+          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
             <button
               type="button"
               onClick={() => {

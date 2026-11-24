@@ -7,6 +7,7 @@ import {
   MediaCard,
   PersonaMode,
   PersonaRecord,
+  PersonaSummary,
   SearchResultItem,
 } from "@/lib/storage/types";
 import { MascotShapeId } from "./mascot-palette";
@@ -30,6 +31,7 @@ interface StreamingState {
 
 interface ChatStageProps {
   persona: PersonaRecord | null;
+  personas?: PersonaSummary[];
   messages: ConversationMessage[];
   streaming: StreamingState | null;
   input: string;
@@ -38,6 +40,7 @@ interface ChatStageProps {
     imageUrl?: string;
     requestPhoto?: boolean;
     requestSticker?: boolean;
+    mentionedSlug?: string;
   }) => void;
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
   onTriggerProactive: (hoursIdle?: number) => void;
@@ -121,6 +124,7 @@ function GrokMessageBody({
 
 export default function ChatStage({
   persona,
+  personas = [],
   messages,
   streaming,
   input,
@@ -238,6 +242,12 @@ export default function ChatStage({
 
   return (
     <div className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden">
+      {/* Subtle Ambient Mascot Glow behind Floating Header */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[520px] h-44 rounded-full blur-3xl opacity-[0.07] dark:opacity-[0.12] transition-colors duration-700"
+        style={{ backgroundColor: mascotCfg.color }}
+      />
       {/* Frosted Floating Header */}
       <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header backdrop-blur-xl pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
@@ -486,7 +496,7 @@ export default function ChatStage({
                   return (
                     <div
                       key={msg.id || `${msg.timestamp}-${idx}`}
-                      className="flex flex-col items-end animate-msg-spring"
+                      className="flex flex-col items-end animate-msg-user"
                     >
                       {msg.imageUrl && (
                         <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
@@ -515,11 +525,31 @@ export default function ChatStage({
                   Boolean(persona.isMaster) || persona.slug === "master-bot";
                 const reports = msg.interBotReports || [];
                 const reportsOpen = expandedReportsId === msg.id;
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const nextMsg =
+                  idx < messages.length - 1 ? messages[idx + 1] : null;
+                const isContinuation = Boolean(
+                  prevMsg &&
+                    prevMsg.role === "assistant" &&
+                    (prevMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
+                );
+                const hasNextAssistant = Boolean(
+                  nextMsg &&
+                    nextMsg.role === "assistant" &&
+                    (nextMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
+                );
+                const isIntermediate =
+                  hasNextAssistant &&
+                  !msg.mediaCards?.length &&
+                  !msg.pageCard &&
+                  correctingIndex !== idx;
 
                 return (
                   <div
                     key={msg.id || `${msg.timestamp}-${idx}`}
-                    className="group flex flex-col items-start animate-msg-spring w-full"
+                    className={`group flex flex-col items-start animate-msg-ai w-full ${
+                      isContinuation ? "-mt-3" : ""
+                    }`}
                   >
                     {/* Inter-Bot "N 条消息往来：" Compact Overlapping Chip Bar */}
                     {reports.length > 0 && (
@@ -600,7 +630,7 @@ export default function ChatStage({
                     )}
 
                     {/* Incoming Relay Header ("消息来自 [mini mascot] {name}") */}
-                    {msg.fromBot && (
+                    {msg.fromBot && !isContinuation && (
                       <div className="w-full mb-2.5 flex flex-col items-center gap-2">
                         <div className="w-full flex items-center gap-3 text-[11px] text-[#2563EB]">
                           <div className="h-px flex-1 bg-[var(--border-subtle)]" />
@@ -812,8 +842,19 @@ export default function ChatStage({
                     )}
 
                     {/* Subtle Hover Action Row */}
-                    <div className="mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity">
+                    <div
+                      className={
+                        isIntermediate
+                          ? "h-0 overflow-hidden opacity-0 group-hover:h-auto group-hover:mt-1.5 group-hover:opacity-100 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] transition-opacity"
+                          : "mt-1.5 px-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] opacity-75 group-hover:opacity-100 transition-opacity"
+                      }
+                    >
                       {msg.mood && <span>{msg.mood}</span>}
+                      {msg.isFollowup && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
+                          主动追发
+                        </span>
+                      )}
                       {msg.modelUsed && (
                         <span className="px-1.5 py-0.5 rounded-md bg-black/[0.04] dark:bg-white/[0.06] text-[10px] font-mono">
                           {msg.modelUsed}
@@ -917,7 +958,13 @@ export default function ChatStage({
 
               {/* Live Streaming Turn with Animated Thinking Mascot */}
               {streaming && (
-                <div className="flex flex-col items-start animate-msg-spring">
+                <div
+                  className={`flex flex-col items-start animate-msg-ai ${
+                    messages[messages.length - 1]?.role === "assistant"
+                      ? "-mt-3"
+                      : ""
+                  }`}
+                >
                   <ThoughtSearchTrace
                     thought={streaming.thought}
                     thoughtDurationMs={streaming.thoughtDurationMs}
@@ -934,7 +981,7 @@ export default function ChatStage({
                       ).map((bText, bIdx, arr) => (
                         <div
                           key={bIdx}
-                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
                         >
                           <GrokMessageBody
                             content={bText}
@@ -943,36 +990,46 @@ export default function ChatStage({
                         </div>
                       ))}
                       {streaming.statusText && (
-                        <div className="py-1 flex items-center gap-2.5">
+                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
                           <BlobMascot
                             shape={mascotCfg.shape}
                             color={mascotCfg.color}
                             image={mascotCfg.image}
-                            size={22}
+                            size={20}
                             trackPointer
                             state="working"
                           />
-                          <span className="text-[12.5px] font-medium animate-text-shimmer">
+                          <div className="flex items-center gap-1" aria-hidden="true">
+                            <span className="typing-dot" />
+                            <span className="typing-dot typing-dot-2" />
+                            <span className="typing-dot typing-dot-3" />
+                          </div>
+                          <span className="text-[12px] font-medium animate-text-shimmer">
                             {streaming.statusText}
                           </span>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="py-1.5 flex items-center gap-3">
+                    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
                       <BlobMascot
                         shape={mascotCfg.shape}
                         color={mascotCfg.color}
                         image={mascotCfg.image}
-                        size={28}
+                        size={24}
                         trackPointer
                         state="working"
                       />
-                      <span className="text-[13.5px] font-medium animate-text-shimmer">
+                      <div className="flex items-center gap-1" aria-hidden="true">
+                        <span className="typing-dot" />
+                        <span className="typing-dot typing-dot-2" />
+                        <span className="typing-dot typing-dot-3" />
+                      </div>
+                      <span className="text-[12.5px] font-medium animate-text-shimmer">
                         {streaming.statusText ||
                           (streaming.isSearching
                             ? `正在搜索 ${streaming.searchQuery || "全网信息"}...`
-                            : `${persona.name} 正在思考与整理...`)}
+                            : `${persona.name} 正在输入...`)}
                       </span>
                     </div>
                   )}
@@ -986,11 +1043,11 @@ export default function ChatStage({
       {/* Image / Sticker Lightbox Preview */}
       {lightboxMedia && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm p-6 animate-fade-in"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
           onClick={() => setLightboxMedia(null)}
         >
           <div
-            className="relative max-w-2xl w-full flex flex-col items-center gap-3"
+            className="relative max-w-2xl w-full flex flex-col items-center gap-3 animate-popover-in"
             onClick={(e) => e.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1024,6 +1081,7 @@ export default function ChatStage({
       <GrokComposer
         personaName={persona.name}
         accentColor={mascotCfg.color}
+        personas={personas}
         value={input}
         onChange={onChangeInput}
         onSend={onSend}

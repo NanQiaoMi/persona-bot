@@ -218,6 +218,7 @@ export class UnifiedStorageRepository {
         avatarShape: (legacyProfile.avatarShape as string) || undefined,
         avatarColor: (legacyProfile.avatarColor as string) || undefined,
         avatarImage: (legacyProfile.avatarImage as string) || undefined,
+        appearanceAnchor: (legacyProfile.appearanceAnchor as string) || undefined,
         bio: (legacyProfile.bio as string) || undefined,
       },
       personaMd,

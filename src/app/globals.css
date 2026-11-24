@@ -14,6 +14,7 @@
   --bg-bubble-ai: #f2f2f5;
   --bg-composer: #ffffff;
   --bg-elevated: rgba(255, 255, 255, 0.88);
+  --bg-hover: rgba(0, 0, 0, 0.055);
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
   --text-muted: #8e8e93;
@@ -44,6 +45,7 @@
   --bg-bubble-ai: #17171f;
   --bg-composer: #14141b;
   --bg-elevated: rgba(20, 20, 27, 0.86);
+  --bg-hover: rgba(255, 255, 255, 0.08);
   --text-primary: #f5f5f7;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
@@ -97,11 +99,11 @@ body {
   100% {
     transform: translateY(0) scale(1, 1);
   }
-  35% {
-    transform: translateY(-1.5px) scale(1.035, 0.965);
+  38% {
+    transform: translateY(-1px) scale(1.018, 0.986);
   }
-  70% {
-    transform: translateY(0.5px) scale(0.975, 1.028);
+  72% {
+    transform: translateY(0.5px) scale(0.988, 1.014);
   }
 }
 
@@ -176,6 +178,64 @@ body {
   }
   50% {
     transform: translateY(-5px);
+  }
+}
+
+@keyframes msg-in-ai {
+  0% {
+    opacity: 0;
+    transform: translate(-4px, 10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes msg-in-user {
+  0% {
+    opacity: 0;
+    transform: translate(4px, 10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes popover-spring {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes aura-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.14;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.24;
   }
 }
 
@@ -259,65 +319,45 @@ body {
   }
 }
 
-@keyframes blob-work-morph {
-  0% {
-    transform: scale(1, 1) skewX(0deg) rotate(0deg) translateY(0px);
-  }
-  12% {
-    transform: scale(1.13, 0.87) skewX(0deg) rotate(0deg) translateY(2px);
-  }
-  24% {
-    transform: scale(0.89, 1.13) skewX(0deg) rotate(0deg) translateY(-4px);
-  }
-  36% {
-    transform: scale(1.05, 0.95) skewX(-9deg) rotate(0deg) translateY(-1px);
-  }
-  48% {
-    transform: scale(0.95, 1.05) skewX(9deg) rotate(0deg) translateY(-1px);
-  }
-  62% {
-    transform: scale(1.02, 0.98) skewX(0deg) rotate(-14deg) translateY(-2px);
-  }
-  74% {
-    transform: scale(1.02, 0.98) skewX(0deg) rotate(14deg) translateY(-2px);
-  }
-  84% {
-    transform: scale(1, 1) skewX(0deg) rotate(0deg) translateY(0px);
-  }
-  90% {
-    transform: scaleX(-1) scaleY(0.96) skewX(0deg) rotate(0deg) translateY(-1px);
-  }
-  95% {
-    transform: scaleX(-1) scaleY(1) skewX(0deg) rotate(0deg) translateY(0px);
-  }
+@keyframes blob-work-gentle {
+  0%,
   100% {
-    transform: scale(1, 1) skewX(0deg) rotate(0deg) translateY(0px);
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-2px) rotate(-5deg) scale(1.02);
+  }
+  50% {
+    transform: translateY(0px) rotate(0deg) scale(0.99);
+  }
+  75% {
+    transform: translateY(-1.5px) rotate(5deg) scale(1.02);
   }
 }
 
 @keyframes eye-size-left {
   0%,
   100% {
-    transform: scale(1.16, 1.22);
+    transform: scale(1.12, 1.16);
   }
-  32% {
-    transform: scale(0.84, 0.36);
+  35% {
+    transform: scale(0.88, 0.56);
   }
-  66% {
-    transform: scale(1.24, 1.3);
+  68% {
+    transform: scale(1.18, 1.22);
   }
 }
 
 @keyframes eye-size-right {
   0%,
   100% {
-    transform: scale(0.86, 0.42);
+    transform: scale(0.9, 0.62);
   }
-  36% {
-    transform: scale(1.24, 1.3);
+  38% {
+    transform: scale(1.18, 1.22);
   }
   72% {
-    transform: scale(0.84, 0.38);
+    transform: scale(0.88, 0.58);
   }
 }
 
@@ -333,7 +373,7 @@ body {
 .animate-blob-breathe {
   transform-box: fill-box;
   transform-origin: center bottom;
-  animation: blob-breathe 3.6s ease-in-out infinite;
+  animation: blob-breathe 4.2s ease-in-out infinite;
 }
 
 .animate-blob-think {
@@ -345,19 +385,19 @@ body {
 .animate-blob-work {
   transform-box: fill-box;
   transform-origin: center center;
-  animation: blob-work-morph 6.2s ease-in-out infinite;
+  animation: blob-work-gentle 3.6s ease-in-out infinite;
 }
 
 .animate-eye-left {
   transform-box: fill-box;
   transform-origin: center center;
-  animation: eye-size-left 1.7s ease-in-out infinite;
+  animation: eye-size-left 1.9s ease-in-out infinite;
 }
 
 .animate-eye-right {
   transform-box: fill-box;
   transform-origin: center center;
-  animation: eye-size-right 1.7s ease-in-out infinite;
+  animation: eye-size-right 1.9s ease-in-out infinite;
 }
 
 .animate-text-shimmer {
@@ -382,11 +422,19 @@ body {
   animation: blob-blink 4.4s ease-in-out infinite;
 }
 
-.blob-interactive:hover .blob-body-layer,
-.group:hover .blob-interactive .blob-body-layer {
+.blob-interactive .blob-body-layer {
   transform-box: fill-box;
-  transform-origin: center bottom;
-  animation: blob-jelly-hover 0.58s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center center;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.blob-interactive:hover .blob-body-layer:not(.animate-blob-work),
+.group:hover .blob-interactive .blob-body-layer:not(.animate-blob-work) {
+  animation: none;
+  transform: rotate(-6deg) scale(1.03);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.12));
 }
 
 .animate-float-gentle {
@@ -395,6 +443,40 @@ body {
 
 .animate-msg-spring {
   animation: msg-spring-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-msg-ai {
+  animation: msg-in-ai 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-msg-user {
+  animation: msg-in-user 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-popover-in {
+  transform-origin: bottom center;
+  animation: popover-spring 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background-color: var(--text-muted);
+  display: inline-block;
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+
+.typing-dot-2 {
+  animation-delay: 0.16s;
+}
+
+.typing-dot-3 {
+  animation-delay: 0.32s;
+}
+
+.animate-aura-pulse {
+  animation: aura-pulse 2.2s ease-in-out infinite;
 }
 
 .animate-fade-in {
@@ -469,4 +551,19 @@ body {
   border-radius: 2px;
   background: var(--accent-teal);
   animation: pulse-dot 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob-breathe,
+  .animate-blob-work,
+  .animate-blob-think,
+  .animate-blob-blink,
+  .animate-float-gentle,
+  .animate-orbit-spin,
+  .animate-aura-pulse,
+  .animate-pulse-dot,
+  .animate-text-shimmer,
+  .typing-dot {
+    animation: none !important;
+  }
 }

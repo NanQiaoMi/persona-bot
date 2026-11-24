@@ -8,13 +8,16 @@ import {
   isLocalGatewayUrl,
   LOCAL_GATEWAY_BASE_URL,
 } from '@/lib/grok/image-generator';
+import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
+import { autoPersistTurnMemory } from '@/lib/persona/auto-memory';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import {
   ConversationMessage,
   MediaCard,
   PageArtifactCardData,
+  PendingFollowup,
   PersonaEmotionSnapshot,
   PersonaMode,
   PersonaRecord,
@@ -22,6 +25,7 @@ import {
 
 export interface ChatTurnRequest {
   slug: string;
+  mentionedSlug?: string;
   messages: Array<{
     role: 'user' | 'assistant';
     content: string;
@@ -73,12 +77,21 @@ export type StreamEvent =
       isDemoMode: boolean;
     }
   | {
+      type: 'message_part';
+      message: ConversationMessage;
+      index: number;
+      total: number;
+      hasMore: boolean;
+    }
+  | {
       type: 'done';
       message: ConversationMessage;
+      messages?: ConversationMessage[];
+      followup?: PendingFollowup;
     };
 
 /**
- * 解析模型输出中的 <thought>、[MOOD: ...]、[PHOTO: ...]、[VOICE: ...] 与 [BURST]
+ * 解析模型输出中的 <thought>、[MOOD]、[EARLY]、[FOLLOWUP]、[PHOTO]、[STICKER]、[VOICE] 与 [BURST]
  */
 export function parseStructuredModelOutput(rawText: string, fallbackThought = ''): {
   thought: string;
@@ -86,6 +99,7 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   cleanReply: string;
   bursts: string[];
   mediaCards: MediaCard[];
+  followup?: { delaySec: number; content: string };
 } {
   let working = rawText.trim();
   let thought = fallbackThought;
@@ -101,6 +115,27 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   if (moodMatch) {
     mood = moodMatch[1].trim();
     working = working.replace(moodMatch[0], '').trim();
+  }
+
+  let earlyText = '';
+  const earlyMatch = working.match(/\[EARLY:\s*([^\]]+)\]/i);
+  if (earlyMatch) {
+    earlyText = earlyMatch[1].trim();
+    working = working.replace(earlyMatch[0], '').trim();
+  }
+
+  let followup: { delaySec: number; content: string } | undefined;
+  const followupMatch = working.match(
+    /\[FOLLOWUP:\s*(\d{1,2})\s*[|｜]\s*([^\]]+)\]/i
+  );
+  if (followupMatch) {
+    const rawSec = Number(followupMatch[1]);
+    const delaySec = Math.max(5, Math.min(30, Number.isFinite(rawSec) ? rawSec : 8));
+    const fContent = followupMatch[2].trim();
+    if (fContent) {
+      followup = { delaySec, content: fContent };
+    }
+    working = working.replace(followupMatch[0], '').trim();
   }
 
   const mediaCards: MediaCard[] = [];
@@ -140,6 +175,9 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   working = working.replace(voiceRegex, '').trim();
 
   const bursts = splitLiveBursts(working);
+  if (earlyText && !bursts.some((b) => b === earlyText)) {
+    bursts.unshift(earlyText);
+  }
 
   const cleanReply = bursts.join('\n\n');
 
@@ -149,32 +187,20 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
     cleanReply: cleanReply || '（轻轻挑了下眉，等你继续往下说）',
     bursts: bursts.length > 0 ? bursts : [cleanReply || '我在听呢，继续说～'],
     mediaCards,
+    followup,
   };
 }
 
 /**
- * 去除流式中间态里的完整/半截控制标记，并规范化多余空行，避免前端输出闪烁或空行过多
- */
-function stripLiveControlTags(text: string): string {
-  return text
-    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
-    .replace(/<thought>[\s\S]*/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST)[^\]]*$/i, '')
-    .replace(/\[BURST\]/gi, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-/**
- * 将流式或完整文本按 [BURST] 拆分为干净的多气泡数组，清理内部多余空行
+ * 将流式或完整文本按 [BURST] / [EARLY] 拆分为干净的多气泡数组，清理内部多余空行
  */
 export function splitLiveBursts(rawText: string): string[] {
   const withoutTags = rawText
     .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
     .replace(/<thought>[\s\S]*/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST)[^\]]*$/i, '');
+    .replace(/\[EARLY:\s*([^\]]+)\]/gi, '$1[BURST]')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '');
 
   return withoutTags
     .split(/\[BURST\]/gi)
@@ -187,6 +213,200 @@ export function splitLiveBursts(rawText: string): string[] {
         .trim()
     )
     .filter(Boolean);
+}
+
+/**
+ * 清理模型可能夹带的底层网关/临时聊天拒答套话，保持角色沉浸感与有效回复
+ */
+export function sanitizeGatewayRefusalLeaks(bursts: string[]): string[] {
+  const refusalPattern =
+    /(?:不过)?(?:你现在是在|当前处于)?临时聊天[^。！？\n]*[。！？]?|切换到普通聊天[^。！？\n]*[。！？]?|(?:无法|不能)(?:直接)?使用图片生成[^。！？\n]*[。！？]?|我没有真实的手机[^。！？\n]*[。！？]?|不能假装这是我的实拍[^。！？\n]*[。！？]?/gi;
+
+  const cleaned = bursts
+    .map((b) =>
+      b
+        .replace(refusalPattern, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    )
+    .filter((b) => b.length > 0 && !/^[🙈😅🤭\s]+$/.test(b));
+
+  return cleaned.length > 0 ? cleaned : ['这就发给你看看呀～'];
+}
+
+/**
+ * 基于用户最新要求与模型回复中的服装/场景细节，提取准确的生图/表情包描述，杜绝空泛占位词
+ */
+export function buildContextualMediaCaption(
+  kind: 'photo' | 'sticker',
+  personaName: string,
+  userText: string,
+  assistantReply: string,
+  mood?: string
+): string {
+  const cleanUser = userText
+    .replace(/^(?:请|帮我|能不能|可以)?(?:给我)?(?:发张|来张|发个|来个|看看|拍张|生成一张|画一张)/g, '')
+    .replace(/(?:的照片|的图片|随手拍|看看呗|吗|呀|呢|！|。|\?)+$/g, '')
+    .trim();
+
+  const replyVisualLine = assistantReply
+    .split(/[\n。！？]/)
+    .map((s) => s.trim())
+    .find(
+      (s) =>
+        s.length >= 6 &&
+        s.length <= 90 &&
+        /穿|裙|靴|衣|帽|发|夜景|台灯|咖啡|书桌|房间|微笑|眨眼|比耶|穿搭|风格/.test(s) &&
+        !/临时聊天|普通聊天|照片发来/.test(s)
+    );
+
+  if (kind === 'sticker') {
+    const moodPart = mood || cleanUser || '俏皮互动';
+    return `${personaName} 表现出「${moodPart.slice(0, 32)}」的可爱贴纸表情包`;
+  }
+
+  const parts = [cleanUser, replyVisualLine].filter(Boolean);
+  const merged = Array.from(new Set(parts)).join('，').slice(0, 110);
+  if (merged.length >= 4) {
+    return `${merged}的清晰真实生活随手拍照片`;
+  }
+  return `${personaName} 温馨自然的日常随手拍照片`;
+}
+
+function sleepForSimulatedStream(ms: number): Promise<void> {
+  if (process.env.VITEST || ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function splitLongProseParagraph(paragraph: string): string[] {
+  const trimmed = paragraph.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= 55) return [trimmed];
+
+  const lines = trimmed
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const sentenceUnits: string[] = [];
+
+  for (const line of lines) {
+    if (line.length <= 40) {
+      sentenceUnits.push(line);
+      continue;
+    }
+    const matched = line.match(
+      /[^。！？!?]+(?:[。！？!?]+[”’"'」』）)\s~～…]*|$)/g
+    );
+    if (matched && matched.length > 0) {
+      for (const s of matched) {
+        const cleanS = s.trim();
+        if (cleanS) sentenceUnits.push(cleanS);
+      }
+    } else {
+      sentenceUnits.push(line);
+    }
+  }
+
+  if (sentenceUnits.length <= 1) return [trimmed];
+
+  const grouped: string[] = [];
+  let current = '';
+
+  for (const unit of sentenceUnits) {
+    if (!current) {
+      current = unit;
+      continue;
+    }
+    if (current.length < 18 && current.length + unit.length <= 68) {
+      const needsSpace =
+        /[a-zA-Z0-9]$/.test(current) && /^[a-zA-Z0-9]/.test(unit);
+      current = `${current}${needsSpace ? ' ' : ''}${unit}`;
+    } else {
+      grouped.push(current);
+      current = unit;
+    }
+  }
+
+  if (current) {
+    if (
+      grouped.length > 0 &&
+      current.length < 8 &&
+      grouped[grouped.length - 1].length + current.length <= 75
+    ) {
+      grouped[grouped.length - 1] = `${grouped[grouped.length - 1]}${current}`;
+    } else {
+      grouped.push(current);
+    }
+  }
+
+  return grouped.length > 0 ? grouped : [trimmed];
+}
+
+/**
+ * 将回复语义拆分为多条自然聊天短消息（保留显式 [BURST]，同时自动拆分长段落，但保护代码块与列表完整）
+ */
+export function splitIntoNaturalMessages(
+  bursts: string[],
+  maxSegments = 4
+): string[] {
+  const rawChunks = bursts.map((b) => b.trim()).filter(Boolean);
+  if (rawChunks.length === 0) {
+    return ['我在听呢，继续说～'];
+  }
+
+  const expanded: string[] = [];
+  for (const chunk of rawChunks) {
+    const hasCodeFence = /```/.test(chunk);
+    const hasMarkdownList = /(?:^|\n)\s*(?:[-*+]|\d+\.)\s+/.test(chunk);
+    if (hasCodeFence || hasMarkdownList) {
+      expanded.push(chunk);
+      continue;
+    }
+
+    const paragraphs = chunk
+      .split(/\n{2,}/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    for (const para of paragraphs) {
+      expanded.push(...splitLongProseParagraph(para));
+    }
+  }
+
+  const normalized = expanded.filter(Boolean);
+  if (normalized.length === 0) {
+    return ['我在听呢，继续说～'];
+  }
+
+  const limit = Math.max(1, maxSegments);
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+
+  const head = normalized.slice(0, limit - 1);
+  const tailMerged = normalized.slice(limit - 1).join('\n');
+  return [...head, tailMerged];
+}
+
+/**
+ * 计算拟真人类打字/思考间隔（毫秒）；Vitest 下默认返回 0 以保持测试秒级完成
+ */
+export function computeRealisticTypingDelayMs(
+  segment: string,
+  index = 1,
+  options?: { respectTestEnv?: boolean; jitter?: boolean }
+): number {
+  if (options?.respectTestEnv !== false && process.env.VITEST) {
+    return 0;
+  }
+  const len = Math.max(1, segment.trim().length);
+  const jitterMs =
+    options?.jitter !== false ? Math.floor(Math.random() * 280) : 0;
+
+  if (index <= 0) {
+    return Math.min(750, Math.max(260, Math.round(260 + len * 14 + jitterMs)));
+  }
+  return Math.min(2800, Math.max(750, Math.round(680 + len * 46 + jitterMs)));
 }
 
 /**
@@ -422,24 +642,15 @@ function buildPageCardIfRelevant(
 }
 
 /**
- * 尝试对兼容 OpenAI/xAI/DeepSeek 的上游接口发起真正的 stream: true SSE 透传
+ * 从兼容 OpenAI/xAI/DeepSeek 的上游接口完整缓冲拉取回复（避免生硬半截跳字，配合后端假流式匀速吐泡）
  */
-async function streamFromUpstreamLLM(
+async function fetchBufferedUpstreamLLM(
   endpoint: string,
   apiKey: string,
   model: string,
   systemPrompt: string,
   messages: ChatTurnRequest['messages'],
-  temperature: number,
-  thinkEnabled: boolean,
-  onDelta: (state: {
-    thoughtDelta?: string;
-    fullThought: string;
-    replyDelta?: string;
-    fullReply: string;
-    liveBursts?: string[];
-    thoughtDurationMs: number;
-  }) => void
+  temperature: number
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -448,6 +659,7 @@ async function streamFromUpstreamLLM(
     headers.Authorization = `Bearer ${apiKey}`;
   }
 
+  const reqStart = Date.now();
   const res = await fetch(endpoint, {
     method: 'POST',
     headers,
@@ -480,30 +692,10 @@ async function streamFromUpstreamLLM(
       typeof messageObj.reasoning_content === 'string'
         ? messageObj.reasoning_content
         : '';
-    const cleanVisible = stripLiveControlTags(rawContent);
-    const liveBursts = splitLiveBursts(rawContent);
-    if (reasoningContent && thinkEnabled) {
-      onDelta({
-        thoughtDelta: reasoningContent,
-        fullThought: reasoningContent,
-        fullReply: '',
-        liveBursts: [],
-        thoughtDurationMs: 600,
-      });
-    }
-    if (cleanVisible) {
-      onDelta({
-        fullThought: reasoningContent,
-        replyDelta: cleanVisible,
-        fullReply: cleanVisible,
-        liveBursts: liveBursts.length > 0 ? liveBursts : [cleanVisible],
-        thoughtDurationMs: 600,
-      });
-    }
     return {
       rawOutput: rawContent,
       reasoningContent,
-      thoughtDurationMs: 600,
+      thoughtDurationMs: Math.max(300, Date.now() - reqStart),
     };
   }
 
@@ -514,8 +706,6 @@ async function streamFromUpstreamLLM(
   let nativeReasoning = '';
   let thoughtStart = Date.now();
   let thoughtEnd = 0;
-  let lastEmittedThought = '';
-  let lastEmittedReply = '';
 
   while (true) {
     const { value, done } = await reader.read();
@@ -539,55 +729,12 @@ async function streamFromUpstreamLLM(
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
           if (!nativeReasoning) thoughtStart = Date.now();
           nativeReasoning += delta.reasoning_content;
-          if (thinkEnabled) {
-            onDelta({
-              thoughtDelta: delta.reasoning_content,
-              fullThought: nativeReasoning,
-              fullReply: lastEmittedReply,
-              thoughtDurationMs: Date.now() - thoughtStart,
-            });
-            lastEmittedThought = nativeReasoning;
-          }
         }
 
         if (typeof delta.content === 'string' && delta.content) {
           rawContent += delta.content;
-
-          const openTagIdx = rawContent.indexOf('<thought>');
-          const closeTagIdx = rawContent.indexOf('</thought>');
-          if (openTagIdx !== -1 && thinkEnabled && !nativeReasoning) {
-            const inner =
-              closeTagIdx !== -1
-                ? rawContent.slice(openTagIdx + 9, closeTagIdx).trim()
-                : rawContent.slice(openTagIdx + 9).trim();
-            if (closeTagIdx !== -1 && !thoughtEnd) {
-              thoughtEnd = Date.now();
-            }
-            if (inner.length > lastEmittedThought.length) {
-              const tDelta = inner.slice(lastEmittedThought.length);
-              lastEmittedThought = inner;
-              onDelta({
-                thoughtDelta: tDelta,
-                fullThought: inner,
-                fullReply: lastEmittedReply,
-                thoughtDurationMs: (thoughtEnd || Date.now()) - thoughtStart,
-              });
-            }
-          }
-
-          const cleanVisible = stripLiveControlTags(rawContent);
-          const liveBursts = splitLiveBursts(rawContent);
-          if (cleanVisible.length > lastEmittedReply.length) {
-            if (!thoughtEnd) thoughtEnd = Date.now();
-            const rDelta = cleanVisible.slice(lastEmittedReply.length);
-            lastEmittedReply = cleanVisible;
-            onDelta({
-              fullThought: lastEmittedThought,
-              replyDelta: rDelta,
-              fullReply: cleanVisible,
-              liveBursts: liveBursts.length > 0 ? liveBursts : [cleanVisible],
-              thoughtDurationMs: Math.max(200, thoughtEnd - thoughtStart),
-            });
+          if (rawContent.includes('</thought>') && !thoughtEnd) {
+            thoughtEnd = Date.now();
           }
         }
       } catch {
@@ -615,9 +762,28 @@ export async function executeGrokChatTurn(
   req: ChatTurnRequest,
   onEvent?: (event: StreamEvent) => void
 ): Promise<ConversationMessage> {
-  const persona =
+  const channelPersona =
     (await storageRepo.getPersona(req.slug)) ||
     (await storageRepo.getPersona('grok-ella'))!;
+  const mentionedResponder =
+    req.mentionedSlug && req.mentionedSlug !== channelPersona.slug
+      ? await storageRepo.getPersona(req.mentionedSlug)
+      : null;
+  const persona = mentionedResponder || channelPersona;
+  const fromBotMeta = mentionedResponder
+    ? (() => {
+        const m = getMascotConfigForPersona(
+          mentionedResponder.slug,
+          mentionedResponder.profile
+        );
+        return {
+          slug: mentionedResponder.slug,
+          name: mentionedResponder.name,
+          shape: m.shape,
+          color: m.color,
+        };
+      })()
+    : undefined;
   const settings = await storageRepo.getSettings();
 
   const activeMode: PersonaMode = req.mode || persona.defaultMode || 'authentic';
@@ -713,9 +879,12 @@ export async function executeGrokChatTurn(
   let nativeReasoning = '';
   let thoughtDurationMs = 950;
   let isDemoMode = false;
-  let alreadyStreamedLive = false;
 
   if (canCallUpstream) {
+    onEvent?.({
+      type: 'status',
+      text: `${persona.name} 正在输入...`,
+    });
     try {
       const endpoint = baseUrl.endsWith('/chat/completions')
         ? baseUrl
@@ -724,43 +893,21 @@ export async function executeGrokChatTurn(
       const temperature =
         activeMode === 'fun' ? 0.9 : activeMode === 'analytical' ? 0.5 : 0.78;
 
-      const streamed = await streamFromUpstreamLLM(
+      const buffered = await fetchBufferedUpstreamLLM(
         endpoint,
         apiKey,
         model,
         systemPrompt,
         req.messages,
-        temperature,
-        thinkEnabled,
-        ({ thoughtDelta, fullThought, replyDelta, fullReply, liveBursts, thoughtDurationMs: dMs }) => {
-          if (thoughtDelta && thinkEnabled) {
-            onEvent?.({
-              type: 'thought',
-              delta: thoughtDelta,
-              fullThought,
-              durationMs: dMs,
-            });
-          }
-          if (replyDelta) {
-            onEvent?.({
-              type: 'reply',
-              delta: replyDelta,
-              fullReply,
-              bursts:
-                liveBursts && liveBursts.length > 0
-                  ? liveBursts
-                  : fullReply.split('\n\n').filter(Boolean),
-              mediaCards: [],
-              isDemoMode: false,
-            });
-          }
-        }
+        temperature
       );
 
-      rawModelOutput = streamed.rawOutput;
-      nativeReasoning = streamed.reasoningContent;
-      thoughtDurationMs = streamed.thoughtDurationMs;
-      alreadyStreamedLive = Boolean(rawModelOutput);
+      rawModelOutput = buffered.rawOutput;
+      nativeReasoning = buffered.reasoningContent;
+      thoughtDurationMs = buffered.thoughtDurationMs;
+      if (!rawModelOutput.trim()) {
+        throw new Error('Empty model response');
+      }
     } catch {
       isDemoMode = true;
       rawModelOutput = synthesizePersonaAwareFallback(
@@ -788,11 +935,13 @@ export async function executeGrokChatTurn(
 
   const parsed = parseStructuredModelOutput(
     rawModelOutput,
-    nativeReasoning ||
-      (thinkEnabled
-        ? `结合当前对话脉络与「${getPersonaModeSpec(activeMode).shortLabel}」风格，组织一条最有活人感的回应。`
-        : '')
+    nativeReasoning || ''
   );
+
+  const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
+  const segments = splitIntoNaturalMessages(sanitizedBursts);
+  parsed.bursts = segments;
+  parsed.cleanReply = segments.join('\n\n');
 
   if (parsed.mood) {
     updatedEmotion.moodLabel = parsed.mood;
@@ -811,7 +960,13 @@ export async function executeGrokChatTurn(
   ) {
     parsed.mediaCards.unshift({
       type: 'sticker',
-      caption: `${persona.name} 配合当下心情的专属表情包（${parsed.mood || '俏皮互动中'}）`,
+      caption: buildContextualMediaCaption(
+        'sticker',
+        persona.name,
+        lastUserText,
+        parsed.cleanReply,
+        parsed.mood
+      ),
     });
   } else if (
     hasExplicitPhoto &&
@@ -819,7 +974,13 @@ export async function executeGrokChatTurn(
   ) {
     parsed.mediaCards.unshift({
       type: 'photo',
-      caption: `${persona.name} 刚刚顺手拍下的日常画面`,
+      caption: buildContextualMediaCaption(
+        'photo',
+        persona.name,
+        lastUserText,
+        parsed.cleanReply,
+        parsed.mood
+      ),
     });
   }
 
@@ -833,55 +994,6 @@ export async function executeGrokChatTurn(
     }
     return true;
   });
-
-  // Emit smooth streaming chunks when running in Demo Mode / non-live fallback
-  if (!alreadyStreamedLive) {
-    const startTs = Date.now();
-    if (thinkEnabled && parsed.thought) {
-      const stepSize = Math.max(6, Math.ceil(parsed.thought.length / 6));
-      let acc = '';
-      for (let i = 0; i < parsed.thought.length; i += stepSize) {
-        const delta = parsed.thought.slice(i, i + stepSize);
-        acc += delta;
-        onEvent?.({
-          type: 'thought',
-          delta,
-          fullThought: acc,
-          durationMs: Math.max(400, Date.now() - startTs + i * 14),
-        });
-      }
-      thoughtDurationMs = Math.max(700, parsed.thought.length * 18);
-    }
-
-    onEvent?.({
-      type: 'emotion',
-      emotionState: updatedEmotion,
-      intimacy: newIntimacy,
-      intimacyChange: intimacyDelta,
-    });
-
-    const replyStep = Math.max(6, Math.ceil(parsed.cleanReply.length / 8));
-    let replyAcc = '';
-    for (let i = 0; i < parsed.cleanReply.length; i += replyStep) {
-      const delta = parsed.cleanReply.slice(i, i + replyStep);
-      replyAcc += delta;
-      onEvent?.({
-        type: 'reply',
-        delta,
-        fullReply: replyAcc,
-        bursts: parsed.bursts,
-        mediaCards: parsed.mediaCards,
-        isDemoMode,
-      });
-    }
-  } else {
-    onEvent?.({
-      type: 'emotion',
-      emotionState: updatedEmotion,
-      intimacy: newIntimacy,
-      intimacyChange: intimacyDelta,
-    });
-  }
 
   const pageCard = buildPageCardIfRelevant(
     persona,
@@ -904,41 +1016,189 @@ export async function executeGrokChatTurn(
     };
   }
 
-  const assistantMessage: ConversationMessage = {
-    id: `msg_${Date.now()}_ai`,
-    role: 'assistant',
-    content: parsed.cleanReply,
-    timestamp: new Date().toISOString(),
-    thought: thinkEnabled ? parsed.thought : undefined,
-    thoughtDurationMs: thinkEnabled ? thoughtDurationMs : undefined,
-    searchQuery: searchResp?.query,
-    searchResults: searchResp?.results,
-    pageCard,
-    mode: activeMode,
-    mood: updatedEmotion.moodLabel,
+  const baseTs = Date.now();
+  const modelLabel = isDemoMode ? '离线演示' : model;
+
+  if (!onEvent) {
+    const combinedMessage: ConversationMessage = {
+      id: `msg_${baseTs}_ai`,
+      role: 'assistant',
+      content: parsed.cleanReply,
+      timestamp: new Date(baseTs).toISOString(),
+      thought: thinkEnabled && parsed.thought ? parsed.thought : undefined,
+      thoughtDurationMs:
+        thinkEnabled && parsed.thought ? thoughtDurationMs : undefined,
+      searchQuery: searchResp?.query,
+      searchResults: searchResp?.results,
+      pageCard,
+      fromBot: fromBotMeta,
+      mode: activeMode,
+      mood: updatedEmotion.moodLabel,
+      intimacyChange: intimacyDelta,
+      mediaCards: parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
+      bursts: segments,
+      modelUsed: modelLabel,
+      isDemoMode,
+    };
+
+    const userMessageRecord: ConversationMessage = {
+      id: `msg_${baseTs}_user`,
+      role: 'user',
+      content: lastUserText,
+      timestamp: lastUserMsgObj.timestamp || new Date(baseTs).toISOString(),
+      imageUrl: lastUserMsgObj.imageUrl,
+      mode: activeMode,
+    };
+
+    await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
+    await storageRepo.appendMessages(channelPersona.slug, [
+      userMessageRecord,
+      combinedMessage,
+    ]);
+    void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
+      () => {}
+    );
+
+    return combinedMessage;
+  }
+
+  const assistantMessages: ConversationMessage[] = segments.map((seg, i) => {
+    const isFirst = i === 0;
+    const isLast = i === segments.length - 1;
+    return {
+      id: `msg_${baseTs}_ai_${i}`,
+      role: 'assistant',
+      content: seg,
+      timestamp: new Date(baseTs + i * 1000).toISOString(),
+      thought:
+        isFirst && thinkEnabled && parsed.thought ? parsed.thought : undefined,
+      thoughtDurationMs:
+        isFirst && thinkEnabled && parsed.thought ? thoughtDurationMs : undefined,
+      searchQuery: isFirst ? searchResp?.query : undefined,
+      searchResults: isFirst ? searchResp?.results : undefined,
+      pageCard: isLast ? pageCard : undefined,
+      fromBot: fromBotMeta,
+      mode: activeMode,
+      mood: isLast ? updatedEmotion.moodLabel : undefined,
+      intimacyChange: isLast ? intimacyDelta : undefined,
+      mediaCards:
+        isLast && parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
+      bursts: [seg],
+      modelUsed: isLast ? modelLabel : undefined,
+      isDemoMode: isLast ? isDemoMode : undefined,
+    };
+  });
+
+  // Smooth paced simulated streaming ("假流式": buffer complete response first, then type out and emit multi-messages sequentially)
+  const startTs = Date.now();
+  if (thinkEnabled && parsed.thought) {
+    const stepSize = Math.max(8, Math.ceil(parsed.thought.length / 5));
+    let acc = '';
+    for (let i = 0; i < parsed.thought.length; i += stepSize) {
+      const delta = parsed.thought.slice(i, i + stepSize);
+      acc += delta;
+      onEvent({
+        type: 'thought',
+        delta,
+        fullThought: acc,
+        durationMs: Math.max(400, Date.now() - startTs + i * 12),
+      });
+      await sleepForSimulatedStream(18);
+    }
+    thoughtDurationMs = Math.max(500, parsed.thought.length * 16);
+  }
+
+  onEvent({
+    type: 'emotion',
+    emotionState: updatedEmotion,
+    intimacy: newIntimacy,
     intimacyChange: intimacyDelta,
-    mediaCards: parsed.mediaCards.length > 0 ? parsed.mediaCards : undefined,
-    bursts: parsed.bursts,
-    modelUsed: isDemoMode ? '离线演示' : model,
-    isDemoMode,
-  };
+  });
+
+  for (let i = 0; i < segments.length; i += 1) {
+    const targetSegment = segments[i];
+    const isLast = i === segments.length - 1;
+
+    if (i === 0) {
+      await sleepForSimulatedStream(
+        computeRealisticTypingDelayMs(targetSegment, 0)
+      );
+    } else {
+      onEvent({
+        type: 'status',
+        text: `${persona.name} 正在输入...`,
+      });
+      await sleepForSimulatedStream(
+        computeRealisticTypingDelayMs(targetSegment, i)
+      );
+    }
+
+    const step = Math.max(4, Math.ceil(targetSegment.length / 10));
+    for (let pos = step; pos < targetSegment.length + step; pos += step) {
+      const partial = targetSegment.slice(0, pos);
+      onEvent({
+        type: 'reply',
+        delta: partial,
+        fullReply: partial,
+        bursts: [partial],
+        mediaCards: isLast ? parsed.mediaCards : [],
+        isDemoMode,
+      });
+      await sleepForSimulatedStream(24);
+    }
+
+    onEvent({
+      type: 'message_part',
+      message: assistantMessages[i],
+      index: i,
+      total: segments.length,
+      hasMore: !isLast,
+    });
+  }
+
+  const finalAssistantMessage =
+    assistantMessages[assistantMessages.length - 1];
 
   const userMessageRecord: ConversationMessage = {
-    id: `msg_${Date.now()}_user`,
+    id: `msg_${baseTs}_user`,
     role: 'user',
     content: lastUserText,
-    timestamp: lastUserMsgObj.timestamp || new Date().toISOString(),
+    timestamp: lastUserMsgObj.timestamp || new Date(baseTs).toISOString(),
     imageUrl: lastUserMsgObj.imageUrl,
     mode: activeMode,
   };
 
   await storageRepo.updateEmotionAndIntimacy(persona.slug, updatedEmotion, newIntimacy);
-  await storageRepo.appendMessages(persona.slug, [userMessageRecord, assistantMessage]);
+  await storageRepo.appendMessages(channelPersona.slug, [
+    userMessageRecord,
+    ...assistantMessages,
+  ]);
+  void autoPersistTurnMemory(persona.slug, lastUserText, parsed.cleanReply).catch(
+    () => {}
+  );
 
-  onEvent?.({
+  const pendingFollowup: PendingFollowup | undefined = parsed.followup
+    ? {
+        delaySec: parsed.followup.delaySec,
+        content: parsed.followup.content,
+        fromBot: fromBotMeta,
+      }
+    : undefined;
+
+  onEvent({
     type: 'done',
-    message: assistantMessage,
+    message: finalAssistantMessage,
+    messages: assistantMessages,
+    followup: pendingFollowup,
   });
 
-  return assistantMessage;
+  return {
+    ...finalAssistantMessage,
+    content: parsed.cleanReply,
+    bursts: segments,
+    thought: assistantMessages[0]?.thought,
+    thoughtDurationMs: assistantMessages[0]?.thoughtDurationMs,
+    searchQuery: assistantMessages[0]?.searchQuery,
+    searchResults: assistantMessages[0]?.searchResults,
+  };
 }

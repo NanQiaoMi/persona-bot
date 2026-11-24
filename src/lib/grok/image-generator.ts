@@ -27,24 +27,34 @@ export function buildMediaGenerationPrompt(
   kind: 'photo' | 'sticker',
   caption: string,
   personaName: string,
-  personaStyle?: string
+  personaStyle?: string,
+  appearanceAnchor?: string
 ): string {
   const cleanCaption = caption.trim() || '日常开心瞬间';
   const styleHint = personaStyle ? ` (${personaStyle})` : '';
+  const anchorLine = appearanceAnchor?.trim()
+    ? `Consistent character appearance anchor: "${appearanceAnchor.trim()}".`
+    : '';
 
   if (kind === 'sticker') {
     return [
       `Cute expressive messaging chat sticker illustration of an adorable stylized character representing "${personaName}"${styleHint}.`,
+      anchorLine,
       `Expressive exaggerated facial emotion and body pose showing: "${cleanCaption}".`,
       'Clean solid off-white minimal background, thick clean outline, vibrant flat-matte vector sticker aesthetic, crisp centered composition, no watermark, no messy clutter.',
-    ].join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   return [
-    `Natural candid lifestyle smartphone photograph taken from "${personaName}"'s daily perspective${styleHint}.`,
-    `Scene description: "${cleanCaption}".`,
-    'Warm authentic natural lighting, realistic lens depth of field, high detail, genuine everyday atmosphere, no watermark, no artificial text overlays.',
-  ].join(' ');
+    `Natural candid lifestyle photograph matching this exact description: "${cleanCaption}".`,
+    anchorLine,
+    `Style tone matching "${personaName}"${styleHint}.`,
+    'Realistic photography, natural lighting, authentic lens depth of field, high detail, aesthetic framing, no watermark, no text overlays.',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function normalizeExt(mimeOrUrl: string): 'png' | 'jpg' | 'webp' {
@@ -73,6 +83,7 @@ export interface GenerateMediaParams {
   caption: string;
   personaName: string;
   personaStyle?: string;
+  appearanceAnchor?: string;
   baseUrl: string;
   apiKey?: string;
   imageModel: string;
@@ -98,7 +109,8 @@ export async function generatePersonaMedia(
     params.kind,
     params.caption,
     params.personaName,
-    params.personaStyle
+    params.personaStyle,
+    params.appearanceAnchor
   );
 
   const headers: Record<string, string> = {

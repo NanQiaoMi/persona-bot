@@ -7,6 +7,8 @@ import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 interface RightInspectorProps {
   persona: PersonaRecord | null;
   isStreaming?: boolean;
+  autoNudgeEnabled?: boolean;
+  onToggleAutoNudge?: () => void;
   onSavePersonaPatch: (patch: Partial<PersonaRecord>) => Promise<void>;
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
@@ -17,6 +19,8 @@ interface RightInspectorProps {
 export default function RightInspector({
   persona,
   isStreaming = false,
+  autoNudgeEnabled = true,
+  onToggleAutoNudge,
   onSavePersonaPatch,
   onAddCorrection,
   onTriggerProactive,
@@ -32,6 +36,9 @@ export default function RightInspector({
   const [voiceLang, setVoiceLang] = useState("Auto-detect");
   const [editingPersonaMd, setEditingPersonaMd] = useState<string | null>(null);
   const [editingMemoriesMd, setEditingMemoriesMd] = useState<string | null>(
+    null
+  );
+  const [editingAppearance, setEditingAppearance] = useState<string | null>(
     null
   );
   const [newCorrection, setNewCorrection] = useState("");
@@ -152,6 +159,41 @@ export default function RightInspector({
                   />
                 </button>
               </div>
+
+              {onToggleAutoNudge && (
+                <div className="mt-2 p-3.5 rounded-[18px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[13px] text-[var(--text-secondary)] shrink-0">
+                      💬
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                        未回复主动追问
+                      </div>
+                      <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                        沉默 45 秒后结合语境轻敲追问
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoNudgeEnabled}
+                    onClick={onToggleAutoNudge}
+                    className={`w-10 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                      autoNudgeEnabled
+                        ? "bg-[#1683FF]"
+                        : "bg-black/15 dark:bg-white/20"
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        autoNudgeEnabled ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 电脑 ("Bot 的电脑") */}
@@ -387,6 +429,72 @@ export default function RightInspector({
                       </span>
                     ))}
                   </div>
+                </div>
+
+                {/* Consistent Photo Appearance Anchor Editor */}
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      固定外貌与画风锚点
+                    </span>
+                    {editingAppearance === null ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingAppearance(
+                            persona.profile.appearanceAnchor || ""
+                          )
+                        }
+                        className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer"
+                      >
+                        {persona.profile.appearanceAnchor ? "修改" : "设定"}
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setEditingAppearance(null)}
+                          className="text-[var(--text-muted)] cursor-pointer"
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={async () => {
+                            setSaving(true);
+                            await onSavePersonaPatch({
+                              profile: {
+                                ...persona.profile,
+                                appearanceAnchor:
+                                  editingAppearance.trim() || undefined,
+                              },
+                            });
+                            setEditingAppearance(null);
+                            setSaving(false);
+                          }}
+                          className="text-[#18a999] font-semibold cursor-pointer"
+                        >
+                          保存
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {editingAppearance !== null ? (
+                    <textarea
+                      value={editingAppearance}
+                      onChange={(e) => setEditingAppearance(e.target.value)}
+                      rows={3}
+                      placeholder="例如：20出头黑长直甜酷少女，常穿卫衣或短裙配长靴，拍照时保持一致外貌特征..."
+                      className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] focus:outline-none"
+                    />
+                  ) : (
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                      {persona.profile.appearanceAnchor ||
+                        "未设定固定外貌特征；设定后每次自拍/生图都会自动保持同一人物外貌与画风。"}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
