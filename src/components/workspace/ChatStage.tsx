@@ -122,6 +122,32 @@ function GrokMessageBody({
   );
 }
 
+function formatSmartImTimestamp(iso?: string): string {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  const timePart = date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400000;
+  const targetDayStart = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  ).getTime();
+
+  if (targetDayStart === todayStart) return `今天 ${timePart}`;
+  if (targetDayStart === yesterdayStart) return `昨天 ${timePart}`;
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+}
+
 export default function ChatStage({
   persona,
   personas = [],
@@ -148,6 +174,8 @@ export default function ChatStage({
   onOpenAvatarPicker,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [expandedReportsId, setExpandedReportsId] = useState<string | null>(null);
   const [sharedToast, setSharedToast] = useState(false);
@@ -157,8 +185,28 @@ export default function ChatStage({
     kind: "photo" | "sticker";
   } | null>(null);
 
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom <= 120;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollBottom(!nearBottom && messages.length > 0);
+  };
+
+  const scrollToBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = true;
+    setShowScrollBottom(false);
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: "smooth",
+    });
+  };
+
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && isNearBottomRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior: "smooth",
@@ -213,15 +261,6 @@ export default function ChatStage({
 
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
-  const firstTimestamp = messages[0]?.timestamp
-    ? new Date(messages[0].timestamp).toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : new Date().toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
 
   return (
     <div className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden">
@@ -275,7 +314,15 @@ export default function ChatStage({
             {persona.name}
           </span>
           <span className="text-[11px] text-[var(--text-muted)]">
-            {showInspector ? "✕" : `♥ ${persona.intimacy}%`}
+            {showInspector ? (
+              "✕"
+            ) : streaming ? (
+              <span className="animate-text-shimmer font-medium">
+                对方正在输入...
+              </span>
+            ) : (
+              `♥ ${persona.intimacy}%`
+            )}
           </span>
         </button>
 
@@ -294,6 +341,7 @@ export default function ChatStage({
       {/* Scrollable Chat Stream */}
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-6"
       >
         <div className="max-w-3xl mx-auto">
@@ -446,76 +494,76 @@ export default function ChatStage({
               </div>
             </div>
           ) : (
-            <div className="space-y-5">
-              {/* Centered Grok Bot Timestamp & Status Line */}
-              <div className="py-2 text-center space-y-1.5">
-                <div className="text-[11.5px] text-[var(--text-muted)]">
-                  今天 {firstTimestamp}
-                </div>
-                <div className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-muted)]">
-                  <span>已发消息给</span>
-                  <BlobMascot
-                    shape={mascotCfg.shape}
-                    color={mascotCfg.color}
-                    image={mascotCfg.image}
-                    size={16}
-                    animated={false}
-                    trackPointer={false}
-                  />
-                  <span className="font-medium text-[var(--text-secondary)]">
-                    {persona.name}
-                  </span>
-                </div>
-              </div>
-
+            <div className="space-y-5 pt-1">
               {messages.map((msg, idx) => {
                 const isUser = msg.role === "user";
                 const bursts =
                   !isUser && msg.bursts && msg.bursts.length > 0
                     ? msg.bursts
                     : [msg.content];
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const prevTs = prevMsg?.timestamp
+                  ? new Date(prevMsg.timestamp).getTime()
+                  : 0;
+                const currTs = msg.timestamp
+                  ? new Date(msg.timestamp).getTime()
+                  : 0;
+                const showTimeDivider =
+                  idx === 0 ||
+                  (prevTs > 0 &&
+                    currTs > 0 &&
+                    currTs - prevTs > 5 * 60 * 1000);
+
+                const timeDividerNode = showTimeDivider ? (
+                  <div className="w-full py-2 text-center">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] text-[var(--text-muted)]">
+                      {formatSmartImTimestamp(msg.timestamp)}
+                    </span>
+                  </div>
+                ) : null;
 
                 if (isUser) {
                   return (
-                    <div
-                      key={msg.id || `${msg.timestamp}-${idx}`}
-                      className="flex flex-col items-end animate-msg-user"
-                    >
-                      {msg.imageUrl && (
-                        <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={msg.imageUrl}
-                            alt="用户上传图片"
-                            className="w-full max-h-56 object-cover"
-                          />
+                    <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
+                      {timeDividerNode}
+                      <div className="flex flex-col items-end animate-msg-user">
+                        {msg.imageUrl && (
+                          <div className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={msg.imageUrl}
+                              alt="用户上传图片"
+                              className="w-full max-h-56 object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
+                          <p className="whitespace-pre-wrap break-words">
+                            {msg.content}
+                          </p>
                         </div>
-                      )}
-                      <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
-                        <p className="whitespace-pre-wrap break-words">
-                          {msg.content}
-                        </p>
                       </div>
-                    </div>
+                    </Fragment>
                   );
                 }
 
                 const reports = msg.interBotReports || [];
                 const reportsOpen = expandedReportsId === msg.id;
-                const prevMsg = idx > 0 ? messages[idx - 1] : null;
                 const isContinuation = Boolean(
-                  prevMsg &&
+                  !showTimeDivider &&
+                    prevMsg &&
                     prevMsg.role === "assistant" &&
                     (prevMsg.fromBot?.slug || "") === (msg.fromBot?.slug || "")
                 );
 
                 return (
-                  <div
-                    key={msg.id || `${msg.timestamp}-${idx}`}
-                    className={`group flex flex-col items-start animate-msg-ai w-full ${
-                      isContinuation ? "-mt-3" : ""
-                    }`}
-                  >
+                  <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
+                    {timeDividerNode}
+                    <div
+                      className={`group flex flex-col items-start animate-msg-ai w-full ${
+                        isContinuation ? "-mt-3" : ""
+                      }`}
+                    >
                     {/* Inter-Bot "N 条消息往来：" Compact Overlapping Chip Bar */}
                     {reports.length > 0 && (
                       <div className="w-full mb-2.5 flex flex-col items-center">
@@ -803,7 +851,8 @@ export default function ChatStage({
                         })}
                       </div>
                     )}
-                  </div>
+                    </div>
+                  </Fragment>
                 );
               })}
 
@@ -925,6 +974,19 @@ export default function ChatStage({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Scroll-to-Bottom Floating Pill */}
+      {showScrollBottom && (
+        <div className="pointer-events-none absolute bottom-[88px] inset-x-0 z-20 flex justify-center animate-fade-in">
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="pointer-events-auto px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all cursor-pointer"
+          >
+            ↓ 回到最新消息
+          </button>
         </div>
       )}
 

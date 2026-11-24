@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
@@ -54,7 +54,35 @@ export default function GrokComposer({
     string | undefined
   >(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [value]);
+
+  const handlePasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            setImagePreview(reader.result);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -402,7 +430,7 @@ export default function GrokComposer({
         )}
 
         {/* Main Floating Grok Bot Pill Capsule */}
-        <div className="flex items-center gap-2 px-2.5 py-2 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
+        <div className="flex items-end gap-2 px-2.5 py-2 rounded-[26px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
           <input
             ref={fileInputRef}
             type="file"
@@ -437,16 +465,18 @@ export default function GrokComposer({
             </svg>
           </button>
 
-          <input
+          <textarea
             ref={textInputRef}
-            type="text"
+            rows={1}
             value={value}
             onChange={(e) => {
               setDismissedAtValue(null);
               setMentionIndex(0);
               onChange(e.target.value);
             }}
+            onPaste={handlePasteImage}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
               if (showMentionMenu) {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
@@ -482,7 +512,7 @@ export default function GrokComposer({
             }}
             disabled={disabled}
             placeholder={`给 ${personaName || "TA"} 发消息...`}
-            className="flex-1 bg-transparent px-2 text-[14px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+            className="flex-1 max-h-32 overflow-y-auto resize-none bg-transparent px-2 py-1.5 text-[14px] leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
 
           <button

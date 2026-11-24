@@ -122,7 +122,7 @@ export class UnifiedStorageRepository {
   async listPersonas(): Promise<PersonaSummary[]> {
     await this.ensurePresetsSeeded();
     const entries = await fs.readdir(this.baseDir, { withFileTypes: true }).catch(() => []);
-    const summaries: PersonaSummary[] = [];
+    const summaryBySlug = new Map<string, PersonaSummary>();
 
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
@@ -131,8 +131,7 @@ export class UnifiedStorageRepository {
 
       const conv = await this.getConversation(entry.name);
       const lastMsg = conv[conv.length - 1];
-
-      summaries.push({
+      const nextSummary: PersonaSummary = {
         slug: persona.slug,
         name: persona.name,
         version: persona.version,
@@ -146,9 +145,19 @@ export class UnifiedStorageRepository {
         lastActive: lastMsg?.timestamp || persona.updatedAt,
         createdAt: persona.createdAt,
         updatedAt: persona.updatedAt,
-      });
+      };
+
+      const existing = summaryBySlug.get(persona.slug);
+      if (
+        !existing ||
+        new Date(nextSummary.lastActive).getTime() >=
+          new Date(existing.lastActive).getTime()
+      ) {
+        summaryBySlug.set(persona.slug, nextSummary);
+      }
     }
 
+    const summaries = Array.from(summaryBySlug.values());
     summaries.sort((a, b) => {
       if (Boolean(a.isMaster) !== Boolean(b.isMaster)) return a.isMaster ? -1 : 1;
       if (a.isPreset !== b.isPreset) return a.isPreset ? -1 : 1;
