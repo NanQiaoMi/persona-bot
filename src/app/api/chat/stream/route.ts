@@ -1,3 +1,4 @@
+import { executeGroupTurn } from '@/lib/group/group-orchestrator';
 import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
 import { executeGrokChatTurn, StreamEvent } from '@/lib/grok/stream-orchestrator';
 
@@ -7,7 +8,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    if (!body?.slug || !Array.isArray(body?.messages)) {
+    const isGroupTurn = typeof body?.groupId === 'string' && body.groupId.trim() !== '';
+    if (!isGroupTurn && (!body?.slug || !Array.isArray(body?.messages))) {
       return new Response(
         JSON.stringify({ error: 'Missing slug or messages' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -36,7 +38,23 @@ export async function POST(request: Request) {
             modelId: body.modelId,
           };
 
-          if (body.slug === 'master-bot' && !body.mentionedSlug) {
+          if (isGroupTurn) {
+            const last = Array.isArray(body.messages)
+              ? body.messages[body.messages.length - 1]
+              : undefined;
+            await executeGroupTurn(
+              {
+                groupId: body.groupId,
+                userText: body.kickoff ? undefined : last?.content,
+                imageUrl: body.kickoff ? undefined : last?.imageUrl,
+                timestamp: last?.timestamp,
+                mode: body.mode,
+                modelId: body.modelId,
+                kickoff: Boolean(body.kickoff),
+              },
+              sendEvent
+            );
+          } else if (body.slug === 'master-bot' && !body.mentionedSlug) {
             await executeMasterBotTurn(payload, sendEvent);
           } else {
             await executeGrokChatTurn(payload, sendEvent);
