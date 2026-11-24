@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { saveGeneratedMediaBuffer } from '@/lib/grok/image-generator';
+import {
+  inferAppearanceAnchorFromImage,
+  mergeAppearanceAnchorUpdate,
+} from '@/lib/persona/appearance-evolution';
 import { storageRepo } from '@/lib/storage/repository';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +40,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const persona = await storageRepo.getPersona(slug);
+    const [persona, settings] = await Promise.all([
+      storageRepo.getPersona(slug),
+      storageRepo.getSettings(),
+    ]);
     if (!persona) {
       return NextResponse.json(
         { success: false, error: 'Persona not found' },
@@ -58,10 +65,49 @@ export async function POST(request: Request) {
       updatedAt: new Date().toISOString(),
     }));
 
+    let finalPersona = updated;
+    let appearanceAnchorUpdated = false;
+    if (
+      updated &&
+      !updated.profile.appearanceAnchorLocked &&
+      !updated.profile.appearanceAnchor
+    ) {
+      const inferred = await inferAppearanceAnchorFromImage({
+        referenceImageUrl,
+        personaName: updated.name,
+        personaStyle: updated.profile.personalityTags?.slice(0, 4).join('、'),
+        currentAnchor: updated.profile.appearanceAnchor,
+        settings,
+      });
+      if (inferred.anchor) {
+        finalPersona = await storageRepo.updatePersona(updated.slug, (current) => {
+          if (current.profile.appearanceAnchorLocked || current.profile.appearanceAnchor) {
+            return null;
+          }
+          const merged = mergeAppearanceAnchorUpdate(
+            current.profile.appearanceAnchor,
+            inferred.anchor,
+            current.profile.appearanceAnchorLocked
+          );
+          if (!merged.updated || !merged.anchor) return null;
+          appearanceAnchorUpdated = true;
+          return {
+            ...current,
+            profile: {
+              ...current.profile,
+              appearanceAnchor: merged.anchor,
+            },
+            updatedAt: new Date().toISOString(),
+          };
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true,
       referenceImageUrl,
-      persona: updated,
+      appearanceAnchorUpdated,
+      persona: finalPersona,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Upload failed';

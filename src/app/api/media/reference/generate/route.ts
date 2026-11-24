@@ -3,6 +3,10 @@ import {
   generateStandardReferencePortrait,
   LOCAL_GATEWAY_BASE_URL,
 } from '@/lib/grok/image-generator';
+import {
+  inferAppearanceAnchorFromImage,
+  mergeAppearanceAnchorUpdate,
+} from '@/lib/persona/appearance-evolution';
 import { storageRepo } from '@/lib/storage/repository';
 
 export const dynamic = 'force-dynamic';
@@ -109,11 +113,43 @@ export async function POST(request: Request) {
       });
     }
 
+    let finalPersona = updated;
+    let appearanceAnchorUpdated = false;
+    if (updated && !updated.profile.appearanceAnchorLocked) {
+      const inferred = await inferAppearanceAnchorFromImage({
+        referenceImageUrl: result.imageUrl,
+        personaName: updated.name,
+        personaStyle: updated.profile.personalityTags?.slice(0, 4).join('、'),
+        currentAnchor: updated.profile.appearanceAnchor,
+        settings,
+      });
+      if (inferred.anchor) {
+        finalPersona = await storageRepo.updatePersona(updated.slug, (current) => {
+          const merged = mergeAppearanceAnchorUpdate(
+            current.profile.appearanceAnchor,
+            inferred.anchor,
+            current.profile.appearanceAnchorLocked
+          );
+          if (!merged.updated || !merged.anchor) return null;
+          appearanceAnchorUpdated = true;
+          return {
+            ...current,
+            profile: {
+              ...current.profile,
+              appearanceAnchor: merged.anchor,
+            },
+            updatedAt: new Date().toISOString(),
+          };
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true,
       referenceImageUrl: result.imageUrl,
       usedSourceImage: Boolean(result.usedReferenceImage),
-      persona: updated,
+      appearanceAnchorUpdated,
+      persona: finalPersona,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Reference generation failed';

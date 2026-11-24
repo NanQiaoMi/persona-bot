@@ -17,9 +17,13 @@ export interface LlmConfig {
   canCall: boolean;
 }
 
+export type ChatMessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ChatMessageContentPart[];
 }
 
 export function isLocalGatewayUrl(url: string): boolean {

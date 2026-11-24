@@ -92,3 +92,61 @@ export function resolvePersonalityTraits(persona: {
     recoveryRate: spec.recoveryRate,
   };
 }
+
+export type NumericTraitKey =
+  | 'openness'
+  | 'conscientiousness'
+  | 'extraversion'
+  | 'agreeableness'
+  | 'neuroticism'
+  | 'emotionalStability'
+  | 'recoveryRate';
+
+const NUMERIC_TRAIT_KEYS: NumericTraitKey[] = [
+  'openness',
+  'conscientiousness',
+  'extraversion',
+  'agreeableness',
+  'neuroticism',
+  'emotionalStability',
+  'recoveryRate',
+];
+
+const MAX_TRAIT_STEP = 0.08;
+const MIN_TRAIT_VALUE = 0.1;
+const MAX_TRAIT_VALUE = 0.95;
+
+/**
+ * 对大五性格特质与情绪恢复参数进行温和有界的平滑微调（单次变化 ±0.08，区间 [0.1, 0.95]）
+ */
+export function applySmoothTraitDeltas(
+  base: PersonaTraitsSpec,
+  deltas: Partial<Record<NumericTraitKey, number>> | undefined
+): { updated: boolean; traits: PersonaTraitsSpec; changedKeys: NumericTraitKey[] } {
+  if (!deltas || typeof deltas !== 'object') {
+    return { updated: false, traits: base, changedKeys: [] };
+  }
+
+  const next: PersonaTraitsSpec = { ...base };
+  const changedKeys: NumericTraitKey[] = [];
+
+  for (const key of NUMERIC_TRAIT_KEYS) {
+    const rawDelta = deltas[key];
+    if (typeof rawDelta !== 'number' || !Number.isFinite(rawDelta)) continue;
+    const boundedDelta = Math.max(-MAX_TRAIT_STEP, Math.min(MAX_TRAIT_STEP, rawDelta));
+    const currentVal = typeof base[key] === 'number' ? base[key] : 0.5;
+    const targetVal = Number(
+      Math.max(MIN_TRAIT_VALUE, Math.min(MAX_TRAIT_VALUE, currentVal + boundedDelta)).toFixed(2)
+    );
+    if (Math.abs(targetVal - currentVal) >= 0.01) {
+      next[key] = targetVal;
+      changedKeys.push(key);
+    }
+  }
+
+  return {
+    updated: changedKeys.length > 0,
+    traits: next,
+    changedKeys,
+  };
+}
