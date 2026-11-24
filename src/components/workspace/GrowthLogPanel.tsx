@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, FieldTextarea } from "@/components/primitives";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { capturePositions, playFlip } from "@/lib/motion/flip";
 import type { LearnedItem, LearnedStatus } from "@/lib/persona/spec";
 
 interface GrowthLogPanelProps {
@@ -49,6 +51,24 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
   const [editText, setEditText] = useState("");
   const [showRetired, setShowRetired] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const reducedMotion = useReducedMotion();
+
+  const learnedLayoutKey = (data?.learned || [])
+    .map((it) => `${it.id}:${it.status}`)
+    .join("|");
+
+  useLayoutEffect(() => {
+    const container = listContainerRef.current;
+    if (!container) return;
+    const finalRects = capturePositions(container);
+    if (prevRectsRef.current.size > 0) {
+      playFlip(container, prevRectsRef.current, { reducedMotion });
+    }
+    prevRectsRef.current = finalRects;
+  }, [learnedLayoutKey, showRetired, reducedMotion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +115,12 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
         pendingSignals: json.pendingSignals ?? 0,
       }));
       setEditingId(null);
+      if (action === "lock" || action === "restore" || action === "edit") {
+        setHighlightedId(id);
+        setTimeout(() => {
+          setHighlightedId((curr) => (curr === id ? null : curr));
+        }, 950);
+      }
       await onChanged?.();
     } catch {
       setError("网络异常，稍后再试");
@@ -118,7 +144,7 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
   }, {});
 
   return (
-    <div className="space-y-3">
+    <div ref={listContainerRef} className="space-y-3">
       <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] grid grid-cols-3 gap-2 text-center">
         <div>
           <div className="text-[16px] font-semibold text-primary">
@@ -182,9 +208,10 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
                 return (
                   <div
                     key={item.id}
+                    data-flip-id={item.id}
                     className={`p-3 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-1.5 ${
                       item.status === "retired" ? "opacity-60" : ""
-                    }`}
+                    } ${highlightedId === item.id ? "animate-highlight-pulse" : ""}`}
                   >
                     <div className="flex items-center gap-1.5 text-[11px] text-muted">
                       <span className="px-1.5 py-0.5 rounded-[var(--r-sm)] bg-surface-raised text-secondary">

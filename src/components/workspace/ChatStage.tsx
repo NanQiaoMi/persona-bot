@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/primitives";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import {
   ConversationMessage,
@@ -156,6 +157,30 @@ function formatSmartImTimestamp(iso?: string): string {
   return `${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
 }
 
+function BlurUpImage({
+  src,
+  alt,
+  className = "",
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={src}
+      alt={alt}
+      onLoad={() => setLoaded(true)}
+      className={`${className} transition-[filter,transform,opacity] duration-[var(--motion-slow)] ease-[var(--ease-spring)] ${
+        loaded ? "blur-0 scale-100 opacity-100" : "blur-sm scale-[1.02] opacity-80"
+      }`}
+    />
+  );
+}
+
 export default function ChatStage({
   persona,
   personas = [],
@@ -187,9 +212,15 @@ export default function ChatStage({
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const prevMsgCountRef = useRef<{ slug: string; count: number }>({
+    slug: persona?.slug || "",
+    count: messages.length,
+  });
   const dragCounterRef = useRef(0);
   const confirmClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reducedMotion = useReducedMotion();
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [droppedImage, setDroppedImage] = useState<string | null>(null);
@@ -260,6 +291,9 @@ export default function ChatStage({
     const nearBottom = distanceFromBottom <= 120;
     isNearBottomRef.current = nearBottom;
     setShowScrollBottom(!nearBottom && messages.length > 0);
+    if (nearBottom) {
+      setUnreadCount(0);
+    }
   };
 
   const scrollToBottom = () => {
@@ -267,20 +301,39 @@ export default function ChatStage({
     if (!el) return;
     isNearBottomRef.current = true;
     setShowScrollBottom(false);
+    setUnreadCount(0);
     el.scrollTo({
       top: el.scrollHeight,
-      behavior: "smooth",
+      behavior: reducedMotion ? "auto" : "smooth",
     });
   };
+
+  useEffect(() => {
+    const slug = persona?.slug || "";
+    const prev = prevMsgCountRef.current;
+    prevMsgCountRef.current = { slug, count: messages.length };
+
+    if (prev.slug !== slug) {
+      queueMicrotask(() => setUnreadCount(0));
+      return;
+    }
+
+    if (messages.length > prev.count && !isNearBottomRef.current) {
+      const added = messages.slice(prev.count).filter((m) => m.role === "assistant").length;
+      if (added > 0) {
+        queueMicrotask(() => setUnreadCount((c) => c + added));
+      }
+    }
+  }, [persona?.slug, messages]);
 
   useEffect(() => {
     if (scrollRef.current && isNearBottomRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
+        behavior: reducedMotion ? "auto" : "smooth",
       });
     }
-  }, [messages, streaming]);
+  }, [messages, streaming, reducedMotion]);
 
   useEffect(() => {
     if (correctingIdx === null) return;
@@ -396,7 +449,7 @@ export default function ChatStage({
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
+              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-[transform,color] duration-[var(--motion-fast)] cursor-pointer"
               title="展开侧边栏"
             >
               ◧
@@ -438,19 +491,21 @@ export default function ChatStage({
         <button
           type="button"
           onClick={onToggleInspector}
-          className="pointer-events-auto inline-flex min-w-0 items-center gap-2 md:gap-2.5 px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          className="pointer-events-auto inline-flex min-w-0 items-center gap-2 md:gap-2.5 px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-[transform,border-color] duration-[var(--motion-fast)] cursor-pointer"
           title="点击滑出/收起角色灵魂状态舱"
         >
-          <BlobMascot
-            shape={mascotCfg.shape}
-            color={mascotCfg.color}
-            image={mascotCfg.image}
-            size={24}
-            trackPointer
-            state={streaming ? "working" : "idle"}
-          />
-          <span className="truncate text-[14px] font-semibold text-primary">
-            {persona.name}
+          <span key={persona.slug} className="inline-flex min-w-0 items-center gap-2 md:gap-2.5 animate-stage-swap">
+            <BlobMascot
+              shape={mascotCfg.shape}
+              color={mascotCfg.color}
+              image={mascotCfg.image}
+              size={24}
+              trackPointer
+              state={streaming ? "working" : "idle"}
+            />
+            <span className="truncate text-[14px] font-semibold text-primary">
+              {persona.name}
+            </span>
           </span>
           <span className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]">
             {showInspector ? (
@@ -470,7 +525,7 @@ export default function ChatStage({
           <button
             type="button"
             onClick={handleShare}
-            className="whitespace-nowrap px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            className="whitespace-nowrap px-3 md:px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-[transform,border-color] duration-[var(--motion-fast)] cursor-pointer"
           >
             {sharedToast ? "已复制 ✓" : "分享"}
           </button>
@@ -483,7 +538,7 @@ export default function ChatStage({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-6"
       >
-        <div className="max-w-3xl mx-auto">
+        <div key={persona.slug} className="max-w-3xl mx-auto animate-stage-swap">
           {messages.length === 0 && !streaming ? (
             /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
             <div className="pt-10 pb-8 flex flex-col items-center text-center space-y-6 animate-fade-in">
@@ -614,7 +669,7 @@ export default function ChatStage({
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-semibold text-primary flex items-center justify-between gap-1">
                         <span className="truncate">{chip.title}</span>
-                        <span className="text-muted opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-all">
+                        <span className="text-muted opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-[transform,opacity] duration-[var(--motion-fast)]">
                           →
                         </span>
                       </div>
@@ -672,8 +727,8 @@ export default function ChatStage({
                             }
                             className="mb-2 rounded-2xl overflow-hidden border border-[var(--border-strong)] max-w-xs shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
+                            <BlurUpImage
+                              key={msg.imageUrl}
                               src={msg.imageUrl}
                               alt="用户上传图片"
                               className="w-full max-h-56 object-cover"
@@ -836,6 +891,11 @@ export default function ChatStage({
                       {bursts.map((burstText, bIdx) => (
                         <div
                           key={bIdx}
+                          style={
+                            reducedMotion || bIdx === 0
+                              ? undefined
+                              : { animationDelay: `${Math.min(bIdx, 5) * 60}ms` }
+                          }
                           className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
                         >
                           <GrokMessageBody content={burstText} />
@@ -924,8 +984,8 @@ export default function ChatStage({
                                   title={card.caption}
                                   className="group/sticker inline-block rounded-2xl overflow-hidden hover:scale-[1.03] transition-transform cursor-pointer"
                                 >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
+                                  <BlurUpImage
+                                    key={card.imageUrl}
                                     src={card.imageUrl}
                                     alt={card.caption}
                                     className="w-36 h-36 rounded-2xl object-contain"
@@ -988,8 +1048,8 @@ export default function ChatStage({
                                   }
                                   className="block max-w-[300px] rounded-2xl overflow-hidden shadow-sm hover:scale-[1.015] transition-transform cursor-pointer"
                                 >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
+                                  <BlurUpImage
+                                    key={card.imageUrl}
                                     src={card.imageUrl}
                                     alt={card.caption}
                                     className="w-full max-h-72 object-cover"
@@ -1038,7 +1098,7 @@ export default function ChatStage({
                               onClick={() =>
                                 speakMessage(`${msg.id}-v-${cIdx}`, card.caption)
                               }
-                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5 cursor-pointer"
+                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-transform duration-[var(--motion-fast)] hover:-translate-y-0.5 cursor-pointer"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="w-7 h-7 rounded-full bg-brand-soft text-brand flex items-center justify-center text-[12px] shrink-0">
@@ -1206,11 +1266,14 @@ export default function ChatStage({
       {showScrollBottom && (
         <div className="pointer-events-none absolute bottom-[88px] inset-x-0 z-20 flex justify-center animate-fade-in">
           <button
+            key={unreadCount}
             type="button"
             onClick={scrollToBottom}
-            className="pointer-events-auto px-3.5 py-1.5 rounded-full bg-surface-overlay backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-secondary hover:text-primary hover:-translate-y-0.5 transition-transform cursor-pointer"
+            className={`pointer-events-auto px-3.5 py-1.5 rounded-full bg-surface-overlay backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-secondary hover:text-primary hover:-translate-y-0.5 transition-transform duration-[var(--motion-fast)] cursor-pointer ${
+              unreadCount > 0 ? "animate-unread-hop" : ""
+            }`}
           >
-            ↓ 回到最新消息
+            {unreadCount > 0 ? `↓ ${unreadCount} 条新消息` : "↓ 回到最新消息"}
           </button>
         </div>
       )}

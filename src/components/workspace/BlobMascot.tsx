@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDocumentVisible } from "@/hooks/useDocumentVisible";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
   getMascotConfigForPersona,
   MASCOT_COLORS,
@@ -71,9 +73,12 @@ export default function BlobMascot({
 }: BlobMascotProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
+  const isVisible = useDocumentVisible();
+  const reducedMotion = useReducedMotion();
+  const effectiveAnimated = animated && isVisible && !reducedMotion;
 
   useEffect(() => {
-    if (!trackPointer || image) return;
+    if (!trackPointer || image || !isVisible || reducedMotion) return;
     return subscribePointer((pos) => {
       const el = containerRef.current;
       if (!el || !pos) {
@@ -98,7 +103,7 @@ export default function BlobMascot({
         y: Number(((dy / dist) * maxY * factor).toFixed(2)),
       });
     });
-  }, [trackPointer, image]);
+  }, [trackPointer, image, isVisible, reducedMotion]);
 
   if (image) {
     return (
@@ -132,7 +137,7 @@ export default function BlobMascot({
     MASCOT_SHAPES.find((s) => s.id === shape) || MASCOT_SHAPES[0];
 
   const isWorking = state === "working" || state === "thinking";
-  const bodyAnimClass = animated
+  const bodyAnimClass = effectiveAnimated
     ? isWorking
       ? "animate-blob-work"
       : "animate-blob-breathe"
@@ -144,7 +149,7 @@ export default function BlobMascot({
       className={`relative inline-flex items-center justify-center shrink-0 blob-interactive ${className}`}
       style={{ width: size, height: size }}
     >
-      {isWorking && animated && (
+      {isWorking && effectiveAnimated && (
         <span
           aria-hidden="true"
           className="absolute inset-0 rounded-full blur-md animate-aura-pulse pointer-events-none"
@@ -160,14 +165,14 @@ export default function BlobMascot({
           <g
             style={{
               transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)`,
-              transition: "transform 90ms cubic-bezier(0.22, 1, 0.36, 1)",
+              transition: "transform var(--motion-fast) var(--ease-spring)",
             }}
           >
             <g
-              className={animated && !isWorking ? "animate-blob-blink" : ""}
+              className={effectiveAnimated && !isWorking ? "animate-blob-blink" : ""}
               style={{ animationDelay: `${blinkDelayMs}ms` }}
             >
-              <g className={isWorking ? "animate-eye-left" : ""}>
+              <g className={isWorking && effectiveAnimated ? "animate-eye-left" : ""}>
                 <rect
                   x="23.5"
                   y="24"
@@ -177,7 +182,7 @@ export default function BlobMascot({
                   fill="#FFFFFF"
                 />
               </g>
-              <g className={isWorking ? "animate-eye-right" : ""}>
+              <g className={isWorking && effectiveAnimated ? "animate-eye-right" : ""}>
                 <rect
                   x="35.3"
                   y="24"

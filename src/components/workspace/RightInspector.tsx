@@ -55,8 +55,34 @@ export default function RightInspector({
   const [importingBundle, setImportingBundle] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
+  const [intimacyDelta, setIntimacyDelta] = useState<{
+    delta: number;
+    seq: number;
+  } | null>(null);
+  const prevIntimacyRef = useRef<{ slug: string; value: number } | null>(null);
   const bundleFileInputRef = useRef<HTMLInputElement>(null);
   const refImageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!persona) return;
+    const prev = prevIntimacyRef.current;
+    prevIntimacyRef.current = { slug: persona.slug, value: persona.intimacy };
+    if (!prev || prev.slug !== persona.slug) {
+      queueMicrotask(() => setIntimacyDelta(null));
+      return;
+    }
+    const diff = persona.intimacy - prev.value;
+    if (diff === 0) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    queueMicrotask(() => {
+      setIntimacyDelta((curr) => ({ delta: diff, seq: (curr?.seq || 0) + 1 }));
+      timer = setTimeout(() => setIntimacyDelta(null), 1200);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [persona]);
 
   useEffect(() => {
     const slug = persona?.slug;
@@ -159,7 +185,7 @@ export default function RightInspector({
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 pb-5 space-y-4 text-[12px]">
         {section === "activity" ? (
-          <div className="space-y-4 animate-fade-in">
+          <div key="activity" className="space-y-4 animate-panel-slide">
             {/* 即将进行 */}
             <div>
               <div className="px-1 pb-1.5 text-[12px] font-medium text-muted">
@@ -335,7 +361,7 @@ export default function RightInspector({
             </div>
           </div>
         ) : (
-          <div className="space-y-3.5 animate-fade-in">
+          <div key="library" className="space-y-3.5 animate-panel-slide">
             {/* Sub-tabs inside 资料库 */}
             <div className="grid grid-cols-5 gap-1 p-1 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] text-[11px]">
               {[
@@ -361,7 +387,7 @@ export default function RightInspector({
             </div>
 
             {libraryTab === "emotion" && (
-              <div className="space-y-3">
+              <div key="tab-emotion" className="space-y-3 animate-panel-slide">
                 <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-secondary">当前心情</span>
@@ -375,13 +401,25 @@ export default function RightInspector({
                       <span className="text-secondary">
                         亲密度 / 好感度
                       </span>
-                      <span className="text-danger font-bold tabular-nums">
+                      <span className="relative inline-flex items-center text-danger font-bold tabular-nums">
                         ♥ {persona.intimacy}%
+                        {intimacyDelta && (
+                          <span
+                            key={intimacyDelta.seq}
+                            className={`absolute -top-4 right-0 text-[11px] font-bold pointer-events-none animate-intimacy-delta ${
+                              intimacyDelta.delta > 0 ? "text-success" : "text-danger"
+                            }`}
+                          >
+                            {intimacyDelta.delta > 0
+                              ? `+${intimacyDelta.delta}`
+                              : intimacyDelta.delta}
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[var(--sem-danger)] via-[var(--sem-warning)] to-[var(--brand)] transition-all duration-[var(--motion-slow)]"
+                        className="h-full rounded-full bg-gradient-to-r from-[var(--sem-danger)] via-[var(--sem-warning)] to-[var(--brand)] transition-[width] duration-[var(--motion-slow)] ease-[var(--ease-standard)]"
                         style={{ width: `${persona.intimacy}%` }}
                       />
                     </div>
@@ -403,7 +441,7 @@ export default function RightInspector({
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-brand"
+                        className="h-full rounded-full bg-brand transition-[width] duration-[var(--motion-slow)] ease-[var(--ease-standard)]"
                         style={{ width: `${pleasurePct}%` }}
                       />
                     </div>
@@ -419,7 +457,7 @@ export default function RightInspector({
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-info"
+                        className="h-full rounded-full bg-info transition-[width] duration-[var(--motion-slow)] ease-[var(--ease-standard)]"
                         style={{ width: `${arousalPct}%` }}
                       />
                     </div>
@@ -435,7 +473,7 @@ export default function RightInspector({
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-raised overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[var(--accent-violet)]"
+                        className="h-full rounded-full bg-[var(--accent-violet)] transition-[width] duration-[var(--motion-slow)] ease-[var(--ease-standard)]"
                         style={{ width: `${dominancePct}%` }}
                       />
                     </div>
@@ -639,7 +677,7 @@ export default function RightInspector({
             )}
 
             {libraryTab === "persona" && (
-              <div className="space-y-3">
+              <div key="tab-persona" className="space-y-3 animate-panel-slide">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">五层性格结构 (persona.md)</span>
                   {editingPersonaMd === null ? (
@@ -694,7 +732,7 @@ export default function RightInspector({
             )}
 
             {libraryTab === "memories" && (
-              <div className="space-y-3">
+              <div key="tab-memories" className="space-y-3 animate-panel-slide">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">共同记忆库 (memories.md)</span>
                   {editingMemoriesMd === null ? (
@@ -966,15 +1004,17 @@ export default function RightInspector({
             )}
 
             {libraryTab === "growth" && persona && (
-              <GrowthLogPanel
-                slug={persona.slug}
-                refreshKey={persona.updatedAt}
-                onChanged={onRefreshPersona}
-              />
+              <div key="tab-growth" className="animate-panel-slide">
+                <GrowthLogPanel
+                  slug={persona.slug}
+                  refreshKey={persona.updatedAt}
+                  onChanged={onRefreshPersona}
+                />
+              </div>
             )}
 
             {libraryTab === "corrections" && (
-              <div className="space-y-3">
+              <div key="tab-corrections" className="space-y-3 animate-panel-slide">
                 <div className="p-3.5 rounded-[var(--r-lg)] bg-surface-base border border-[var(--border-subtle)] space-y-2.5">
                   <div className="font-semibold">新增行为纠偏 (OOC Guard)</div>
                   <FieldTextarea
