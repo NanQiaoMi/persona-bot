@@ -56,21 +56,29 @@ export async function loadLocalImageAsDataUrl(
 }
 
 /**
- * 在无视觉能力或离线时，仅当存在明确的造型/穿搭/风格线索时做安全提炼，避免凭空编造外貌
+ * 强保底生成一句简洁自然的外貌与画风锚点（即使无视觉能力或无摄影描述，也绝不留空）
  */
-function buildHeuristicAppearanceFallback(params: {
+export function buildGuaranteedAppearanceFallback(params: {
+  personaName?: string;
   personaStyle?: string;
+  personaMd?: string;
   currentAnchor?: string;
   fallbackCaption?: string;
+  force?: boolean;
 }): string | undefined {
-  if (params.currentAnchor?.trim()) {
+  if (!params.force && params.currentAnchor?.trim()) {
     return undefined;
   }
   const caption = cleanAppearanceText(params.fallbackCaption || '');
+  const md = cleanAppearanceText(params.personaMd || '');
   const style = cleanAppearanceText(params.personaStyle || '');
-  const traitHint = caption.match(
-    /(?:黑长直|短发|波浪卷|马尾|丸子头|齐刘海|金发|银发|红发|棕发|戴眼镜|圆框眼镜|金丝眼镜|卫衣|毛衣|针织衫|西装|风衣|连衣裙|白衬衫|jk|学院风|甜酷|温柔|清冷|胶片|日系|二次元)[^，。,.；;]*/i
-  )?.[0];
+  const traitRegex =
+    /(?:黑长直|短发|波浪卷|微卷发|马尾|丸子头|齐刘海|金发|银发|红发|棕发|戴眼镜|圆框眼镜|金丝眼镜|卫衣|毛衣|针织衫|西装|风衣|连衣裙|白衬衫|jk|学院风|甜酷|温柔|清冷|胶片|日系|二次元|少男|少年|少女|御姐)[^，。,.；;]*/i;
+
+  const traitHint = caption.match(traitRegex)?.[0] || md.match(traitRegex)?.[0];
+  const isMale = /男生|少年|帅气|绅士|男|他/.test(`${params.personaName || ''} ${md} ${style}`);
+  const agePhrase = isMale ? '20岁出头干净利落男生' : '20岁出头自然日常女生';
+
   if (traitHint && style) {
     return cleanAppearanceText(`${traitHint}，${style}气质，自然写实日常光影画风`).slice(
       0,
@@ -78,23 +86,30 @@ function buildHeuristicAppearanceFallback(params: {
     );
   }
   if (traitHint) {
-    return cleanAppearanceText(`${traitHint}，自然写实日常光影画风`).slice(
+    return cleanAppearanceText(`${traitHint}，清爽日常穿搭，自然写实光影人像画风`).slice(
       0,
       MAX_ANCHOR_LENGTH
     );
   }
-  return undefined;
+  if (style) {
+    return cleanAppearanceText(
+      `${agePhrase}，${style}气质，清爽舒适日常穿搭，自然写实光影人像画风`
+    ).slice(0, MAX_ANCHOR_LENGTH);
+  }
+  return `${agePhrase}，五官清秀神态自然，清爽日常穿搭，清透写实手机摄影画风`;
 }
 
 /**
- * 调用多模态视觉模型看图反推「固定外貌与画风锚点」；离线或不支持视觉时走安全兜底
+ * 调用多模态视觉模型看图反推「固定外貌与画风锚点」；离线或不支持视觉时走强保底兜底
  */
 export async function inferAppearanceAnchorFromImage(params: {
   referenceImageUrl?: string;
   personaName: string;
   personaStyle?: string;
+  personaMd?: string;
   currentAnchor?: string;
   fallbackCaption?: string;
+  force?: boolean;
   settings: Partial<RuntimeSettings>;
 }): Promise<{ anchor?: string; usedVision: boolean }> {
   const llm = resolveLlmConfig(params.settings);
@@ -136,7 +151,33 @@ export async function inferAppearanceAnchorFromImage(params: {
     }
   }
 
-  const fallback = buildHeuristicAppearanceFallback(params);
+  // If no image was available but LLM is online and force/empty, ask LLM to synthesize concise anchor from persona
+  if (llm.canCall && !dataUrl && (params.force || !params.currentAnchor?.trim())) {
+    try {
+      const raw = await chatCompletion(
+        llm,
+        [
+          {
+            role: 'system',
+            content: '你是人物外貌设定助手，只输出1句 25~60 字的中文外貌与画风锚点描述。',
+          },
+          {
+            role: 'user',
+            content: `请根据角色「${params.personaName}」（性格标签：${params.personaStyle || '自然日常'}；设定摘要：${(params.personaMd || '').slice(0, 300)}）生成 1 句简明固定的外貌与画风锚点（年龄感、发型、五官气质、常穿风格与摄影画风），不要前缀和引号。`,
+          },
+        ],
+        { temperature: 0.4, timeoutMs: 20000 }
+      );
+      const cleaned = cleanAppearanceText(raw).slice(0, 120).trim();
+      if (cleaned.length >= 8) {
+        return { anchor: cleaned, usedVision: false };
+      }
+    } catch {
+      // Fall through to deterministic guaranteed fallback
+    }
+  }
+
+  const fallback = buildGuaranteedAppearanceFallback(params);
   return { anchor: fallback, usedVision: false };
 }
 

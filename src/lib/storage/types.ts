@@ -284,3 +284,15 @@ export interface MomentPost {
   comments: MomentComment[];
   createdAt: string;
 }
+
+export type SceneAssetCategory = 'room' | 'location' | 'environment';
+
+export interface SceneAsset {
+  id: string;
+  name: string;
+  category: SceneAssetCategory;
+  imageUrl: string;
+  description: string;
+  keywords: string[];
+  createdAt: string;
+}
