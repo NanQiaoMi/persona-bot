@@ -36,6 +36,7 @@ interface RightInspectorProps {
 
 export default function RightInspector({
   persona,
+  isStreaming = false,
   autoNudgeEnabled = true,
   onToggleAutoNudge,
   thinkMode = true,
