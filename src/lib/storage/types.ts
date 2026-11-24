@@ -185,6 +185,28 @@ export interface ConversationMessage {
   isDemoMode?: boolean;
   /** 本轮回复的风格评测结果（仅供自进化与成长面板使用，不注入 Prompt） */
   styleMetrics?: MessageStyleMetrics;
+  /** 主 bot 发起群聊后在主频道留下的入群卡片 */
+  groupInvite?: GroupInviteCard;
+}
+
+export interface GroupInviteCard {
+  groupId: string;
+  name: string;
+  memberNames: string[];
+  topic?: string;
+}
+
+/** 主 bot 发起的多角色群聊 */
+export interface GroupChat {
+  id: string;
+  name: string;
+  topic?: string;
+  memberSlugs: string[];
+  /** 群聊刚建好、还没有角色开口时为 true，前端进群后自动请主 bot 开场 */
+  pendingKickoff?: boolean;
+  lastMessage?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MessageStyleMetrics {

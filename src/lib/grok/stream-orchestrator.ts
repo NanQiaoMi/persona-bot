@@ -50,6 +50,12 @@ export interface ChatTurnRequest {
   requestPhoto?: boolean;
   requestSticker?: boolean;
   modelId?: string;
+  /** 群聊等场景：只生成回复，不写入单聊记录、不更新情绪与自进化 */
+  skipPersistence?: boolean;
+  /** 追加到系统提示词末尾的场景说明（如群聊规则） */
+  extraSystemPrompt?: string;
+  /** 群聊里发起本轮发言的会话 id，用于媒体卡片回写 */
+  groupId?: string;
 }
 
 export type StreamEvent =
@@ -216,7 +222,8 @@ export function splitLiveBursts(rawText: string): string[] {
     .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '');
 
   return withoutTags
-    .split(/\[BURST\]/gi)
+    // 模型偶尔写成「[ BURST ]」「【BURST】」，同样视为分条标记
+    .split(/[\[【]\s*BURST\s*[\]】]/gi)
     .map((segment) =>
       segment
         .split('\n')
@@ -867,7 +874,14 @@ export async function executeGrokChatTurn(
     : undefined;
   const settings = await storageRepo.getSettings();
 
-  const activeMode: PersonaMode = req.mode || persona.defaultMode || 'authentic';
+  // 旧数据里可能残留已下线的模式（如 direct），统一回落到合法模式
+  const isKnownMode = (m?: string): m is PersonaMode =>
+    m === 'authentic' || m === 'fun' || m === 'companion' || m === 'analytical';
+  const activeMode: PersonaMode = isKnownMode(req.mode)
+    ? req.mode
+    : isKnownMode(persona.defaultMode)
+      ? persona.defaultMode
+      : 'authentic';
   const thinkEnabled = req.thinkMode ?? settings.defaultThinkMode ?? true;
   const turnStartMs = Date.now();
   const lastUserMsgObj = req.messages[req.messages.length - 1] || {
@@ -945,7 +959,9 @@ export async function executeGrokChatTurn(
       attitude: turnEmotion.description,
       intimacy: newIntimacy,
     },
-  }) + (presence ? `\n\n${buildPresenceDirective(presence)}` : '');
+  }) +
+    (presence ? `\n\n${buildPresenceDirective(presence)}` : '') +
+    (req.extraSystemPrompt ? `\n\n${req.extraSystemPrompt}` : '');
 
   const llm = resolveLlmConfig(settings, { model: req.modelId });
   const { apiKey, model } = llm;
@@ -1145,6 +1161,8 @@ export async function executeGrokChatTurn(
 
     const userMessageRecords = await buildUserRecordsToSave();
 
+    if (req.skipPersistence) return combinedMessage;
+
     await storageRepo.updateEmotionAndIntimacy(
     persona.slug,
     updatedEmotion,
@@ -1289,23 +1307,25 @@ export async function executeGrokChatTurn(
 
   const userMessageRecords = await buildUserRecordsToSave();
 
-  await storageRepo.updateEmotionAndIntimacy(
-    persona.slug,
-    updatedEmotion,
-    newIntimacy,
-    relationshipState
-  );
-  await storageRepo.appendMessages(channelPersona.slug, [
-    ...userMessageRecords,
-    ...assistantMessages,
-  ]);
-  void runPostTurnPipeline({
-    slug: persona.slug,
-    conversationSlug: channelPersona.slug,
-    userText: lastUserText,
-    reply: parsed.cleanReply,
-    recalledMemories,
-  }).catch(() => {});
+  if (!req.skipPersistence) {
+    await storageRepo.updateEmotionAndIntimacy(
+      persona.slug,
+      updatedEmotion,
+      newIntimacy,
+      relationshipState
+    );
+    await storageRepo.appendMessages(channelPersona.slug, [
+      ...userMessageRecords,
+      ...assistantMessages,
+    ]);
+    void runPostTurnPipeline({
+      slug: persona.slug,
+      conversationSlug: channelPersona.slug,
+      userText: lastUserText,
+      reply: parsed.cleanReply,
+      recalledMemories,
+    }).catch(() => {});
+  }
 
   const pendingFollowup: PendingFollowup | undefined = parsed.followup
     ? {

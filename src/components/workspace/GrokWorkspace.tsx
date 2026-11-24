@@ -5,6 +5,7 @@ import ImportModal from "@/components/ImportModal";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
   ConversationMessage,
+  GroupChat,
   MediaCard,
   PendingFollowup,
   PersonaMode,
@@ -16,6 +17,7 @@ import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
 import CommandPalette from "./CommandPalette";
 import CreateBotModal from "./CreateBotModal";
+import CreateGroupModal from "./CreateGroupModal";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
 
@@ -75,9 +77,21 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [pendingBurst, setPendingBurst] = useState(false);
   const messagesRef = useRef<ConversationMessage[]>([]);
   const inputRef = useRef("");
+  const [groups, setGroups] = useState<GroupChat[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const activeGroupIdRef = useRef<string | null>(null);
+  const activeGroup = activeGroupId
+    ? groups.find((g) => g.id === activeGroupId) || null
+    : null;
   const streamAbortRef = useRef<AbortController | null>(null);
   const runStreamRequestRef = useRef<
-    ((history: ConversationMessage[], mode: PersonaMode) => Promise<void>) | null
+    | ((
+        history: ConversationMessage[],
+        mode: PersonaMode,
+        options?: { kickoff?: boolean }
+      ) => Promise<void>)
+    | null
   >(null);
 
   useEffect(() => {
@@ -91,6 +105,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
   useEffect(() => {
     activeSlugRef.current = activeSlug;
+    if (activeSlug !== "master-bot" && activeGroupIdRef.current) {
+      // 群聊挂在主 bot 下：切到其它角色（如快捷键）时自动退出群聊
+      activeGroupIdRef.current = null;
+      queueMicrotask(() => setActiveGroupId(null));
+    }
     idleNudgeCountRef.current = 0;
     if (burstTimerRef.current) {
       clearTimeout(burstTimerRef.current);
@@ -133,10 +152,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
     setPendingBurst(true);
     const slugAtSchedule = activeSlugRef.current;
+    const groupAtSchedule = activeGroupIdRef.current;
 
     const tick = (delay: number) => {
       burstTimerRef.current = setTimeout(() => {
-        if (activeSlugRef.current !== slugAtSchedule) return;
+        if (
+          activeSlugRef.current !== slugAtSchedule ||
+          activeGroupIdRef.current !== groupAtSchedule
+        ) {
+          return;
+        }
         const waited = Date.now() - burstStartedAtRef.current;
         if (inputRef.current.trim() && waited < BURST_MAX_WAIT_MS) {
           tick(TYPING_EXTEND_MS);
@@ -186,6 +211,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   }, []);
 
+  const loadGroups = useCallback(async () => {
+    try {
+      const res = await fetch("/api/groups");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.groups)) {
+        setGroups(data.groups);
+      }
+    } catch (err) {
+      console.error("Failed to load groups:", err);
+    }
+  }, []);
+
   const loadActivePersonaDetail = useCallback(async (slug: string) => {
     try {
       const [pRes, cRes] = await Promise.all([
@@ -227,7 +264,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         setActivePersona(nextPersona);
         setActiveMode(nextPersona.defaultMode || "authentic");
       }
-      if (cData.success && Array.isArray(cData.messages)) {
+      if (activeGroupIdRef.current) {
+        // 群聊里只刷新主 bot 资料，消息列表由群聊自己管理
+      } else if (cData.success && Array.isArray(cData.messages)) {
         setMessages(cData.messages);
       } else {
         setMessages([]);
@@ -240,7 +279,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   useEffect(() => {
     let active = true;
     const init = async () => {
-      await loadPersonaList();
+      await Promise.all([loadPersonaList(), loadGroups()]);
       if (active) {
         await loadActivePersonaDetail(activeSlug);
       }
@@ -249,7 +288,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     return () => {
       active = false;
     };
-  }, [activeSlug, loadPersonaList, loadActivePersonaDetail]);
+  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -278,6 +317,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
     if (!autoNudgeEnabled) return;
     if (pendingBurst) return;
+    if (activeGroupId) return;
     if (streaming) return;
     if (followupTimerRef.current) return;
     if (input.trim().length > 0) return;
@@ -332,6 +372,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     autoNudgeEnabled,
     pendingBurst,
     activeSlug,
+    activeGroupId,
     messages,
     streaming,
     input,
@@ -358,6 +399,99 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("personabot-theme", next);
     }
+  };
+
+  // 进入 / 退出群聊：切换消息列表；新建的群自动让主 bot 开场
+  const kickoffDoneRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    activeGroupIdRef.current = activeGroupId;
+    if (burstTimerRef.current) {
+      clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = null;
+      queueMicrotask(() => setPendingBurst(false));
+    }
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+    if (!activeGroupId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/groups/${encodeURIComponent(activeGroupId)}`);
+        const data = await res.json();
+        if (cancelled || activeGroupIdRef.current !== activeGroupId) return;
+        if (!data.success) {
+          setActiveGroupId(null);
+          return;
+        }
+        const groupMessages: ConversationMessage[] = Array.isArray(data.messages)
+          ? data.messages
+          : [];
+        setMessages(groupMessages);
+        if (
+          data.group?.pendingKickoff &&
+          groupMessages.length === 0 &&
+          !kickoffDoneRef.current.has(activeGroupId)
+        ) {
+          kickoffDoneRef.current.add(activeGroupId);
+          await runStreamRequestRef.current?.([], activeMode, { kickoff: true });
+        }
+      } catch (err) {
+        console.error("Failed to load group:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroupId]);
+
+  const handleSelectPersona = (slug: string) => {
+    const wasInGroup = Boolean(activeGroupIdRef.current);
+    activeGroupIdRef.current = null;
+    setActiveGroupId(null);
+    if (slug === activeSlug && wasInGroup) {
+      void loadActivePersonaDetail(slug);
+    }
+    setActiveSlug(slug);
+  };
+
+  const handleSelectGroup = (groupId: string) => {
+    if (activeGroupIdRef.current === groupId) return;
+    activeGroupIdRef.current = groupId;
+    setMessages([]);
+    setActiveSlug("master-bot");
+    setActiveGroupId(groupId);
+  };
+
+  const handleCreateGroup = async (input: {
+    name: string;
+    memberSlugs: string[];
+    topic?: string;
+  }) => {
+    const res = await fetch("/api/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!data.success || !data.group) {
+      throw new Error(data?.error?.message || "建群失败");
+    }
+    await loadGroups();
+    setShowCreateGroup(false);
+    handleSelectGroup(data.group.id);
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await fetch(`/api/groups/${encodeURIComponent(groupId)}`, { method: "DELETE" });
+    } catch (err) {
+      console.error("Failed to delete group:", err);
+    }
+    if (activeGroupIdRef.current === groupId) {
+      handleSelectPersona("master-bot");
+    }
+    await loadGroups();
   };
 
   const handleStopStreaming = () => {
@@ -432,8 +566,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       requestSticker?: boolean;
       mentionedSlug?: string;
       deepSearchOverride?: boolean;
+      kickoff?: boolean;
     }
   ) => {
+    const requestGroupId = activeGroupIdRef.current;
     clearScheduledFollowup();
     idleNudgeCountRef.current = 0;
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
@@ -457,7 +593,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         signal: controller.signal,
         body: JSON.stringify({
           slug: activeSlug,
-          mentionedSlug: options?.mentionedSlug,
+          groupId: requestGroupId || undefined,
+          kickoff: options?.kickoff,
+          mentionedSlug: requestGroupId ? undefined : options?.mentionedSlug,
           messages: historyToSend.map((m) => ({
             role: m.role,
             content: m.content,
@@ -499,6 +637,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
           try {
             const payload = JSON.parse(dataLine.slice(6));
+            if (activeGroupIdRef.current !== requestGroupId) continue;
             if (payload.type === "status") {
               setStreaming((prev) =>
                 prev
@@ -718,7 +857,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           }, delayMs);
         }
       }
-      await loadPersonaList();
+      await (requestGroupId ? loadGroups() : loadPersonaList());
+      if (finalMessage?.groupInvite) {
+        await loadGroups();
+      }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         console.error("Streaming chat error:", error);
@@ -812,6 +954,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     overrideMode?: PersonaMode
   ) => {
     if (streaming) return;
+    if (activeGroupIdRef.current) return;
     const modeToUse = overrideMode || activeMode;
     if (overrideMode) {
       setActiveMode(overrideMode);
@@ -850,6 +993,21 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
     clearScheduledFollowup();
+    if (activeGroupIdRef.current) {
+      const gid = activeGroupIdRef.current;
+      try {
+        await fetch(`/api/groups/${encodeURIComponent(gid)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clearMessages: true }),
+        });
+        setMessages([]);
+        await loadGroups();
+      } catch (err) {
+        console.error("Failed to clear group messages:", err);
+      }
+      return;
+    }
     try {
       await fetch("/api/conversations", {
         method: "POST",
@@ -950,7 +1108,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           activeSlug={activeSlug}
           isStreaming={Boolean(streaming)}
           draftsBySlug={draftsBySlug}
-          onSelectPersona={(slug) => setActiveSlug(slug)}
+          onSelectPersona={handleSelectPersona}
+          groups={groups}
+          activeGroupId={activeGroupId}
+          onSelectGroup={handleSelectGroup}
+          onCreateGroup={() => setShowCreateGroup(true)}
+          onDeleteGroup={handleDeleteGroup}
           onOpenSettings={() => setShowSettings(true)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
           onOpenCreateBot={() => setShowCreateBot(true)}
@@ -974,8 +1137,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onClearHistory={handleClearHistory}
         onQuickCorrect={handleQuickCorrect}
         onRegenerate={handleRegenerate}
-        onRelayToMaster={handleRelayToMaster}
-        onSelectPersona={(slug) => setActiveSlug(slug)}
+        onRelayToMaster={activeGroup ? undefined : handleRelayToMaster}
+        onSelectPersona={handleSelectPersona}
+        activeGroup={activeGroup}
+        onOpenGroup={handleSelectGroup}
+        onExitGroup={() => handleSelectPersona("master-bot")}
         thinkMode={thinkMode}
         onToggleThink={() => setThinkMode((v) => !v)}
         deepSearch={deepSearch}
@@ -1077,6 +1243,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         }}
       />
 
+      <CreateGroupModal
+        open={showCreateGroup}
+        personas={personas.filter((p) => !p.isMaster && p.slug !== "master-bot")}
+        onClose={() => setShowCreateGroup(false)}
+        onCreate={handleCreateGroup}
+      />
+
       <AvatarPickerModal
         key={`avatar-picker-${activePersona?.slug || "default"}`}
         isOpen={showAvatarPicker}
@@ -1090,7 +1263,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onClose={() => setShowCommandPalette(false)}
         personas={personas}
         activeSlug={activeSlug}
-        onSelectPersona={(slug) => setActiveSlug(slug)}
+        onSelectPersona={handleSelectPersona}
         onChangeMode={(m) => setActiveMode(m)}
         onToggleTheme={handleToggleTheme}
         onOpenSettings={() => setShowSettings(true)}

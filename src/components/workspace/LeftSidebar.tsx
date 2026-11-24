@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { PersonaSummary } from "@/lib/storage/types";
+import { GroupChat, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface LeftSidebarProps {
@@ -17,6 +17,11 @@ interface LeftSidebarProps {
   theme: "dark" | "light";
   onToggleTheme: () => void;
   onCollapse?: () => void;
+  groups?: GroupChat[];
+  activeGroupId?: string | null;
+  onSelectGroup?: (groupId: string) => void;
+  onCreateGroup?: () => void;
+  onDeleteGroup?: (groupId: string) => void;
 }
 
 function formatSidebarTime(iso?: string): string {
@@ -61,6 +66,11 @@ export default function LeftSidebar({
   theme,
   onToggleTheme,
   onCollapse,
+  groups = [],
+  activeGroupId = null,
+  onSelectGroup,
+  onCreateGroup,
+  onDeleteGroup,
 }: LeftSidebarProps) {
   const router = useRouter();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -81,7 +91,7 @@ export default function LeftSidebar({
     (p) => p.isMaster || p.slug === "master-bot"
   );
   const masterSlug = masterBot?.slug || "master-bot";
-  const isMasterActive = activeSlug === masterSlug;
+  const isMasterActive = activeSlug === masterSlug && !activeGroupId;
   const masterMascot = getMascotConfigForPersona(
     masterSlug,
     masterBot?.profile,
@@ -193,6 +203,130 @@ export default function LeftSidebar({
           )}
         </button>
       </div>
+
+      {/* Group Chats (群聊) */}
+      {(groups.length > 0 || onCreateGroup) && (
+        <div className="px-3 pb-1 shrink-0">
+          <div className="flex items-center justify-between px-1.5 pb-1">
+            <span className="text-[11px] font-semibold tracking-wide text-[var(--text-muted)]">
+              群聊
+            </span>
+            {onCreateGroup && (
+              <button
+                type="button"
+                onClick={onCreateGroup}
+                aria-label="发起群聊"
+                title="发起群聊"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {groups.length === 0 ? (
+            <p className="px-1.5 pb-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+              在主 bot 里说「拉个群聊聊…」也能建群
+            </p>
+          ) : (
+            <div className="space-y-1 pb-1">
+              {groups.map((group) => {
+                const isActive = activeGroupId === group.id;
+                const members = group.memberSlugs
+                  .map((slug) => personas.find((p) => p.slug === slug))
+                  .filter((p): p is PersonaSummary => Boolean(p))
+                  .slice(0, 3);
+                return (
+                  <div
+                    key={group.id}
+                    className={`group relative rounded-[16px] transition-all duration-200 ${
+                      isActive
+                        ? "bg-[var(--bg-composer)] grok-active-row"
+                        : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSelectGroup?.(group.id)}
+                      className="w-full text-left px-3 py-2 pr-8 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <div className="flex items-center shrink-0">
+                        {members.map((m, i) => {
+                          const cfg = getMascotConfigForPersona(
+                            m.slug,
+                            m.profile,
+                            i
+                          );
+                          return (
+                            <span
+                              key={m.slug}
+                              className={`rounded-full bg-[var(--bg-secondary)] ${
+                                i > 0 ? "-ml-2" : ""
+                              }`}
+                              style={{ zIndex: members.length - i }}
+                            >
+                              <BlobMascot
+                                shape={cfg.shape}
+                                color={cfg.color}
+                                image={cfg.image}
+                                size={22}
+                                trackPointer={false}
+                                animated={false}
+                              />
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                          {group.name}
+                        </div>
+                        {group.lastMessage && (
+                          <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                            {group.lastMessage}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                    {onDeleteGroup && (
+                      <button
+                        type="button"
+                        aria-label="删除群聊"
+                        title="删除群聊"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            window.confirm(
+                              "确定删除这个群聊吗？聊天记录也会一起删除"
+                            )
+                          ) {
+                            onDeleteGroup(group.id);
+                          }
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[12px] leading-none text-[var(--text-muted)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-500 hover:bg-[var(--bg-hover)] transition-all cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sub-Bots Clean 2-Line List */}
       <div className="flex-1 overflow-y-auto px-3 space-y-1">
