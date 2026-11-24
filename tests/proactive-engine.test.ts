@@ -151,3 +151,56 @@ describe('有模型时按人设生成', () => {
     expect(text).toContain('不要客服腔');
   });
 });
+
+describe('主动消息接入作息与待关心的事（路由）', () => {
+  it('把到点的事告诉模型，主动问过之后标记为已问', async () => {
+    const { storageRepo } = await import('@/lib/storage/repository');
+    const { POST } = await import('@/app/api/chat/proactive/route');
+    const slug = 'zero-arch';
+    await storageRepo.listPersonas(); // 确保内置角色目录已初始化
+    const before = await storageRepo.getSettings();
+    await storageRepo.saveSettings({ llmApiKey: 'sk-test-proactive', llmBaseUrl: 'http://127.0.0.1:9/v1' });
+    const past = new Date(Date.now() - 26 * 3600_000).toISOString();
+    const due = new Date(Date.now() - 2 * 3600_000).toISOString();
+    await storageRepo.updateMemoryState(slug, () => ({
+      pendingTopics: [
+        {
+          id: 't1',
+          label: '面试',
+          snippet: '明天下午要去面试',
+          keywords: ['面试'],
+          mentionedAt: past,
+          dueAt: due,
+          status: 'open',
+        },
+      ],
+    }));
+
+    let sentBody = '';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      sentBody = String(init?.body || '');
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '面试咋样了[BURST]结果出来没' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    try {
+      const res = await POST(
+        new Request('http://localhost/api/chat/proactive', {
+          method: 'POST',
+          body: JSON.stringify({ slug, hoursSinceLastChat: 8, persist: true }),
+        })
+      );
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.source).toBe('llm');
+      expect(sentBody).toContain('明天下午要去面试');
+      expect(sentBody).toMatch(/你此刻|按作息你本该在睡觉/);
+      const state = await storageRepo.getMemoryState(slug);
+      expect(state.pendingTopics?.[0].status).toBe('asked');
+    } finally {
+      await storageRepo.saveSettings({ llmApiKey: before.llmApiKey, llmBaseUrl: before.llmBaseUrl });
+    }
+  });
+});

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { generateProactiveMessage } from '@/lib/grok/proactive-engine';
 import { resolveLlmConfig } from '@/lib/llm/client';
+import { getPresenceState } from '@/lib/persona/daily-rhythm';
+import { getDueTopics, markAskedTopics } from '@/lib/persona/pending-topics';
 import { storageRepo } from '@/lib/storage/repository';
 import { ConversationMessage } from '@/lib/storage/types';
 
@@ -45,6 +47,24 @@ export async function POST(request: Request) {
         : 8; // 全新会话视为很久没聊
     }
 
+    // 情境：角色此刻在做什么 + 对方之前提过、现在该有结果的事
+    const extraContext: string[] = [];
+    if (!persona.isMaster && persona.slug !== 'master-bot') {
+      const presence = getPresenceState(persona);
+      extraContext.push(
+        presence.availability === 'asleep'
+          ? `按作息你本该在睡觉（${presence.activity}），这会儿是醒着刷手机`
+          : `你此刻${presence.activity}${presence.availability === 'busy' ? '（在忙，抽空发的）' : ''}`
+      );
+    }
+    const memoryState = await storageRepo.getMemoryState(slug);
+    const dueTopics = getDueTopics(memoryState.pendingTopics || [], new Date());
+    if (!idleFollowup && dueTopics.length > 0) {
+      extraContext.push(
+        `对方之前说过「${dueTopics[0].snippet}」（${dueTopics[0].label}），现在应该有结果了，可以借这个由头关心一句`
+      );
+    }
+
     const result = await generateProactiveMessage(
       persona,
       {
@@ -54,6 +74,7 @@ export async function POST(request: Request) {
         idleSeconds,
         nudgeCount,
         recentMessages: history,
+        extraContext,
       },
       llm
     );
@@ -77,6 +98,13 @@ export async function POST(request: Request) {
         await storageRepo.updateEmotionAndIntimacy(slug, result.emotionState, newIntimacy);
       }
       await storageRepo.appendMessages(slug, [message]);
+      // 主动消息里已经问到的事，标记为问过，之后不再重复追问
+      if (dueTopics.length > 0) {
+        await storageRepo.updateMemoryState(slug, (state) => ({
+          ...state,
+          pendingTopics: markAskedTopics(state.pendingTopics || [], message.content, new Date()),
+        }));
+      }
     }
 
     return NextResponse.json({
