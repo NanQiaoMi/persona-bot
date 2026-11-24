@@ -16,6 +16,9 @@ interface RightInspectorProps {
   onAddCorrection: (reason: string, category: string) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => Promise<void>;
   onRefreshPersona?: () => Promise<void>;
+  isRefiningReference?: boolean;
+  refineReferenceNotice?: string | null;
+  onRefineReferencePortrait?: (sourceImageUrl?: string) => Promise<void>;
   onOpenAvatarPicker: () => void;
   onClose: () => void;
 }
@@ -29,6 +32,9 @@ export default function RightInspector({
   onAddCorrection,
   onTriggerProactive,
   onRefreshPersona,
+  isRefiningReference = false,
+  refineReferenceNotice = null,
+  onRefineReferencePortrait,
   onOpenAvatarPicker,
   onClose,
 }: RightInspectorProps) {
@@ -52,6 +58,7 @@ export default function RightInspector({
   const [rollingBackId, setRollingBackId] = useState<string | null>(null);
   const [importingBundle, setImportingBundle] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
+  const [previewRefOpen, setPreviewRefOpen] = useState(false);
   const [evolutionNotice, setEvolutionNotice] = useState<string | null>(null);
   const bundleFileInputRef = useRef<HTMLInputElement>(null);
   const refImageInputRef = useRef<HTMLInputElement>(null);
@@ -552,32 +559,65 @@ export default function RightInspector({
                       )}
                     </div>
 
+                    {isRefiningReference && (
+                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-[#18a999]/10 border border-[#18a999]/30 text-[11px] text-[#18a999]">
+                        <span className="inline-block w-2 h-2 rounded-full bg-[#18a999] animate-pulse shrink-0" />
+                        <span>✨ 正在提炼标准棚拍参考图…</span>
+                      </div>
+                    )}
+
                     {persona.profile.referenceImageUrl ? (
                       <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={persona.profile.referenceImageUrl}
-                          alt="人物参考图"
-                          className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[var(--border-strong)]"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setPreviewRefOpen(true)}
+                          title="点击放大查看参考图"
+                          className="relative group shrink-0 rounded-lg overflow-hidden border border-[var(--border-strong)] cursor-zoom-in"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={persona.profile.referenceImageUrl}
+                            alt="人物参考图"
+                            className="w-12 h-12 object-cover"
+                          />
+                        </button>
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-medium text-[#18a999]">
                             ✓ 已锁定参考图底稿
                           </div>
                           <div className="text-[10px] text-[var(--text-muted)] truncate">
-                            后续发自拍将参考此图五官与形象
+                            后续发自拍将参考此图五官（点击缩略图可放大）
                           </div>
                         </div>
                       </div>
                     ) : (
                       <div className="text-[10.5px] text-[var(--text-muted)]">
-                        尚未锁定参考图；发送首张自拍后会自动锁定，也可手动上传：
+                        尚未锁定参考图；发送首张自拍后会自动提炼标准定妆照，也可手动上传或直接生成：
                       </div>
+                    )}
+
+                    {onRefineReferencePortrait && (
+                      <button
+                        type="button"
+                        disabled={isRefiningReference || uploadingRef}
+                        onClick={() =>
+                          void onRefineReferencePortrait(
+                            persona.profile.referenceImageUrl
+                          )
+                        }
+                        className="w-full py-1.5 px-2.5 rounded-xl bg-[#18a999]/12 hover:bg-[#18a999]/20 border border-[#18a999]/30 text-[11px] font-medium text-[#18a999] transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {isRefiningReference
+                          ? "✨ 正在提炼标准参考图..."
+                          : persona.profile.referenceImageUrl
+                            ? "✨ 重生成标准参考图"
+                            : "✨ 生成标准参考图"}
+                      </button>
                     )}
 
                     <button
                       type="button"
-                      disabled={uploadingRef}
+                      disabled={uploadingRef || isRefiningReference}
                       onClick={() => refImageInputRef.current?.click()}
                       className="w-full py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
                     >
@@ -587,6 +627,11 @@ export default function RightInspector({
                           ? "📷 更换人物参考图"
                           : "📷 上传人物参考图"}
                     </button>
+                    {refineReferenceNotice && (
+                      <div className="text-[10.5px] text-[var(--text-muted)] leading-relaxed px-1">
+                        {refineReferenceNotice}
+                      </div>
+                    )}
                     <input
                       ref={refImageInputRef}
                       type="file"
@@ -1021,6 +1066,34 @@ export default function RightInspector({
           </div>
         )}
       </div>
+      {previewRefOpen && persona.profile.referenceImageUrl && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
+          onClick={() => setPreviewRefOpen(false)}
+        >
+          <div
+            className="relative max-w-xl w-full flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={persona.profile.referenceImageUrl}
+              alt={`${persona.name} 人物参考图`}
+              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+            />
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+              <span>{persona.name} · 人物一致性参考图</span>
+              <button
+                type="button"
+                onClick={() => setPreviewRefOpen(false)}
+                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

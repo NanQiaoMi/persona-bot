@@ -52,6 +52,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [showCreateBot, setShowCreateBot] = useState(false);
   const [autoNudgeEnabled, setAutoNudgeEnabled] = useState(true);
   const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [refiningRefSlugs, setRefiningRefSlugs] = useState<
+    Record<string, boolean>
+  >({});
+  const [refineRefNotice, setRefineRefNotice] = useState<
+    Record<string, string | null>
+  >({});
+  const refiningRefSlugsRef = useRef<Record<string, boolean>>({});
   const followupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
@@ -279,6 +286,63 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     streamAbortRef.current = null;
   };
 
+  const handleRefineReferencePortrait = useCallback(
+    async (
+      targetSlug: string,
+      options?: {
+        sourceImageUrl?: string;
+        expectedCurrentRef?: string;
+        mode?: "auto" | "manual";
+      }
+    ) => {
+      if (!targetSlug || refiningRefSlugsRef.current[targetSlug]) return;
+      refiningRefSlugsRef.current[targetSlug] = true;
+      setRefiningRefSlugs((prev) => ({ ...prev, [targetSlug]: true }));
+      setRefineRefNotice((prev) => ({ ...prev, [targetSlug]: null }));
+
+      try {
+        const res = await fetch("/api/media/reference/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug: targetSlug,
+            sourceImageUrl: options?.sourceImageUrl,
+            expectedCurrentRef: options?.expectedCurrentRef,
+            mode: options?.mode || "manual",
+          }),
+        });
+        const data = await res.json();
+        if (data?.success) {
+          if (!data.skippedOverwrite) {
+            if (activeSlugRef.current === targetSlug) {
+              await loadActivePersonaDetail(targetSlug);
+            }
+            setRefineRefNotice((prev) => ({
+              ...prev,
+              [targetSlug]: "✓ 已更新为标准棚拍参考图",
+            }));
+          }
+        } else {
+          setRefineRefNotice((prev) => ({
+            ...prev,
+            [targetSlug]:
+              data?.error ||
+              "标准参考图提炼未成功，已暂用当前照片兜底，可随时重试",
+          }));
+        }
+      } catch {
+        setRefineRefNotice((prev) => ({
+          ...prev,
+          [targetSlug]: "标准参考图提炼未成功，已暂用当前照片兜底，可随时重试",
+        }));
+      } finally {
+        refiningRefSlugsRef.current[targetSlug] = false;
+        setRefiningRefSlugs((prev) => ({ ...prev, [targetSlug]: false }));
+      }
+    },
+    [loadActivePersonaDetail]
+  );
+
   const runStreamRequest = async (
     historyToSend: ConversationMessage[],
     modeToUse: PersonaMode,
@@ -502,8 +566,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                       return { ...m, mediaCards: updated };
                     })
                   );
-                  if (resData.autoLockedReference && activeSlugRef.current === targetSlug) {
+                  if (
+                    resData.autoLockedReference &&
+                    activeSlugRef.current === targetSlug
+                  ) {
                     void loadActivePersonaDetail(targetSlug);
+                  }
+                  if (resData.shouldRefineReference && resData.sourcePhotoUrl) {
+                    void handleRefineReferencePortrait(targetSlug, {
+                      sourceImageUrl: resData.sourcePhotoUrl,
+                      expectedCurrentRef: resData.sourcePhotoUrl,
+                      mode: "auto",
+                    });
                   }
                 }
               })
@@ -823,6 +897,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
             },
           });
         }}
+        isRefiningReference={Boolean(
+          activePersona && refiningRefSlugs[activePersona.slug]
+        )}
+        onRefineReferencePortrait={async (sourceUrl) => {
+          if (!activePersona) return;
+          await handleRefineReferencePortrait(activePersona.slug, {
+            sourceImageUrl: sourceUrl,
+            mode: "manual",
+          });
+        }}
       />
 
       {showInspector && (
@@ -840,6 +924,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               loadActivePersonaDetail(activeSlug),
               loadPersonaList(),
             ]);
+          }}
+          isRefiningReference={Boolean(
+            activePersona && refiningRefSlugs[activePersona.slug]
+          )}
+          refineReferenceNotice={
+            activePersona ? refineRefNotice[activePersona.slug] : null
+          }
+          onRefineReferencePortrait={async (sourceUrl) => {
+            if (!activePersona) return;
+            await handleRefineReferencePortrait(activePersona.slug, {
+              sourceImageUrl: sourceUrl,
+              mode: "manual",
+            });
           }}
           onOpenAvatarPicker={() => setShowAvatarPicker(true)}
           onClose={() => setShowInspector(false)}

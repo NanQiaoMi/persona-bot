@@ -63,6 +63,8 @@ interface ChatStageProps {
   onOpenImport: () => void;
   onOpenAvatarPicker: () => void;
   onSetReferencePhoto?: (imageUrl: string) => Promise<void>;
+  isRefiningReference?: boolean;
+  onRefineReferencePortrait?: (sourceImageUrl: string) => Promise<void>;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -177,6 +179,8 @@ export default function ChatStage({
   onOpenImport,
   onOpenAvatarPicker,
   onSetReferencePhoto,
+  isRefiningReference = false,
+  onRefineReferencePortrait,
 }: ChatStageProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -1161,8 +1165,20 @@ export default function ChatStage({
               alt={lightboxMedia.caption}
               className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
             />
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+            <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-black/60 text-white text-xs">
               <span className="max-w-xs truncate">{lightboxMedia.caption}</span>
+              {lightboxMedia.kind === "photo" && onRefineReferencePortrait && (
+                <button
+                  type="button"
+                  disabled={isRefiningReference}
+                  onClick={() => void onRefineReferencePortrait(lightboxMedia.url)}
+                  className="px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer bg-[#18a999] hover:bg-[#159385] text-white disabled:opacity-60"
+                >
+                  {isRefiningReference
+                    ? "✨ 正在提炼标准参考图…"
+                    : "✨ 提炼为标准参考图"}
+                </button>
+              )}
               {lightboxMedia.kind === "photo" && onSetReferencePhoto && (
                 <button
                   type="button"
