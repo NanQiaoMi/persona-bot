@@ -12,15 +12,15 @@ PersonaBot 是一个将**真实聊天记录蒸馏人物灵魂（五层人格 + �
 ## 2. 技术栈
 - **全栈框架**: Next.js 16 (App Router) + React 19 + TypeScript 5
 - **样式**: Tailwind CSS v4 + CSS Variables（支持深空暗色 / 清爽亮色主题）
-- **AI 与检索**: 纯 TypeScript 多阶段流式编排器（SSE）+ OpenAI/xAI Grok/DeepSeek 兼容接口 + 免 Key 实时搜索与 Tavily/Serper 双擎适配器 + 离线演示智能兜底
-- **存储层**: 统一存储仓储层（默认 `exes/` + `.data/` 本地结构化文件零配置开箱即用，配置 `MONGODB_URI` 时自动适配 MongoDB）
+- **AI 与检索**: 纯 TypeScript 多阶段流式编排器（SSE）+ 默认本地网关 (`http://127.0.0.1:18630/v1`, 支持 `gpt-5.6`/`auto` 与 `gpt-image-2*` 表情包/拍照生图) + OpenAI/xAI Grok/DeepSeek 兼容接口 + 免 Key 实时搜索与 Tavily/Serper 双擎适配器 + 离线演示智能兜底
+- **存储层**: 统一存储仓储层（默认 `exes/` + `.data/` 本地结构化文件及 `.data/generated-media/` 生成媒体持久化，配置 `MONGODB_URI` 时自动适配 MongoDB）
 - **测试与 CI**: Vitest + ESLint + TypeScript (`tsc --noEmit`) + GitHub Actions
 
 ## 3. 核心目录结构
 - `src/app/` — App Router 页面与 REST/SSE API 路由（唯一 `/` 入口，`/chat/[slug]`、`/create`、`/gallery`）
 - `src/components/` — UI 组件（`workspace/` 三栏工作台、`persona/` 蒸馏向导、`settings/` 模型配置舱）
-- `src/lib/storage/` — 统一存储仓储层（本地结构化文件 + MongoDB 适配 + 内置标杆角色自动初始化）
-- `src/lib/persona/` — 内置 Grok 标杆角色库、全套重写 Prompt、纯 TS 五阶段蒸馏引擎与 Prompt 组装器
+- `src/lib/storage/` — 统一存储仓储层（本地结构化文件 + 快照回滚与灵魂包导入导出 + MongoDB 适配 + 内置标杆角色自动初始化）
+- `src/lib/persona/` — 内置 Grok 标杆角色库、全套重写 Prompt、纯 TS 五阶段蒸馏引擎、自动记忆与习惯自进化 (`evolution.ts`) 与 Prompt 组装器
 - `src/lib/grok/` — DeepSearch 联网、人格模式修饰器、时间感知主动破冰、SSE 流式编排器
 - `src/lib/emotion/` — PAD 三维情绪状态机、时间衰减与好感度引擎
 - `src/lib/parsers/` — 纯 TS 聊天记录解析器（微信 TXT/HTML/JSON、iMessage、通用文本）

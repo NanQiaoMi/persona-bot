@@ -5,6 +5,10 @@ import {
   PERSONA_ANALYZER_PROMPT,
   PERSONA_BUILDER_PROMPT,
 } from './prompts';
+import { chatCompletion, parseJsonFromLlmOutput, resolveLlmConfig } from '@/lib/llm/client';
+import { buildFingerprintFromLines } from '@/lib/persona/fingerprint';
+import { parseLearnedFromMarkdown, PERSONA_SPEC_VERSION } from '@/lib/persona/spec';
+import { heuristicTraits, normalizeTraits } from '@/lib/persona/traits';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
 
@@ -16,6 +20,9 @@ export interface DistillInput {
   targetSpeaker?: string;
   defaultMode?: PersonaMode;
   avatarEmoji?: string;
+  avatarShape?: string;
+  avatarColor?: string;
+  appearanceAnchor?: string;
 }
 
 export interface DistillResult {
@@ -44,6 +51,8 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
   participants: string[];
   topCatchphrases: string[];
   sampleQuotes: string[];
+  /** 目标人物的全部文字发言（最多 400 条），用于构建本人风格指纹 */
+  targetLines: string[];
 } {
   if (!content || !content.trim()) {
     return {
@@ -52,6 +61,7 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
       participants: [],
       topCatchphrases: [],
       sampleQuotes: [],
+      targetLines: [],
     };
   }
 
@@ -121,6 +131,7 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
     participants: Array.from(participants),
     topCatchphrases: topCatchphrases.length > 0 ? topCatchphrases : ['说真的', '好家伙', '看我心情', '行吧'],
     sampleQuotes,
+    targetLines: effectiveMsgs.map((m) => m.content.trim()).filter(Boolean).slice(-400),
   };
 }
 
@@ -137,9 +148,7 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
 
   const corpus = analyzeChatLogCorpus(input.chatLogText || '', input.targetSpeaker || name);
   const settings = await storageRepo.getSettings();
-  const apiKey = settings.llmApiKey || process.env.LLM_API_KEY || '';
-  const baseUrl = (settings.llmBaseUrl || process.env.LLM_BASE_URL || 'https://api.x.ai/v1').replace(/\/$/, '');
-  const model = settings.llmModel || process.env.LLM_MODEL || 'grok-3';
+  const llm = resolveLlmConfig(settings);
 
   const mbti =
     input.personalityInfo?.match(/([EI][NS][FT][JP])/i)?.[1]?.toUpperCase() || 'ENFP';
@@ -159,34 +168,23 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
   let personaMd = '';
   let memoriesMd = '';
   let isLiveLLM = false;
+  let traits = heuristicTraits(
+    `${input.personalityInfo || ''}\n${input.basicInfo || ''}`,
+    { mbti, attachment, personalityTags }
+  );
 
-  if (apiKey && apiKey !== 'your-api-key') {
+  if (llm.canCall) {
     try {
-      const endpoint = baseUrl.endsWith('/chat/completions')
-        ? baseUrl
-        : `${baseUrl}/chat/completions`;
-
-      const callLLM = async (system: string, user: string, temperature = 0.65): Promise<string> => {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: user },
-            ],
-            temperature,
-          }),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        return data.choices?.[0]?.message?.content || '';
-      };
+      // 蒸馏是 5 次串行长文本生成，单次超时放宽到 60s
+      const callLLM = (system: string, user: string, temperature = 0.65): Promise<string> =>
+        chatCompletion(
+          llm,
+          [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          { temperature, timeoutMs: 60000 }
+        );
 
       const corpusSummary =
         corpus.totalCount > 0
@@ -218,6 +216,16 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
         0.5
       );
       isLiveLLM = Boolean(personaMd && memoriesMd);
+      try {
+        const traitsRaw = await callLLM(
+          '你是人格心理测量专家，只输出合法 JSON。',
+          `根据以下人物分析，给出 0~1 之间的大五人格与情绪参数，键为 openness, conscientiousness, extraversion, agreeableness, neuroticism, emotionalStability, recoveryRate（recoveryRate 表示生气/难过后恢复得多快）。\n${analysis}`,
+          0.2
+        );
+        traits = normalizeTraits(parseJsonFromLlmOutput(traitsRaw), traits);
+      } catch {
+        // 保留启发式特质
+      }
     } catch {
       // Fallback to high-precision deterministic distillation below
       isLiveLLM = false;
@@ -326,7 +334,10 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
       attachment,
       personalityTags,
       avatarEmoji: input.avatarEmoji || '✨',
-      accentColor: '#10B981',
+      accentColor: input.avatarColor || '#10B981',
+      avatarShape: input.avatarShape || undefined,
+      avatarColor: input.avatarColor || undefined,
+      appearanceAnchor: input.appearanceAnchor?.trim() || undefined,
       bio: (input.basicInfo || input.personalityInfo || `${mbti} 专属蒸馏角色`).slice(0, 100),
     },
     personaMd,
@@ -343,6 +354,16 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
       decayRate: 0.08,
     },
     corrections: [],
+    spec: {
+      specVersion: PERSONA_SPEC_VERSION,
+      // 有原始聊天记录时用本人真实发言做风格锚点，否则从人设示例原话推导
+      fingerprint:
+        corpus.targetLines.length >= 3
+          ? buildFingerprintFromLines(corpus.targetLines, 'chatlog')
+          : undefined,
+      traits,
+      learned: parseLearnedFromMarkdown(personaMd),
+    },
     createdAt: now,
     updatedAt: now,
   });

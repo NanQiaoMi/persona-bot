@@ -1,13 +1,22 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
-import { PersonaMode } from "@/lib/storage/types";
+import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
+import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface GrokComposerProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: (options?: { imageUrl?: string; requestPhoto?: boolean }) => void;
+  onSend: (options?: {
+    imageUrl?: string;
+    requestPhoto?: boolean;
+    requestSticker?: boolean;
+    mentionedSlug?: string;
+  }) => void;
+  onStop?: () => void;
+  externalImage?: string | null;
+  onClearExternalImage?: () => void;
   disabled?: boolean;
   thinkMode: boolean;
   onToggleThink: () => void;
@@ -15,12 +24,20 @@ interface GrokComposerProps {
   onToggleDeepSearch: () => void;
   activeMode: PersonaMode;
   onChangeMode: (mode: PersonaMode) => void;
+  onTriggerProactive: () => void;
+  onOpenImport: () => void;
+  personaName?: string;
+  accentColor?: string;
+  personas?: PersonaSummary[];
 }
 
 export default function GrokComposer({
   value,
   onChange,
   onSend,
+  onStop,
+  externalImage,
+  onClearExternalImage,
   disabled,
   thinkMode,
   onToggleThink,
@@ -28,10 +45,72 @@ export default function GrokComposer({
   onToggleDeepSearch,
   activeMode,
   onChangeMode,
+  onTriggerProactive,
+  onOpenImport,
+  personaName,
+  accentColor = "#18a999",
+  personas = [],
 }: GrokComposerProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [dismissedAtValue, setDismissedAtValue] = useState<string | null>(null);
+  const [selectedMentionSlug, setSelectedMentionSlug] = useState<
+    string | undefined
+  >(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const plusBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [value]);
+
+  useEffect(() => {
+    textInputRef.current?.focus();
+  }, [personaName]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        popoverRef.current?.contains(target) ||
+        plusBtnRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setMenuOpen(false);
+    };
+    window.addEventListener("mousedown", handleOutside);
+    return () => window.removeEventListener("mousedown", handleOutside);
+  }, [menuOpen]);
+
+  const handlePasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            setImagePreview(reader.result);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,48 +122,95 @@ export default function GrokComposer({
       }
     };
     reader.readAsDataURL(file);
+    setMenuOpen(false);
   };
 
-  const handleSubmit = (requestPhoto = false) => {
+  const mentionMatch =
+    dismissedAtValue === value
+      ? null
+      : value.match(/(?:^|\s)@([^\s@]*)$/);
+  const mentionQuery = mentionMatch ? mentionMatch[1].toLowerCase() : "";
+  const filteredMentions = mentionMatch
+    ? personas.filter(
+        (p) =>
+          !mentionQuery ||
+          p.name.toLowerCase().includes(mentionQuery) ||
+          p.slug.toLowerCase().includes(mentionQuery)
+      )
+    : [];
+  const showMentionMenu = Boolean(mentionMatch) && filteredMentions.length > 0;
+  const clampedMentionIdx =
+    filteredMentions.length > 0
+      ? Math.min(mentionIndex, filteredMentions.length - 1)
+      : 0;
+
+  const insertMentionBot = (bot: PersonaSummary) => {
+    const replaced = value.replace(
+      /(?:^|\s)@([^\s@]*)$/,
+      (fullMatch) => (fullMatch.startsWith(" ") ? ` @${bot.name} ` : `@${bot.name} `)
+    );
+    onChange(replaced);
+    setSelectedMentionSlug(bot.slug);
+    setDismissedAtValue(null);
+    setMentionIndex(0);
+    setTimeout(() => textInputRef.current?.focus(), 0);
+  };
+
+  const activeImagePreview = imagePreview || externalImage || null;
+
+  const handleSubmit = (
+    requestPhoto = false,
+    requestSticker = false
+  ) => {
     if (disabled) return;
-    if (!value.trim() && !imagePreview && !requestPhoto) return;
+    if (!value.trim() && !activeImagePreview && !requestPhoto && !requestSticker) return;
+    const matchedInText = personas.find((p) =>
+      value.includes(`@${p.name}`)
+    )?.slug;
+    const resolvedMentionSlug =
+      matchedInText ||
+      (selectedMentionSlug &&
+      personas.some(
+        (p) => p.slug === selectedMentionSlug && value.includes(`@${p.name}`)
+      )
+        ? selectedMentionSlug
+        : undefined);
     onSend({
-      imageUrl: imagePreview || undefined,
+      imageUrl: activeImagePreview || undefined,
       requestPhoto,
+      requestSticker,
+      mentionedSlug: resolvedMentionSlug,
     });
     setImagePreview(null);
+    onClearExternalImage?.();
+    setSelectedMentionSlug(undefined);
+    setMenuOpen(false);
   };
 
   const handleVoiceInput = () => {
-    const SpeechRecognitionCtor =
-      (window as unknown as {
-        SpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-          onerror: () => void;
-          onend: () => void;
-        };
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-          onerror: () => void;
-          onend: () => void;
-        };
-      }).SpeechRecognition ||
-      (window as unknown as {
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-          onerror: () => void;
-          onend: () => void;
-        };
-      }).webkitSpeechRecognition;
+    const win = window as unknown as {
+      SpeechRecognition?: new () => {
+        lang: string;
+        start: () => void;
+        onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+        onerror: () => void;
+        onend: () => void;
+      };
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        start: () => void;
+        onresult: (ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+        onerror: () => void;
+        onend: () => void;
+      };
+    };
+
+    const SpeechRecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
 
     if (!SpeechRecognitionCtor) {
-      onChange(value ? `${value} [语音输入：最近在忙啥呢？]` : "刚刚给你发了一条语音，快听听我在说啥～");
+      onChange(
+        value ? `${value} [语音输入：最近在忙啥呢？]` : "刚给你发了一条语音，快听听我在说啥～"
+      );
       return;
     }
 
@@ -106,162 +232,403 @@ export default function GrokComposer({
     }
   };
 
+  const hasContent = Boolean(value.trim()) || Boolean(activeImagePreview);
+  const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
+
   return (
-    <div className="px-4 pb-4 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent">
-      <div className="max-w-3xl mx-auto rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden transition-all">
-        {/* Image Attachment Preview */}
-        {imagePreview && (
-          <div className="px-4 pt-3 flex items-center gap-3">
-            <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-[var(--border-strong)]">
+    <div className="relative px-4 md:px-8 pb-5 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/95 to-transparent">
+      <div className="relative max-w-3xl mx-auto">
+        {/* Floating "+" Toolbox Popover */}
+        {menuOpen && (
+          <div
+            ref={popoverRef}
+            className="absolute bottom-full left-0 mb-3 w-80 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-4 space-y-3.5 z-30 animate-popover-in"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[var(--text-primary)]">
+                Grok 能力与人格工具箱
+              </span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="w-6 h-6 rounded-full hover:bg-[var(--bg-secondary)] flex items-center justify-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onToggleThink}
+                className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
+                  thinkMode
+                    ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
+                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                }`}
+              >
+                <span>✦</span>
+                <span>Think 潜台词</span>
+              </button>
+              <button
+                type="button"
+                onClick={onToggleDeepSearch}
+                className={`px-3 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition-all ${
+                  deepSearch
+                    ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                    : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                }`}
+              >
+                <span>🌐</span>
+                <span>DeepSearch</span>
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-medium text-[var(--text-muted)]">
+                人格尺度调节
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((mKey) => {
+                  const spec = PERSONA_MODES[mKey];
+                  const active = activeMode === mKey;
+                  return (
+                    <button
+                      key={mKey}
+                      type="button"
+                      onClick={() => onChangeMode(mKey)}
+                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium text-left flex items-center gap-1.5 transition-all ${
+                        active
+                          ? "bg-[var(--bg-tertiary)] border-[var(--border-strong)] text-[var(--text-primary)]"
+                          : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      <span>{spec.badge}</span>
+                      <span>{spec.shortLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <span>🖼️</span>
+                <span>传图点评</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!value.trim()) {
+                    onChange("发个适合现在氛围的表情包给我看看～");
+                  }
+                  handleSubmit(false, true);
+                }}
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <span>🎭</span>
+                <span>要表情包</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!value.trim()) {
+                    onChange("发张你那边的随手拍给我看看呗 📸");
+                  }
+                  handleSubmit(true, false);
+                }}
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <span>📸</span>
+                <span>索要自拍</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onOpenImport();
+                }}
+                className="py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex flex-col items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <span>📥</span>
+                <span>导入记录</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onTriggerProactive();
+              }}
+              className="w-full py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-xs font-medium text-[var(--text-primary)] flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <span>⚡</span>
+              <span>让 {personaName || "TA"} 主动破冰</span>
+            </button>
+          </div>
+        )}
+
+        {/* Active Image Attachment Preview */}
+        {activeImagePreview && (
+          <div className="mb-2.5 px-4 py-2 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center gap-3 animate-fade-in">
+            <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-[var(--border-strong)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imagePreview}
+                src={activeImagePreview}
                 alt="上传预览"
                 className="w-full h-full object-cover"
               />
               <button
                 type="button"
-                onClick={() => setImagePreview(null)}
-                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                onClick={() => {
+                  setImagePreview(null);
+                  onClearExternalImage?.();
+                }}
+                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/75 text-white text-[10px] flex items-center justify-center cursor-pointer"
               >
                 ×
               </button>
             </div>
             <span className="text-xs text-[var(--text-secondary)]">
-              已附带图片 · 发送后角色将结合画面细节与人设点评
+              已附带图片 · 发送后将结合画面与人设点评
             </span>
           </div>
         )}
 
-        {/* Textarea */}
-        <div className="px-4 pt-3 pb-2">
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(false);
-              }
-            }}
-            rows={2}
-            disabled={disabled}
-            placeholder="像发微信一样随便聊，或开启 DeepSearch 问问今天的新鲜事... (Enter 发送，Shift+Enter 换行)"
-            className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none leading-relaxed"
-          />
-        </div>
+        {/* Subtle Active Mode & Search Chips */}
+        {(deepSearch || activeMode !== "authentic") && (
+          <div className="mb-2 px-2 flex items-center gap-1.5 text-[11px]">
+            {activeMode !== "authentic" && (
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                {modeSpec.badge} {modeSpec.shortLabel}
+              </button>
+            )}
+            {deepSearch && (
+              <button
+                type="button"
+                onClick={onToggleDeepSearch}
+                className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-600 dark:text-sky-300 transition-colors cursor-pointer"
+              >
+                🌐 DeepSearch 已开启 ×
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* Grok Capsule Controls Bar */}
-        <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--bg-tertiary)]/50 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Think Toggle */}
-            <button
-              type="button"
-              onClick={onToggleThink}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 border transition-all ${
-                thinkMode
-                  ? "bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-sm"
-                  : "bg-transparent border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-              title="开启后展示角色回复前的真实内心潜台词 (Inner OS)"
-            >
-              <span>💭</span>
-              <span>Think 潜台词</span>
-            </button>
-
-            {/* DeepSearch Toggle */}
-            <button
-              type="button"
-              onClick={onToggleDeepSearch}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 border transition-all ${
-                deepSearch
-                  ? "bg-sky-500/20 border-sky-500/50 text-sky-300 shadow-sm"
-                  : "bg-transparent border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-              title="开启后实时联网检索资讯并用角色口吻吐槽/分享"
-            >
-              <span>🌐</span>
-              <span>DeepSearch</span>
-            </button>
-
-            {/* 4 Persona Modes Selector */}
-            <div className="flex items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-primary)]/60 p-0.5">
-              {(Object.keys(PERSONA_MODES) as PersonaMode[]).map((modeKey) => {
-                const spec = PERSONA_MODES[modeKey];
-                const isActive = activeMode === modeKey;
+        {/* Floating "@" Bot Mention Picker (Grok Bot Style) */}
+        {showMentionMenu && (
+          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
+            <div className="max-h-60 overflow-y-auto space-y-0.5">
+              {filteredMentions.map((bot, idx) => {
+                const mascot = getMascotConfigForPersona(bot.slug, bot.profile);
+                const isSelected = idx === clampedMentionIdx;
                 return (
                   <button
-                    key={modeKey}
+                    key={bot.slug}
                     type="button"
-                    onClick={() => onChangeMode(modeKey)}
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all flex items-center gap-1 ${
-                      isActive
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    onMouseEnter={() => setMentionIndex(idx)}
+                    onClick={() => insertMentionBot(bot)}
+                    className={`w-full px-3 py-2 rounded-[13px] flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-[var(--bg-hover)]"
+                        : "hover:bg-[var(--bg-hover)]"
                     }`}
-                    title={spec.description}
                   >
-                    <span>{spec.badge}</span>
-                    <span className="hidden sm:inline">{spec.shortLabel}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <BlobMascot
+                        shape={mascot.shape}
+                        color={mascot.color}
+                        image={mascot.image}
+                        size={22}
+                        trackPointer={false}
+                        animated={false}
+                      />
+                      <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                        {bot.name}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[var(--text-muted)] shrink-0">
+                      Bot
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
+        )}
 
-          {/* Right Multimodal & Send Controls */}
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors"
-              title="发送图片让 TA 看图点评"
+        {/* Main Floating Grok Bot Pill Capsule */}
+        <div className="flex items-end gap-2 px-2.5 py-2 rounded-[26px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          <button
+            ref={plusBtnRef}
+            type="button"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            aria-label="打开功能菜单"
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
+              menuOpen
+                ? "bg-[var(--text-primary)] text-[var(--bg-primary)] rotate-45"
+                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
+            }`}
+            title="切换 Think / DeepSearch / 人格模式 / 传图"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
             >
-              🖼️
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!value.trim()) {
-                  onChange("发张你那边的随手拍给我看看呗 📸");
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+          </button>
+
+          <textarea
+            ref={textInputRef}
+            rows={1}
+            value={value}
+            onChange={(e) => {
+              setDismissedAtValue(null);
+              setMentionIndex(0);
+              onChange(e.target.value);
+            }}
+            onPaste={handlePasteImage}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (showMentionMenu) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setMentionIndex((prev) =>
+                    (prev + 1) % filteredMentions.length
+                  );
+                  return;
                 }
-                handleSubmit(true);
-              }}
-              disabled={disabled}
-              className="p-1.5 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors"
-              title="索要角色情境照片/自拍"
-            >
-              📸
-            </button>
-            <button
-              type="button"
-              onClick={handleVoiceInput}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${
-                isRecording
-                  ? "bg-rose-500/20 text-rose-400 animate-pulse"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5"
-              }`}
-              title="语音输入 (Web Speech STT)"
-            >
-              🎙️
-            </button>
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setMentionIndex((prev) =>
+                    (prev - 1 + filteredMentions.length) %
+                    filteredMentions.length
+                  );
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setDismissedAtValue(value);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const chosen = filteredMentions[clampedMentionIdx];
+                  if (chosen) insertMentionBot(chosen);
+                  return;
+                }
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(false);
+              }
+            }}
+            disabled={disabled}
+            placeholder={`给 ${personaName || "TA"} 发消息...`}
+            className="flex-1 max-h-32 overflow-y-auto resize-none bg-transparent px-2 py-1.5 text-[14px] leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+          />
 
-            <button
-              type="button"
-              onClick={() => handleSubmit(false)}
-              disabled={disabled || (!value.trim() && !imagePreview)}
-              className="ml-1 px-4 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-semibold text-xs transition-all shadow-md shadow-emerald-500/20"
+          <button
+            type="button"
+            onClick={handleVoiceInput}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
+              isRecording
+                ? "bg-rose-500/20 text-rose-500 animate-pulse"
+                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
+            }`}
+            title="语音输入"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
             >
-              {disabled ? "思考中..." : "发送 ↑"}
-            </button>
-          </div>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
+              />
+            </svg>
+          </button>
+
+          {/* Animated Active-Bot Color Waveform / Send / Stop Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (disabled) {
+                onStop?.();
+              } else if (hasContent) {
+                handleSubmit(false);
+              } else {
+                onTriggerProactive();
+              }
+            }}
+            disabled={disabled && !onStop}
+            aria-label={
+              disabled ? "停止回复" : hasContent ? "发送消息" : "语音/主动破冰"
+            }
+            className="w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
+            style={{ backgroundColor: accentColor }}
+            title={
+              disabled
+                ? "停止当前回复"
+                : hasContent
+                  ? "发送消息 (Enter)"
+                  : "让 TA 主动开口破冰"
+            }
+          >
+            {disabled ? (
+              <span className="w-3 h-3 rounded-[3px] bg-white" />
+            ) : hasContent ? (
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
+                />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <rect className="animate-wave-1" x="4" y="9" width="2.2" height="6" rx="1.1" />
+                <rect className="animate-wave-2" x="8.3" y="5.5" width="2.2" height="13" rx="1.1" />
+                <rect className="animate-wave-3" x="12.6" y="7" width="2.2" height="10" rx="1.1" />
+                <rect className="animate-wave-4" x="16.9" y="9.5" width="2.2" height="5" rx="1.1" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
     </div>

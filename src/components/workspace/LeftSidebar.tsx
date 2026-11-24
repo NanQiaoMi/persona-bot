@@ -1,218 +1,376 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { PersonaSummary } from "@/lib/storage/types";
+import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
 interface LeftSidebarProps {
   personas: PersonaSummary[];
   activeSlug: string;
+  isStreaming?: boolean;
+  draftsBySlug?: Record<string, string>;
   onSelectPersona: (slug: string) => void;
-  onOpenImport: () => void;
   onOpenSettings: () => void;
+  onOpenCommandPalette: () => void;
+  onOpenCreateBot: () => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  onCollapse?: () => void;
+}
+
+function formatSidebarTime(iso?: string): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs >= 0 && diffMs < 60_000) return "刚刚";
+
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  const yesterdayStart = todayStart - 86_400_000;
+  const dayStart = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  ).getTime();
+
+  if (dayStart === todayStart) {
+    return date.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  if (dayStart === yesterdayStart) return "昨天";
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 export default function LeftSidebar({
   personas,
   activeSlug,
+  isStreaming = false,
+  draftsBySlug = {},
   onSelectPersona,
-  onOpenImport,
   onOpenSettings,
+  onOpenCommandPalette,
+  onOpenCreateBot,
   theme,
   onToggleTheme,
+  onCollapse,
 }: LeftSidebarProps) {
-  const [filter, setFilter] = useState<"all" | "preset" | "custom">("all");
-  const [search, setSearch] = useState("");
+  const router = useRouter();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const filtered = personas.filter((p) => {
-    if (filter === "preset" && !p.isPreset) return false;
-    if (filter === "custom" && p.isPreset) return false;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.slug.toLowerCase().includes(q) ||
-        p.profile.mbti?.toLowerCase().includes(q) ||
-        p.profile.personalityTags.some((t) => t.toLowerCase().includes(q))
-      );
-    }
-    return true;
-  });
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, [accountMenuOpen]);
+
+  const masterBot = personas.find(
+    (p) => p.isMaster || p.slug === "master-bot"
+  );
+  const masterSlug = masterBot?.slug || "master-bot";
+  const isMasterActive = activeSlug === masterSlug;
+  const masterMascot = getMascotConfigForPersona(
+    masterSlug,
+    masterBot?.profile,
+    0
+  );
+
+  const subBots = personas.filter(
+    (p) => !p.isMaster && p.slug !== "master-bot"
+  );
 
   return (
-    <aside className="w-72 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
-      {/* Brand Header */}
-      <div className="px-4 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-sky-500 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shadow-emerald-500/20">
-            G
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-sm tracking-tight">
-                PersonaBot
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">
-                GROK 2.0
-              </span>
-            </div>
-            <p className="text-[10px] text-[var(--text-muted)]">
-              拟人灵魂 × 实时全能大脑
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
+    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
+      {/* Top Action Row */}
+      <div className="px-4 pt-4 pb-1 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onToggleTheme}
-            className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center text-xs text-[var(--text-secondary)]"
-            title={theme === "dark" ? "切换清爽亮色" : "切换深空暗色"}
+            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            title={theme === "dark" ? "切换清爽浅色 (Grok Bot)" : "切换深空暗色"}
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title="收起侧边栏"
+            >
+              ◧
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onOpenSettings}
-            className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center text-xs text-[var(--text-secondary)]"
-            title="模型与 DeepSearch 联网设置"
+            onClick={onOpenCommandPalette}
+            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            title="搜索或切换 (⌘K)"
           >
-            ⚙️
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18a7.5 7.5 0 006.15-3.35z"
+              />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenCreateBot}
+            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-sm text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            title="创建新 Bot"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
           </button>
         </div>
       </div>
 
-      {/* Filter Tabs & Search */}
-      <div className="p-3 space-y-2 border-b border-[var(--border-subtle)]">
-        <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11px]">
-          {[
-            { id: "all", label: "全部角色" },
-            { id: "preset", label: "Grok 标杆" },
-            { id: "custom", label: "我的蒸馏" },
-          ].map((tab) => (
+      {/* Centered Clickable Master Bot Card ("猫咪的bot") */}
+      <div className="px-4 py-2 flex flex-col items-center justify-center">
+        <button
+          type="button"
+          onClick={() => onSelectPersona(masterSlug)}
+          className={`group w-full max-w-[148px] py-2.5 px-3 rounded-[20px] flex flex-col items-center justify-center transition-all cursor-pointer ${
+            isMasterActive
+              ? "bg-[var(--bg-composer)] grok-active-row ring-1 ring-[var(--border-subtle)]"
+              : "hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
+          }`}
+          title="切换到主控 Bot（可统一指挥所有子 Bot 并接收汇报）"
+        >
+          <BlobMascot
+            shape={masterMascot.shape}
+            color={masterMascot.color}
+            image={masterMascot.image}
+            size={60}
+            showOnlineDot
+            trackPointer
+            state={isMasterActive && isStreaming ? "working" : "idle"}
+          />
+          <span className="mt-2 text-[12.5px] font-semibold tracking-tight text-[var(--text-primary)] flex items-center gap-1">
+            <span>{masterBot?.name || "猫咪的bot"}</span>
+          </span>
+          {isMasterActive && isStreaming && (
+            <span className="text-[10.5px] text-[var(--text-muted)] mt-0.5">
+              正在调度子 Bot...
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Sub-Bots Clean 2-Line List */}
+      <div className="flex-1 overflow-y-auto px-3 space-y-1">
+        {subBots.map((p, index) => {
+          const isActive = p.slug === activeSlug;
+          const isBotTyping = isActive && isStreaming;
+          const draftText = !isActive ? (draftsBySlug[p.slug] || "").trim() : "";
+          const mascotCfg = getMascotConfigForPersona(p.slug, p.profile, index);
+          const cleanLastMessage = (p.lastMessage || "")
+            .replace(/^\[来自主控\s*Bot[^\]]*\]\s*/i, "")
+            .trim();
+          const snippet = isBotTyping
+            ? "正在输入..."
+            : draftText ||
+              cleanLastMessage ||
+              p.profile.bio ||
+              p.emotionState?.moodLabel ||
+              "点击开启实时对话...";
+          const timeLabel = formatSidebarTime(p.lastActive);
+
+          return (
             <button
-              key={tab.id}
+              key={p.slug}
               type="button"
-              onClick={() => setFilter(tab.id as "all" | "preset" | "custom")}
-              className={`py-1 rounded-lg font-medium transition-all ${
-                filter === tab.id
-                  ? "bg-[var(--bg-tertiary)] text-emerald-400 shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              onClick={() => onSelectPersona(p.slug)}
+              className={`group relative w-full text-left px-3 py-2.5 rounded-[16px] transition-all duration-200 flex items-center gap-3 cursor-pointer ${
+                isActive
+                  ? "bg-[var(--bg-composer)] grok-active-row"
+                  : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
               }`}
             >
-              {tab.label}
+              {isActive && (
+                <span
+                  aria-hidden="true"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full transition-all"
+                  style={{ backgroundColor: mascotCfg.color }}
+                />
+              )}
+              <BlobMascot
+                shape={mascotCfg.shape}
+                color={mascotCfg.color}
+                image={mascotCfg.image}
+                size={34}
+                trackPointer
+                blinkDelayMs={index * 750}
+                state={isBotTyping ? "working" : "idle"}
+              />
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-[13.5px] font-semibold text-[var(--text-primary)] truncate">
+                    {p.name}
+                  </span>
+                  {isBotTyping ? (
+                    <span
+                      className="w-2 h-2 rounded-full animate-pulse-dot shrink-0"
+                      style={{ backgroundColor: mascotCfg.color }}
+                    />
+                  ) : (
+                    timeLabel && (
+                      <span className="text-[10.5px] text-[var(--text-muted)] tabular-nums shrink-0">
+                        {timeLabel}
+                      </span>
+                    )
+                  )}
+                </div>
+                <p
+                  className={`text-[11.5px] truncate mt-0.5 ${
+                    isBotTyping
+                      ? "animate-text-shimmer font-medium"
+                      : "text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {draftText && (
+                    <span className="text-rose-500 font-medium mr-1">
+                      [草稿]
+                    </span>
+                  )}
+                  {snippet}
+                </p>
+              </div>
             </button>
-          ))}
-        </div>
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索角色、MBTI 或性格标签..."
-          className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-emerald-500/50"
-        />
+          );
+        })}
       </div>
 
-      {/* Persona List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {filtered.length === 0 ? (
-          <div className="py-12 px-4 text-center text-xs text-[var(--text-muted)]">
-            <p className="mb-2">暂无匹配的角色</p>
-            <Link
-              href="/create"
-              className="text-emerald-400 hover:underline font-medium"
+      {/* Bottom Dock: User Popover Avatar + Floating "连接应用" Pill */}
+      <div className="relative p-3.5 flex items-center gap-2.5" ref={menuRef}>
+        {accountMenuOpen && (
+          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onOpenCreateBot();
+              }}
+              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
             >
-              + 立即蒸馏专属角色
-            </Link>
+              <span>➕</span>
+              <span>创建新 Bot</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                router.push("/create");
+              }}
+              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+            >
+              <span>✨</span>
+              <span>聊天记录蒸馏工作室</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                router.push("/gallery");
+              }}
+              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+            >
+              <span>🪐</span>
+              <span>角色引力场广场</span>
+            </button>
+            <div className="my-1 border-t border-[var(--border-subtle)]" />
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onOpenSettings();
+              }}
+              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+            >
+              <span>⚙️</span>
+              <span>设置与模型密钥舱</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onToggleTheme();
+              }}
+              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center justify-between text-[13px] text-[var(--text-primary)] cursor-pointer"
+            >
+              <span className="flex items-center gap-2.5">
+                <span>{theme === "dark" ? "☀️" : "🌙"}</span>
+                <span>{theme === "dark" ? "浅色极简模式" : "深空暗黑模式"}</span>
+              </span>
+            </button>
           </div>
-        ) : (
-          filtered.map((p) => {
-            const isActive = p.slug === activeSlug;
-            const modeSpec = PERSONA_MODES[p.defaultMode] || PERSONA_MODES.authentic;
-            return (
-              <button
-                key={p.slug}
-                type="button"
-                onClick={() => onSelectPersona(p.slug)}
-                className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 border ${
-                  isActive
-                    ? "bg-emerald-500/10 border-emerald-500/40 shadow-sm"
-                    : "bg-transparent border-transparent hover:bg-white/5"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center text-lg shrink-0">
-                  {p.profile.avatarEmoji || p.name.charAt(0)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-xs text-[var(--text-primary)] truncate">
-                        {p.name}
-                      </span>
-                      {p.profile.mbti && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-[var(--text-secondary)]">
-                          {p.profile.mbti}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-rose-400 font-medium shrink-0">
-                      ♥ {p.intimacy}%
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
-                    {p.lastMessage || p.profile.bio || "点击开启沉浸式对话"}
-                  </p>
-
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
-                      {modeSpec.badge} {modeSpec.shortLabel}
-                    </span>
-                    {p.emotionState?.moodLabel && (
-                      <span className="text-[10px] text-emerald-400 truncate">
-                        · {p.emotionState.moodLabel}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })
         )}
-      </div>
 
-      {/* Bottom Action Dock */}
-      <div className="p-3 border-t border-[var(--border-subtle)] space-y-2 bg-[var(--bg-primary)]/40">
-        <Link
-          href="/create"
-          className="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all"
+        <button
+          type="button"
+          onClick={() => setAccountMenuOpen((prev) => !prev)}
+          className="w-9 h-9 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-base hover:scale-105 active:scale-95 transition-transform shrink-0 cursor-pointer"
+          title="个人菜单（广场 / 蒸馏 / 设置 / 主题）"
         >
-          <span>✨</span>
-          <span>蒸馏 / 创建新角色</span>
-        </Link>
+          🐱
+        </button>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            type="button"
-            onClick={onOpenImport}
-            className="py-1.5 px-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-tertiary)]/60 hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1"
-          >
-            <span>📥</span>
-            <span>导入记录</span>
-          </button>
-          <Link
-            href="/gallery"
-            className="py-1.5 px-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-tertiary)]/60 hover:bg-[var(--bg-tertiary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1"
-          >
-            <span>🪐</span>
-            <span>角色广场</span>
-          </Link>
-        </div>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="flex-1 py-2 px-3.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+        >
+          <span>连接应用</span>
+          <span className="inline-flex items-center gap-0.5 text-[11px]">
+            <span className="w-3.5 h-3.5 rounded-sm bg-sky-500/15 text-sky-500 inline-flex items-center justify-center text-[9px]">
+              ⚡
+            </span>
+            <span className="w-3.5 h-3.5 rounded-sm bg-emerald-500/15 text-emerald-600 inline-flex items-center justify-center text-[9px]">
+              🌐
+            </span>
+            <span className="w-3.5 h-3.5 rounded-sm bg-rose-500/15 text-rose-500 inline-flex items-center justify-center text-[9px]">
+              ✦
+            </span>
+          </span>
+        </button>
       </div>
     </aside>
   );

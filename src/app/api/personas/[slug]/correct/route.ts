@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { resolveLlmConfig } from '@/lib/llm/client';
+import { refineCorrection } from '@/lib/persona/correction';
 import { storageRepo } from '@/lib/storage/repository';
 
 export async function POST(
@@ -13,10 +15,17 @@ export async function POST(
       return NextResponse.json({ error: 'Correction reason is required' }, { status: 400 });
     }
 
+    // 把口语化反馈（或聊天气泡里的快捷选项）提炼成一条明确的行为规则
+    const settings = await storageRepo.getSettings();
+    const refined = await refineCorrection(
+      { feedback: correction, botResponse, userInput },
+      resolveLlmConfig(settings)
+    );
+
     const updated = await storageRepo.addCorrection(slug, {
       userInput: userInput || '',
       botResponse: botResponse || '',
-      correction: correction.trim(),
+      correction: refined.rule,
       category: category || 'style',
     });
 
@@ -26,6 +35,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
+      rule: refined.rule,
+      refined: refined.refined,
       persona: updated,
     });
   } catch (error) {

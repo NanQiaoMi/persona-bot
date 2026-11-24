@@ -33,7 +33,7 @@ describe('Persona Studio 5-Stage Distillation & End-to-End Stream Turn', () => {
         messages: [
           {
             role: 'user',
-            content: '今天有什么新鲜事？顺便发张你那边的照片看看',
+            content: '帮我整理今天的热搜清单？顺便发张你那边的照片看看',
           },
         ],
         mode: 'fun',
@@ -53,6 +53,8 @@ describe('Persona Studio 5-Stage Distillation & End-to-End Stream Turn', () => {
     expect(events).toContain('done');
     expect(replyMsg.thought).toBeTruthy();
     expect(replyMsg.searchResults?.length).toBeGreaterThan(0);
+    expect(replyMsg.pageCard).toBeDefined();
+    expect(replyMsg.pageCard?.metrics.length).toBe(4);
 
     // Clean up test persona
     await storageRepo.deletePersona('沈清测试');

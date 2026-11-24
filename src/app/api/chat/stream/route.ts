@@ -1,3 +1,4 @@
+import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
 import { executeGrokChatTurn, StreamEvent } from '@/lib/grok/stream-orchestrator';
 
 export const dynamic = 'force-dynamic';
@@ -23,18 +24,23 @@ export async function POST(request: Request) {
         };
 
         try {
-          await executeGrokChatTurn(
-            {
-              slug: body.slug,
-              messages: body.messages,
-              mode: body.mode,
-              thinkMode: body.thinkMode,
-              deepSearch: body.deepSearch,
-              requestPhoto: body.requestPhoto,
-              modelId: body.modelId,
-            },
-            sendEvent
-          );
+          const payload = {
+            slug: body.slug,
+            mentionedSlug: body.mentionedSlug,
+            messages: body.messages,
+            mode: body.mode,
+            thinkMode: body.thinkMode,
+            deepSearch: body.deepSearch,
+            requestPhoto: body.requestPhoto,
+            requestSticker: body.requestSticker,
+            modelId: body.modelId,
+          };
+
+          if (body.slug === 'master-bot' && !body.mentionedSlug) {
+            await executeMasterBotTurn(payload, sendEvent);
+          } else {
+            await executeGrokChatTurn(payload, sendEvent);
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Stream execution failed';
           controller.enqueue(
