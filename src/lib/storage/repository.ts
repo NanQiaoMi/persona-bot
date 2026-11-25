@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import { messagePreviewText } from '@/lib/chat/preview';
 import path from 'path';
 import {
   BUILTIN_PRESET_SCENE_ASSETS,
@@ -241,7 +242,7 @@ export class UnifiedStorageRepository {
         profile: persona.profile,
         emotionState: persona.emotionState,
         intimacy: persona.intimacy,
-        lastMessage: lastMsg?.content?.slice(0, 80),
+        lastMessage: lastMsg ? messagePreviewText(lastMsg).slice(0, 80) : undefined,
         lastActive: lastMsg?.timestamp || persona.updatedAt,
         createdAt: persona.createdAt,
         updatedAt: persona.updatedAt,

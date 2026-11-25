@@ -966,7 +966,7 @@ export default function ChatStage({
                         setCorrectionState("idle");
                       }}
                     >
-                      {bursts.map((burstText, bIdx) => (
+                      {bursts.filter((b) => (b || "").trim()).map((burstText, bIdx) => (
                         <div
                           key={bIdx}
                           className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"

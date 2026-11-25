@@ -139,6 +139,8 @@ export function GroupMessageRow({
           </button>
         )}
 
+        {/* 只发了表情包时没有文字，不画空气泡 */}
+        {(text.trim() || msg.quote) && (
         <div className={BUBBLE_CLASS}>
           {msg.quote && (
             <div
@@ -150,6 +152,7 @@ export function GroupMessageRow({
           )}
           {body}
         </div>
+        )}
 
         {/* 照片 / 表情包：生成中显示占位，完成后显示图片 */}
         {(msg.mediaCards || [])

@@ -98,6 +98,17 @@ export interface PickSpeakersInput<T extends GroupMemberLite> {
  * 2. 叫「大家/你们」时，最多 maxSpeakers 人都回
  * 3. 否则挑 1 人主接，按概率再补 1 人插话——像真实群聊，不是每个人都回每句话
  */
+/** 这句话是不是在喊所有人（你们 / 大家 / 各位…） */
+export function addressesEveryone(text: string): boolean {
+  return EVERYONE_REGEX.test(text || '');
+}
+
+/** 喊了所有人、但有人睡着没回时的灰色提示 */
+export function buildSleepingTip(names: string[]): string {
+  if (names.length === 0) return '';
+  return `${names.join('、')} 这个点已经睡了`;
+}
+
 export function pickSpeakers<T extends GroupMemberLite>({
   text,
   members,
@@ -140,7 +151,15 @@ export function pickSpeakers<T extends GroupMemberLite>({
   }
 
   if (EVERYONE_REGEX.test(text)) {
-    return ranked.slice(0, cap);
+    const picked = ranked.slice(0, cap);
+    // 喊了「你们 / 大家」：睡着的人里有一个被吵醒，迷迷糊糊回一句
+    const sleepers = availabilityOf
+      ? members.filter((m) => availabilityOf(m.slug) === 'asleep' && !picked.includes(m))
+      : [];
+    if (awake.length > 0 && sleepers.length > 0 && picked.length < maxSpeakers) {
+      picked.push(sleepers[Math.floor(random() * sleepers.length) % sleepers.length]);
+    }
+    return picked;
   }
 
   const result = [ranked[0]];

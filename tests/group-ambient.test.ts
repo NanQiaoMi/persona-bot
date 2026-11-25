@@ -159,11 +159,14 @@ describe('一场闲聊怎么展开', () => {
 
 describe('你发消息时谁会回', () => {
   const members = [office('a', '甲一'), office('b', '乙二'), office('c', '丙三')];
-  it('睡着的人不主动回，被点名的人会回', () => {
+  it('睡着的人不主动回，被点名的人会回；喊所有人时有一个被吵醒', () => {
     const availabilityOf = (slug: string) => (slug === 'a' ? 'free' : 'asleep') as 'free' | 'asleep';
     for (let s = 1; s < 20; s += 1) {
-      const picked = pickSpeakers({ text: '你们在干嘛', members, history: [], availabilityOf, random: seq(s) });
+      const picked = pickSpeakers({ text: '在干嘛呢', members, history: [], availabilityOf, random: seq(s) });
       expect(picked.map((m) => m.slug)).toEqual(['a']);
+      const everyone = pickSpeakers({ text: '你们在干嘛', members, history: [], availabilityOf, random: seq(s) });
+      expect(everyone[0].slug).toBe('a');
+      expect(everyone.filter((m) => m.slug !== 'a')).toHaveLength(1);
     }
     const mentioned = pickSpeakers({ text: '乙二 你睡了吗', members, history: [], availabilityOf, random: seq(1) });
     expect(mentioned[0].slug).toBe('b');
