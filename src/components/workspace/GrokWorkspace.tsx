@@ -794,7 +794,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     activeGroupIdRef.current = null;
     setActiveGroupId(null);
     if (slug === activeSlug && wasInGroup) {
-      void loadActivePersonaDetail(slug);
+      // 从群聊回到同一个角色（群聊挂在主 bot 下，最常见的是回到主 bot）：
+      // 角色没变，不会触发切换角色时的「还在生成就继续显示正在输入」，这里要自己接上，
+      // 否则你在群里时还没写完的回复，回来后停在半截、也不再刷新
+      void loadActivePersonaDetail(slug).then(() => {
+        if (!activeGroupIdRef.current && activeSlugRef.current === slug) {
+          void watchInflight({ slug }, "对方");
+        }
+      });
     }
     setActiveSlug(slug);
   };
