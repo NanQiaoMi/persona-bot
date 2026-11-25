@@ -1,3 +1,4 @@
+import { findEchoedOpener } from '@/lib/persona/repetition-guard';
 import type { PersonaMode } from '@/lib/storage/types';
 
 export interface GroupFallbackInput {
@@ -18,6 +19,8 @@ export interface GroupFallbackInput {
   topic?: string;
   /** Deterministic variety: pick lines with seed, not Math.random. */
   seed: number;
+  /** 本轮群友已经用过的开头；挑话术时尽量避开，冲突就顺延到下一条 */
+  avoidOpeners?: string[];
 }
 
 type PoolMode = 'authentic' | 'fun' | 'companion' | 'analytical';
@@ -298,7 +301,17 @@ export function synthesizeGroupFallbackReply(input: GroupFallbackInput): string[
   }
 
   const len = pool.length;
-  const firstIndex = h % len;
+  const avoid = input.avoidOpeners ?? [];
+  let firstIndex = h % len;
+  if (avoid.length > 0) {
+    for (let step = 0; step < len; step += 1) {
+      const idx = (h + step) % len;
+      if (!findEchoedOpener(render(pool[idx], firstName, topic), avoid)) {
+        firstIndex = idx;
+        break;
+      }
+    }
+  }
   const bubbles = [render(pool[firstIndex], firstName, topic)];
 
   if (h % 3 === 0) {

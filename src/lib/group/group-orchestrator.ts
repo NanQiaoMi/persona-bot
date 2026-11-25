@@ -5,11 +5,15 @@
  */
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import {
+  buildGroupAntiEchoDirective,
   buildGroupSystemDirective,
+  collectGroupPeerBubbles,
+  collectRoundOpeners,
   buildGroupTranscriptForSpeaker,
   GROUP_MAX_BOT_CHAIN,
   pickReactor,
   pickSpeakers,
+  stripEchoedOpener,
 } from '@/lib/group/director';
 import { synthesizeGroupFallbackReply } from '@/lib/group/fallback';
 import {
@@ -173,6 +177,7 @@ export async function executeGroupTurn(
       isReaction: item.isReaction,
       triggerText: item.replyTo?.text || triggerText,
       triggerSpeakerName: item.replyTo?.name || triggerSpeakerName,
+      thisRoundIds: newMessages.map((m) => m.id),
     });
 
     for (let i = 0; i < bursts.length; i += 1) {
@@ -248,11 +253,17 @@ async function generateMemberReply(params: {
   isReaction: boolean;
   triggerText: string;
   triggerSpeakerName: string;
+  /** 本轮已产生的消息 id（用来认出群友刚发的气泡） */
+  thisRoundIds: string[];
 }): Promise<string[]> {
   const { group, persona, members, history, canCallUpstream, req } = params;
+  const peers = collectGroupPeerBubbles(history, persona.slug, params.thisRoundIds);
+  const roundOpeners = collectRoundOpeners(peers);
+  const dedupeFirst = (bursts: string[]): string[] =>
+    bursts.length === 0 ? bursts : [stripEchoedOpener(bursts[0], roundOpeners), ...bursts.slice(1)];
 
   const offline = () =>
-    synthesizeGroupFallbackReply({
+    dedupeFirst(synthesizeGroupFallbackReply({
       speaker: {
         slug: persona.slug,
         name: persona.name,
@@ -265,7 +276,8 @@ async function generateMemberReply(params: {
       isKickoff: Boolean(req.kickoff) && !params.isReaction,
       topic: group.topic,
       seed: hashSeed(`${history.length}:${persona.slug}`),
-    });
+      avoidOpeners: roundOpeners,
+    }));
 
   if (!canCallUpstream) return offline();
 
@@ -291,14 +303,16 @@ async function generateMemberReply(params: {
       requestSticker: false,
       modelId: req.modelId,
       skipPersistence: true,
-      extraSystemPrompt: directive,
+      extraSystemPrompt: [directive, buildGroupAntiEchoDirective({ peers })]
+        .filter(Boolean)
+        .join('\n\n'),
     });
     if (result.isDemoMode) {
       console.warn(`[group] ${persona.slug} 模型未返回有效回复，改用离线群聊话术`);
       return offline();
     }
     const bursts = normalizeGroupBursts(result.bursts, result.content);
-    return bursts.length > 0 ? bursts : offline();
+    return bursts.length > 0 ? dedupeFirst(bursts) : offline();
   } catch (err) {
     console.warn(`[group] ${persona.slug} 生成失败，改用离线群聊话术：`, err);
     return offline();

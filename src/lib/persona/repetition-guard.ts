@@ -4,7 +4,7 @@
  * 纯函数，只看客户端带上来的历史，不读存储。
  */
 
-const WATCHED_PHRASES = [
+export const WATCHED_PHRASES = [
   '笑死', '哈哈哈', '哈哈', '确实', '真的假的', '救命', '绝了', '离谱', '好家伙', '抱抱',
   '乖', '啧', '行吧', '懂了', '我看看', '不是吧', '害', '哎呀', '嘿嘿', '呜呜', '好啦',
   '算了', '捏', '宝', '亲爱的', '说真的', '讲真', '有一说一', '绷不住', '麻了', '你呀',
@@ -45,6 +45,38 @@ export function extractOpener(bubble: string): string | null {
   const opener = m[1];
   // 只关心短的起手（语气词、口头禅），完整的句子开头不算重复
   return opener.length <= 4 ? opener : null;
+}
+
+/**
+ * 开头的比较键：连续的笑声统一成两个字（「哈哈哈哈」≈「哈哈」），
+ * 方便判断两句话是不是「同一个起手」。@名字 不算起手式。
+ */
+export function openerKey(opener: string): string | null {
+  const o = (opener || '').trim();
+  if (!o || o.startsWith('@')) return null;
+  const laugh = o.match(/^([哈嘿呵嘻hH])\1+$/);
+  if (laugh) return `${laugh[1].toLowerCase()}${laugh[1].toLowerCase()}`;
+  return o;
+}
+
+/**
+ * 气泡的开头是不是在复读 usedOpeners 里的某个起手：
+ * 完全相同（笑声按 openerKey 归一），或以某个常见口头禅打头（「笑死我了」≈「笑死」）。
+ * 返回撞上的那个已用开头，没撞返回 null。
+ */
+export function findEchoedOpener(bubble: string, usedOpeners: Iterable<string>): string | null {
+  const opener = extractOpener(bubble);
+  if (!opener) return null;
+  const key = openerKey(opener);
+  if (!key) return null;
+  for (const used of usedOpeners) {
+    const usedKey = openerKey(used);
+    if (!usedKey) continue;
+    if (usedKey === key) return used;
+    if (WATCHED_PHRASES.includes(usedKey) && usedKey.length >= 2 && key.startsWith(usedKey)) return used;
+    if (WATCHED_PHRASES.includes(key) && key.length >= 2 && usedKey.startsWith(key)) return used;
+  }
+  return null;
 }
 
 function cjkGrams(text: string, n: number): string[] {
