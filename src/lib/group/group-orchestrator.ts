@@ -14,13 +14,17 @@ import {
   pickReactor,
   pickSpeakers,
   stripEchoedOpener,
+  addressesEveryone,
+  buildSleepingTip,
 } from '@/lib/group/director';
 import { synthesizeGroupFallbackReply } from '@/lib/group/fallback';
 import {
   computeRealisticTypingDelayMs,
   executeGrokChatTurn,
+  mediaOnlyBursts,
   StreamEvent,
 } from '@/lib/grok/stream-orchestrator';
+import { messagePreviewText } from '@/lib/chat/preview';
 import { QUICK_REACTIONS } from '@/lib/group/ambient-lines';
 import { resolveLlmConfig } from '@/lib/llm/client';
 import { getPresenceState } from '@/lib/persona/daily-rhythm';
@@ -225,6 +229,27 @@ export async function executeGroupTurn(
     ? pickSpeakers({ text: '大家', members, history, maxSpeakers: Math.min(3, members.length) })
     : pickSpeakers({ text: triggerText, members, history, availabilityOf });
 
+  // 喊了所有人、却有人睡着没回：在群里留一条灰色提示，免得像被无视（近期已提示过就不重复）
+  if (!req.kickoff && triggerText && addressesEveryone(triggerText)) {
+    const sleeping = members.filter(
+      (m) => availabilityOf(m.slug) === 'asleep' && !speakers.some((s) => s.slug === m.slug)
+    );
+    const tipText = buildSleepingTip(sleeping.map((m) => m.name));
+    if (tipText && !history.slice(-12).some((m) => m.systemTip && m.content === tipText)) {
+      const tip: ConversationMessage = {
+        id: nextId('tip'),
+        role: 'assistant',
+        content: tipText,
+        timestamp: new Date().toISOString(),
+        systemTip: true,
+      };
+      newMessages.push(tip);
+      await storageRepo.appendGroupMessages(group.id, [tip]);
+      history.push(tip);
+      onEvent?.({ type: 'message_part', message: tip, index: newMessages.length - 1, total: newMessages.length, hasMore: true });
+    }
+  }
+
   const spokenThisRound: string[] = [];
   // 一轮最多一张照片 / 表情包，避免每个人都刷图
   let visualUsed = false;
@@ -274,6 +299,9 @@ export async function executeGroupTurn(
 
     for (let i = 0; i < bursts.length; i += 1) {
       const text = bursts[i];
+      const cardsHere = i === bursts.length - 1 && roundCards.length > 0 ? roundCards : undefined;
+      // 没字的气泡只用来挂表情包；这轮图片名额已被别人用掉时就不发
+      if (!text.trim() && !cardsHere) continue;
       await sleep(computeRealisticTypingDelayMs(text, turnsDone === 0 && i === 0 ? 0 : 1));
       const msg: ConversationMessage = {
         id: nextId(persona.slug),
@@ -285,7 +313,7 @@ export async function executeGroupTurn(
         bursts: [text],
         quote: i === 0 ? quote : undefined,
         // 照片 / 表情包挂在这位成员的最后一条气泡上
-        mediaCards: i === bursts.length - 1 && roundCards.length > 0 ? roundCards : undefined,
+        mediaCards: cardsHere,
         isDemoMode: canCallUpstream ? undefined : true,
       };
       lastMsgId = msg.id;
@@ -360,7 +388,7 @@ async function persist(group: GroupChat, newMessages: ConversationMessage[]): Pr
   const prefix = last.fromBot?.name ? `${last.fromBot.name}：` : '';
   await storageRepo.updateGroup(group.id, {
     pendingKickoff: false,
-    lastMessage: `${prefix}${last.content}`.slice(0, 60),
+    lastMessage: `${prefix}${messagePreviewText(last)}`.slice(0, 60),
   });
 }
 
@@ -457,7 +485,9 @@ export async function generateMemberReply(params: {
     const bursts = normalizeGroupBursts(result.bursts, result.content, persona.name);
     const visual = (result.mediaCards || []).filter((c) => c.type === 'photo' || c.type === 'sticker');
     if (visual.length > 0) params.onMedia?.(visual);
-    return bursts.length > 0 ? dedupeFirst(bursts) : offline();
+    if (bursts.length > 0) return dedupeFirst(bursts);
+    // 只发了图：照片配一句短话，表情包不配字
+    return visual.length > 0 ? mediaOnlyBursts(visual, `${persona.slug}:${params.triggerText || ''}`) : offline();
   } catch (err) {
     console.warn(`[group] ${persona.slug} 生成失败，改用离线群聊话术：`, err);
     return offline();

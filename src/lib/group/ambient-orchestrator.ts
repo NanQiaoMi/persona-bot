@@ -6,6 +6,7 @@
  * 未配置模型时走离线话术，保证零配置也能看到群里自己聊起来。
  */
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
+import { messagePreviewText } from '@/lib/chat/preview';
 import {
   AMBIENT_CONFIG,
   appendAmbientLog,
@@ -308,7 +309,7 @@ export async function executeAmbientScene(params: {
     await storageRepo.appendGroupMessages(group.id, produced);
     const last = produced[produced.length - 1];
     await storageRepo.updateGroup(group.id, {
-      lastMessage: `${last.systemTip ? '' : `${last.fromBot?.name || ''}：`}${last.content}`.slice(0, 60),
+      lastMessage: `${last.systemTip ? '' : `${last.fromBot?.name || ''}：`}${messagePreviewText(last)}`.slice(0, 60),
       ambientLog: appendAmbientLog(group.ambientLog, now),
     });
   }

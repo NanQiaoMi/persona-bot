@@ -217,12 +217,14 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   }
 
   const cleanReply = bursts.join('\n\n');
+  // 只发了照片 / 表情包、没写文字：先留空，由调用方按最终保留的图片决定配一句短话还是不配字
+  const mediaOnly = bursts.length === 0 && mediaCards.some((c) => c.type === 'photo' || c.type === 'sticker');
 
   return {
     thought,
     mood,
-    cleanReply: cleanReply || '（轻轻挑了下眉，等你继续往下说）',
-    bursts: bursts.length > 0 ? bursts : [cleanReply || '我在听呢，继续说～'],
+    cleanReply: mediaOnly ? '' : cleanReply || '（轻轻挑了下眉，等你继续往下说）',
+    bursts: mediaOnly ? [] : bursts.length > 0 ? bursts : [cleanReply || '我在听呢，继续说～'],
     mediaCards,
     followup,
   };
@@ -250,6 +252,22 @@ export function stripMarkupTags(text: string): string {
     .replace(LEADING_LABEL, '')
     .replace(MARKUP_TAG, '')
     .replace(/<\/?(?!thought\b)[a-z][a-z0-9-]*(?:\s[^<>]*)?$/i, '');
+}
+
+const PHOTO_ONLY_LINES = ['喏', '刚拍的', '给', '你看', '随手拍的'];
+
+/**
+ * 回复里只有照片 / 表情包、没有文字时用的气泡：照片配一句很短的话，只有表情包就不配字（空气泡不显示），
+ * 都没有才用「我在听呢」兜底
+ */
+export function mediaOnlyBursts(cards: MediaCard[], seed = ''): string[] {
+  if (cards.some((c) => c.type === 'photo')) {
+    let h = 0;
+    for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return [PHOTO_ONLY_LINES[h % PHOTO_ONLY_LINES.length]];
+  }
+  if (cards.some((c) => c.type === 'sticker')) return [''];
+  return ['我在听呢，继续说～'];
 }
 
 /**
@@ -1181,7 +1199,8 @@ export async function executeGrokChatTurn(
     });
   }
 
-  const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
+  const textless = parsed.bursts.length === 0;
+  const sanitizedBursts = textless ? [] : sanitizeGatewayRefusalLeaks(parsed.bursts);
   const emojiTrimmedBursts = polishYoungAdultBursts(
     sanitizedBursts,
     userStyleProfile,
@@ -1193,7 +1212,7 @@ export async function executeGrokChatTurn(
         }
       : {}
   );
-  const segments = splitIntoNaturalMessages(emojiTrimmedBursts);
+  const segments = textless ? [] : splitIntoNaturalMessages(emojiTrimmedBursts);
   parsed.bursts = segments;
   parsed.cleanReply = segments.join('\n\n');
   const styleMetrics = toMessageStyleMetrics(
@@ -1251,6 +1270,12 @@ export async function executeGrokChatTurn(
     }
     return true;
   });
+
+  if (segments.length === 0) {
+    segments.push(...mediaOnlyBursts(parsed.mediaCards, `${persona.slug}:${lastUserText}`));
+    parsed.bursts = segments;
+    parsed.cleanReply = segments.join('\n\n');
+  }
 
   const pageCard = buildPageCardIfRelevant(
     persona,
