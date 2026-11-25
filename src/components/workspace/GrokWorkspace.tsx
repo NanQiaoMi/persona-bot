@@ -274,17 +274,49 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     [activeSlug]
   );
 
+  // 每个群你看过的最后一条消息 id（存在本地浏览器，用来算侧栏未读）
+  const groupSeenRef = useRef<Record<string, string>>({});
+  const groupSeenLoadedRef = useRef(false);
+  const saveGroupSeen = useCallback(() => {
+    try {
+      window.localStorage.setItem("personabot-group-seen", JSON.stringify(groupSeenRef.current));
+    } catch {
+      // 本地存储不可用时只是没有未读数
+    }
+  }, []);
+
   const loadGroups = useCallback(async () => {
     try {
-      const res = await fetch("/api/groups");
+      if (!groupSeenLoadedRef.current && typeof window !== "undefined") {
+        groupSeenLoadedRef.current = true;
+        try {
+          groupSeenRef.current = JSON.parse(window.localStorage.getItem("personabot-group-seen") || "{}") || {};
+        } catch {
+          groupSeenRef.current = {};
+        }
+      }
+      const res = await fetch(
+        `/api/groups?seen=${encodeURIComponent(JSON.stringify(groupSeenRef.current))}`
+      );
       const data = await res.json();
       if (data.success && Array.isArray(data.groups)) {
+        // 从没打开过的群：以现在为起点开始计未读，不把历史消息都算成未读
+        let changed = false;
+        for (const g of data.groups as GroupChat[]) {
+          if (!groupSeenRef.current[g.id] && g.lastMessageId) {
+            groupSeenRef.current[g.id] = g.lastMessageId;
+            g.unreadCount = 0;
+            changed = true;
+          }
+          if (g.id === activeGroupIdRef.current) g.unreadCount = 0;
+        }
+        if (changed) saveGroupSeen();
         setGroups(data.groups);
       }
     } catch (err) {
       console.error("Failed to load groups:", err);
     }
-  }, []);
+  }, [saveGroupSeen]);
 
   const loadActivePersonaDetail = useCallback(async (slug: string) => {
     try {
@@ -468,6 +500,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   // 群里自己聊起来：记录你最后一次说话/打字的时间，按节奏播放角色们的自发闲聊
   const lastUserActivityRef = useRef<number>(0);
   const ambientInFlightRef = useRef(false);
+  const [groupTyping, setGroupTyping] = useState<{ slug: string; name: string } | null>(null);
+  const [newMessagesFromId, setNewMessagesFromId] = useState<string | null>(null);
   const streamingRef = useRef(false);
   const pendingBurstRef = useRef(false);
   const ambientPlaybackRef = useRef<{
@@ -490,6 +524,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const flushAmbientPlayback = useCallback(() => {
     const pb = ambientPlaybackRef.current;
     if (!pb) return;
+    setGroupTyping(null);
     if (pb.timer) clearTimeout(pb.timer);
     ambientPlaybackRef.current = null;
     appendGroupMessages(pb.groupId, pb.items.map((it) => it.msg));
@@ -507,8 +542,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const step = () => {
         const next = pb.items[0];
         if (!next || ambientPlaybackRef.current !== pb) return;
-        pb.timer = setTimeout(() => {
+        // 发出前一小段时间显示「XX 正在输入…」（系统提示不显示）
+        const typingLead = next.msg.systemTip || !next.msg.fromBot ? 0 : Math.min(next.delay, 2600);
+        const reveal = () => {
           if (ambientPlaybackRef.current !== pb) return;
+          setGroupTyping(null);
           pb.items.shift();
           appendGroupMessages(groupId, [next.msg]);
           if (pb.items.length === 0) {
@@ -517,7 +555,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           } else {
             step();
           }
-        }, next.delay);
+        };
+        pb.timer = setTimeout(() => {
+          if (ambientPlaybackRef.current !== pb) return;
+          if (typingLead > 0 && next.msg.fromBot) {
+            setGroupTyping({ slug: next.msg.fromBot.slug, name: next.msg.fromBot.name });
+            pb.timer = setTimeout(reveal, typingLead);
+          } else {
+            reveal();
+          }
+        }, Math.max(0, next.delay - typingLead));
       };
       step();
     },
@@ -540,6 +587,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         if (activeGroupIdRef.current !== groupId) return;
         // 生成期间你开口了：不再播放，直接补上（顺序以服务端为准）
         if (mode === "catchup" || streamingRef.current || Date.now() - lastUserActivityRef.current < 5_000) {
+          if (mode === "catchup" && data.messages[0]) {
+            const firstId = data.messages[0].id as string;
+            setNewMessagesFromId((prev) => prev ?? firstId);
+          }
           appendGroupMessages(groupId, data.messages);
           void loadGroups();
         } else {
@@ -580,10 +631,59 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     return () => clearInterval(timer);
   }, [activeGroupId, requestAmbient]);
 
+  // 正在看的群：记下看到的最后一条（离开后新来的才算未读）
+  useEffect(() => {
+    if (!activeGroupId || messages.length === 0) return;
+    const lastId = messages[messages.length - 1]?.id;
+    if (lastId && groupSeenRef.current[activeGroupId] !== lastId) {
+      groupSeenRef.current[activeGroupId] = lastId;
+      saveGroupSeen();
+    }
+  }, [activeGroupId, messages, saveGroupSeen]);
+
+  // 应用开着时，大约每 5 分钟给没在看的群补一下「你不在时」的聊天，侧栏据此显示未读
+  const groupsRef = useRef<GroupChat[]>([]);
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
+  useEffect(() => {
+    let stopped = false;
+    const sweep = async () => {
+      if (stopped || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
+      let any = false;
+      for (const g of groupsRef.current) {
+        if (stopped || g.id === activeGroupIdRef.current) continue;
+        try {
+          const res = await fetch(`/api/groups/${encodeURIComponent(g.id)}/ambient`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "catchup" }),
+          });
+          const data = await res.json();
+          if (data?.ok) any = true;
+        } catch {
+          // 忽略单个群的失败
+        }
+      }
+      if (any && !stopped) void loadGroups();
+    };
+    const first = setTimeout(sweep, 20_000);
+    const timer = setInterval(sweep, 5 * 60_000);
+    return () => {
+      stopped = true;
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [loadGroups]);
+
   // 进入 / 退出群聊：切换消息列表；新建的群自动让主 bot 开场
   const kickoffDoneRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     flushAmbientPlayback();
+    queueMicrotask(() => {
+      setNewMessagesFromId(null);
+      setGroupTyping(null);
+    });
     activeGroupIdRef.current = activeGroupId;
     if (burstTimerRef.current) {
       clearTimeout(burstTimerRef.current);
@@ -607,6 +707,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           ? data.messages
           : [];
         setMessages(groupMessages);
+        // 「以下为新消息」：从你上次看到的那条之后第一条群友消息开始
+        const seenId = groupSeenRef.current[activeGroupId];
+        const seenIdx = seenId ? groupMessages.findIndex((m) => m.id === seenId) : -1;
+        const firstUnread =
+          seenIdx >= 0 ? groupMessages.slice(seenIdx + 1).find((m) => m.role !== "user") : undefined;
+        setNewMessagesFromId(firstUnread?.id ?? null);
         if (
           data.group?.pendingKickoff &&
           groupMessages.length === 0 &&
@@ -1340,6 +1446,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         activeGroup={activeGroup}
         onOpenGroup={handleSelectGroup}
         onExitGroup={() => handleSelectPersona("master-bot")}
+        groupTyping={groupTyping}
+        newMessagesFromId={newMessagesFromId}
         thinkMode={thinkMode}
         onToggleThink={() => setThinkMode((v) => !v)}
         deepSearch={deepSearch}

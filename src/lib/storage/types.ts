@@ -219,6 +219,10 @@ export interface GroupChat {
   lastMessage?: string;
   /** 最近几次角色自己聊起来的时间（ISO），用于冷却与每小时上限 */
   ambientLog?: string[];
+  /** 列表接口附带（不存盘）：最后一条时间，以及相对你看过的最后一条之后的未读数 */
+  lastMessageAt?: string;
+  lastMessageId?: string;
+  unreadCount?: number;
   createdAt: string;
   updatedAt: string;
 }

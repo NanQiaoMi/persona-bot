@@ -1,12 +1,36 @@
 import { NextResponse } from 'next/server';
+import { countUnreadAfter } from '@/lib/group/unread';
 import { storageRepo } from '@/lib/storage/repository';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // seen：{ 群 id: 你看过的最后一条消息 id }，由前端本地记录
+    let seen: Record<string, string> = {};
+    const raw = new URL(request.url).searchParams.get('seen');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') seen = parsed as Record<string, string>;
+      } catch {
+        seen = {};
+      }
+    }
     const groups = await storageRepo.listGroups();
-    return NextResponse.json({ success: true, groups });
+    const withStats = await Promise.all(
+      groups.map(async (g) => {
+        const messages = await storageRepo.getGroupConversation(g.id, 0);
+        const last = messages[messages.length - 1];
+        return {
+          ...g,
+          lastMessageAt: last?.timestamp,
+          lastMessageId: last?.id,
+          unreadCount: countUnreadAfter(messages, typeof seen[g.id] === 'string' ? seen[g.id] : undefined),
+        };
+      })
+    );
+    return NextResponse.json({ success: true, groups: withStats });
   } catch (error) {
     console.error('List groups error:', error);
     return NextResponse.json({ success: true, groups: [] });
