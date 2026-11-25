@@ -30,6 +30,8 @@ export interface GroupTurnRequest {
   groupId: string;
   /** 用户这轮说的话；kickoff 时可为空 */
   userText?: string;
+  /** 用户连发的几条（合并成一轮）；提供时优先于 userText */
+  userTurns?: Array<{ content: string; imageUrl?: string; timestamp?: string }>;
   imageUrl?: string;
   timestamp?: string;
   mode?: PersonaMode;
@@ -111,19 +113,27 @@ export async function executeGroupTurn(
     triggerText = opening;
     triggerSpeakerName = masterMsg.fromBot?.name || '主 bot';
   } else {
-    if (!triggerText && !req.imageUrl) {
+    const turns = (req.userTurns && req.userTurns.length > 0
+      ? req.userTurns
+      : [{ content: triggerText, imageUrl: req.imageUrl, timestamp: req.timestamp }]
+    ).filter((t) => (t.content || '').trim() || t.imageUrl);
+    if (turns.length === 0) {
       throw new Error('群聊消息不能为空');
     }
-    const userMsg: ConversationMessage = {
-      id: nextId('user'),
-      role: 'user',
-      content: triggerText || '[图片]',
-      timestamp: req.timestamp || new Date().toISOString(),
-      imageUrl: req.imageUrl,
-      mode: req.mode,
-    };
-    newMessages.push(userMsg);
-    history.push(userMsg);
+    for (const t of turns) {
+      const userMsg: ConversationMessage = {
+        id: nextId('user'),
+        role: 'user',
+        content: (t.content || '').trim() || '[图片]',
+        timestamp: t.timestamp || new Date().toISOString(),
+        imageUrl: t.imageUrl,
+        mode: req.mode,
+      };
+      newMessages.push(userMsg);
+      history.push(userMsg);
+    }
+    // 连发的几条一起作为本轮话题，决定谁来接
+    triggerText = turns.map((t) => (t.content || '').trim()).filter(Boolean).join('\n');
   }
 
   if (members.length === 0) {

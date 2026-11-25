@@ -4,6 +4,24 @@ import { executeGrokChatTurn, StreamEvent } from '@/lib/grok/stream-orchestrator
 
 export const dynamic = 'force-dynamic';
 
+/** 末尾连续的用户消息（连发合并后一起发来的那几条） */
+function trailingUserTurns(
+  messages: unknown
+): Array<{ content: string; imageUrl?: string; timestamp?: string }> {
+  if (!Array.isArray(messages)) return [];
+  const out: Array<{ content: string; imageUrl?: string; timestamp?: string }> = [];
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i] as { role?: string; content?: unknown; imageUrl?: unknown; timestamp?: unknown };
+    if (m?.role !== 'user') break;
+    out.unshift({
+      content: typeof m.content === 'string' ? m.content : '',
+      imageUrl: typeof m.imageUrl === 'string' ? m.imageUrl : undefined,
+      timestamp: typeof m.timestamp === 'string' ? m.timestamp : undefined,
+    });
+  }
+  return out.slice(-6);
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -46,6 +64,7 @@ export async function POST(request: Request) {
               {
                 groupId: body.groupId,
                 userText: body.kickoff ? undefined : last?.content,
+                userTurns: body.kickoff ? undefined : trailingUserTurns(body.messages),
                 imageUrl: body.kickoff ? undefined : last?.imageUrl,
                 timestamp: last?.timestamp,
                 mode: body.mode,

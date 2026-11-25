@@ -108,3 +108,19 @@ describe('旧数据残留的未知模式', () => {
     ).not.toThrow();
   });
 });
+
+describe('群聊连发合并', () => {
+  it('一轮里连发的几条都会存进群聊记录，按顺序在角色回复之前', async () => {
+    const [a, b] = await pickTwoMembers();
+    const group = await storageRepo.createGroup({ name: '连发群', memberSlugs: [a.slug, b.slug] });
+    const produced = await executeGroupTurn({
+      groupId: group.id,
+      userTurns: [{ content: '我跟你们说' }, { content: '今天发生了件离谱的事' }],
+    });
+    expect(produced.slice(0, 2).map((m) => [m.role, m.content])).toEqual([
+      ['user', '我跟你们说'],
+      ['user', '今天发生了件离谱的事'],
+    ]);
+    expect(produced.slice(2).every((m) => m.role === 'assistant')).toBe(true);
+  });
+});
