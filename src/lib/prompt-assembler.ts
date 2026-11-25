@@ -199,6 +199,12 @@ export class PromptAssembler {
     );
     sections.push('');
     sections.push(OOC_GUARD_PROMPT);
+    if (options.thinkMode !== false) {
+      sections.push('');
+      sections.push(
+        '（格式提醒：这次回复的最开头必须先写 `<thought>` 你此刻真实的内心活动 `</thought>`，紧扣这一轮对方说的话，然后再写正式回复。）'
+      );
+    }
 
     return sections.filter((s) => s !== undefined).join('\n');
   }

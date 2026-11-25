@@ -58,5 +58,6 @@ describe('Persona Studio 5-Stage Distillation & End-to-End Stream Turn', () => {
 
     // Clean up test persona
     await storageRepo.deletePersona('沈清测试');
-  });
+    // 这条会真的联网检索（维基 / DuckDuckGo），网络慢时会超过默认 5 秒
+  }, 20_000);
 });

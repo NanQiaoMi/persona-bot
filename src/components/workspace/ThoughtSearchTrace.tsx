@@ -11,48 +11,12 @@ interface ThoughtSearchTraceProps {
   isStreamingThought?: boolean;
   isSearching?: boolean;
   personaName?: string;
+  /** 兼容旧调用方：不再用于挑选模板话术 */
   moodLabel?: string;
   seedKey?: string;
 }
 
-const LIVE_WAIT_TITLES_DEFAULT = [
-  "打了一行字又删掉了...",
-  "盯着屏幕偷偷翘嘴角...",
-  "纠结要不要顺着你说...",
-  "一边晃腿一边想怎么回...",
-  "心里的小剧场正在开演...",
-  "手指悬在键盘上犹豫两秒...",
-];
-
-const LIVE_WAIT_TITLES_PLAYFUL = [
-  "嘴角压不住了，忍住忍住...",
-  "正翻着白眼组织语言...",
-  "脑子里闪过三个损你的点...",
-  "憋着坏笑打字中...",
-];
-
-const LIVE_WAIT_TITLES_SOFT = [
-  "耳尖微热，假装很淡定...",
-  "看着你的消息心软了一下...",
-  "把太肉麻的话咽回去了...",
-  "想回快点又怕显得太在意...",
-];
-
-const LIVE_WAIT_BEATS = [
-  "（打了一半又觉得太直白，删掉重写一句傲娇点的…）",
-  "（先装作若无其事，其实嘴角已经悄悄翘起来了…）",
-  "（啧，这话听着有点欠揍，但好像又挺戳心窝的…）",
-  "（手指在发送键上停了半秒，还是决定顺着话茬逗逗你…）",
-  "（心里已经绕了三道弯，表面上还得端着一副淡定样…）",
-];
-
-function pickBySeed(pool: string[], seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return pool[hash % pool.length] || pool[0];
-}
+// 内心戏只显示模型真实写出的内容；等待时只显示「正在想…」，不再用任何写死的模板话术顶替
 
 export default function ThoughtSearchTrace({
   thought,
@@ -62,8 +26,6 @@ export default function ThoughtSearchTrace({
   isStreamingThought,
   isSearching,
   personaName,
-  moodLabel,
-  seedKey = "default",
 }: ThoughtSearchTraceProps) {
   const isLive = Boolean(isSearching || isStreamingThought);
   const [expanded, setExpanded] = useState(isLive);
@@ -83,15 +45,8 @@ export default function ThoughtSearchTrace({
       : "1.0 秒";
   const sourceCount = searchResults?.length || 0;
 
-  const moodText = moodLabel || "";
-  const waitPool = /毒舌|抬杠|反杀|傲娇|坏笑/.test(moodText)
-    ? [...LIVE_WAIT_TITLES_PLAYFUL, ...LIVE_WAIT_TITLES_DEFAULT]
-    : /温柔|偏爱|心动|软|害羞|宠/.test(moodText)
-      ? [...LIVE_WAIT_TITLES_SOFT, ...LIVE_WAIT_TITLES_DEFAULT]
-      : LIVE_WAIT_TITLES_DEFAULT;
-
-  const waitTitle = pickBySeed(waitPool, `${personaName || ""}:${seedKey}`);
-  const waitBeat = pickBySeed(LIVE_WAIT_BEATS, `${seedKey}:${moodText}`);
+  const thoughtText = (thought || "").trim();
+  const waitTitle = `${personaName || "TA"} 正在想…`;
 
   let summaryText = "";
   if (isSearching) {
@@ -175,13 +130,13 @@ export default function ThoughtSearchTrace({
             </div>
           )}
 
-          {hasThought && (
+          {thoughtText && (
             <div className="rounded-2xl bg-[var(--bg-secondary)]/75 border border-dashed border-[var(--border-strong)] px-3.5 py-2.5 space-y-1">
               <div className="text-[11px] text-[var(--text-muted)]">
                 💭 {personaName ? `${personaName} 偷藏的小心思` : "偷听到的心声"}
               </div>
               <div className="space-y-1 text-xs italic text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
-                {(thought || waitBeat)
+                {thoughtText
                   .split(/\n+/)
                   .map((beat) => beat.trim())
                   .filter(Boolean)
