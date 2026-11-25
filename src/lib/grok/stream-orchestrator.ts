@@ -146,6 +146,13 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
     working = working.replace(moodMatch[0], '').trim();
   }
 
+  // 模型偶尔模仿界面，在开头写一行带标记的状态（<text color="…">困困但认真营业</text>），把它当作心情
+  const label = extractLeadingMarkupLabel(working);
+  if (label) {
+    if (!mood) mood = label.label;
+    working = label.rest;
+  }
+
   let earlyText = '';
   const earlyMatch = working.match(/\[EARLY:\s*([^\]]+)\]/i);
   if (earlyMatch) {
@@ -221,6 +228,30 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   };
 }
 
+/** 除 <thought> 以外的 HTML / XML 式标记，如 <text color="secondary">、</span>、<br/> */
+const MARKUP_TAG = /<\/?(?!thought\b)[a-z][a-z0-9-]*(?:\s[^<>]*)?\/?>/gi;
+/** 开头一段被标记包住的短文字（状态行） */
+const LEADING_LABEL = /^\s*<((?!thought\b)[a-z][a-z0-9-]*)(?:\s[^<>]*)?>([^<>]{1,20})<\/\1>\s*/i;
+/** 流式输出中开头的状态行还没写完（标签已开、尚未闭合） */
+const LEADING_LABEL_PENDING = /^\s*<(?!thought\b)[a-z][a-z0-9-]*(?:\s[^<>]*)?>[^<>]{0,20}(?:<\/?[a-z]*)?$/i;
+
+export function extractLeadingMarkupLabel(text: string): { label: string; rest: string } | null {
+  const m = text.match(LEADING_LABEL);
+  if (!m) return null;
+  const label = m[2].trim();
+  if (!label) return null;
+  return { label, rest: text.slice(m[0].length) };
+}
+
+/** 去掉模型夹带的界面标记：开头的状态行整行去掉，其余标签只去标签、保留文字 */
+export function stripMarkupTags(text: string): string {
+  if (LEADING_LABEL_PENDING.test(text)) return '';
+  return text
+    .replace(LEADING_LABEL, '')
+    .replace(MARKUP_TAG, '')
+    .replace(/<\/?(?!thought\b)[a-z][a-z0-9-]*(?:\s[^<>]*)?$/i, '');
+}
+
 /**
  * 将流式或完整文本按 [BURST] / [EARLY] 拆分为干净的多气泡数组，清理内部多余空行
  */
@@ -236,7 +267,7 @@ export function splitLiveBursts(rawText: string): string[] {
     .replace(/】\s*【(?!\s*BURST)/g, '')
     .replace(/[【】]+(?=[。！？!?~～\s]*$)/g, '');
 
-  return withoutTags
+  return stripMarkupTags(withoutTags)
     // 模型偶尔写成「[ BURST ]」「【BURST】」，同样视为分条标记
     .split(/[\[【]\s*BURST\s*[\]】]/gi)
     .map((segment) =>
