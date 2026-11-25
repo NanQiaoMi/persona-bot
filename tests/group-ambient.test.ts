@@ -273,3 +273,12 @@ describe('群聊存储迁移：旧 groups.json → 每群一个文件', () => {
     }
   });
 });
+
+describe('群聊气泡清理', () => {
+  it('去掉全角括号标签和孤立的「】【」', async () => {
+    const { normalizeGroupBursts } = await import('@/lib/group/group-orchestrator');
+    expect(normalizeGroupBursts(['先看夏柚的出片率再说】【。'], '', '沈知意')).toEqual(['先看夏柚的出片率再说。']);
+    expect(normalizeGroupBursts(['好耶【STICKER: 转圈】'], '', '夏柚')).toEqual(['好耶']);
+    expect(normalizeGroupBursts(['正常的【重点】标记保留'], '', '夏柚')).toEqual(['正常的【重点】标记保留']);
+  });
+});

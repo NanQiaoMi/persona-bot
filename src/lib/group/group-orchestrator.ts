@@ -117,7 +117,15 @@ export function normalizeGroupBursts(
   const source = bursts && bursts.length > 0 ? bursts : content.split(/\n{2,}/);
   const selfPrefix = buildSelfPrefixPattern(speakerName);
   return source
-    .map((b) => b.replace(/\[(?:FOLLOWUP|EARLY|PHOTO|VOICE)[^\]]*\]/gi, '').trim())
+    .map((b) =>
+      b
+        .replace(/\[(?:FOLLOWUP|EARLY|PHOTO|VOICE)[^\]]*\]/gi, '')
+        // 模型偶尔用全角括号写标签（【STICKER: …】）或留下孤立的「】【」
+        .replace(/【\s*(?:STICKER|PHOTO|VOICE|MOOD|BURST|FOLLOWUP|EARLY)[^】]*】/gi, '')
+        .replace(/[【】]+(?=[。！？!?~～]*$)/g, '')
+        .replace(/】\s*【/g, '')
+        .trim()
+    )
     .flatMap((b) => stripSelfPrefix(b, selfPrefix))
     .map((b) => b.trim())
     .filter(Boolean)
