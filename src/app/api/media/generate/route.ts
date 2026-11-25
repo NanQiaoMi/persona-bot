@@ -7,7 +7,7 @@ import { buildGuaranteedAppearanceFallback } from '@/lib/persona/appearance-evol
 import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
 import { linkPhotoToWorld, worldAnchorsForCaption } from '@/lib/persona/world-refresh';
 import { storageRepo } from '@/lib/storage/repository';
-import { MediaCard } from '@/lib/storage/types';
+import { ConversationMessage, MediaCard } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       cardIndex = 0,
       kind = 'sticker',
       caption = '',
+      groupId,
     } = body || {};
 
     if (!slug || !messageId) {
@@ -132,24 +133,20 @@ export async function POST(request: Request) {
     };
 
     // Persist generated imageUrl back into conversation history so page reloads keep the image
-    const history = await storageRepo.getConversation(slug, 0);
-    const msgIdx = history.findIndex((m) => m.id === messageId);
-    if (msgIdx !== -1) {
-      const targetMsg = history[msgIdx];
-      const nextCards = [...(targetMsg.mediaCards || [])];
+    // 把生成结果写回那条消息（单聊或群聊），在锁内修改，不会和逐段存档互相覆盖
+    const writeBack = (msg: ConversationMessage): ConversationMessage => {
+      const nextCards = [...(msg.mediaCards || [])];
       if (cardIndex >= 0 && cardIndex < nextCards.length) {
-        nextCards[cardIndex] = {
-          ...nextCards[cardIndex],
-          ...updatedCard,
-        };
+        nextCards[cardIndex] = { ...nextCards[cardIndex], ...updatedCard };
       } else {
         nextCards.push(updatedCard);
       }
-      history[msgIdx] = {
-        ...targetMsg,
-        mediaCards: nextCards,
-      };
-      await storageRepo.saveConversation(slug, history);
+      return { ...msg, mediaCards: nextCards };
+    };
+    if (typeof groupId === 'string' && groupId) {
+      await storageRepo.updateGroupMessage(groupId, messageId, writeBack);
+    } else {
+      await storageRepo.updateConversationMessage(slug, messageId, writeBack);
     }
 
     return NextResponse.json({

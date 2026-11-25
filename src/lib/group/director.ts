@@ -250,7 +250,9 @@ export function buildGroupTranscriptForSpeaker(
     const isSelf = msg.role === 'assistant' && msg.fromBot?.slug === speakerSlug;
     const role: 'user' | 'assistant' = isSelf ? 'assistant' : 'user';
     const speaker = msg.role === 'user' ? userName : msg.fromBot?.name || '群友';
-    const content = isSelf ? text : `${speaker}：${text}`;
+    // 图片在文字里标出来（最近一张会以真实图片一起发给模型）
+    const withImage = msg.imageUrl ? `[发了一张图片] ${text === '[图片]' ? '' : text}`.trim() : text;
+    const content = isSelf ? withImage : `${speaker}：${withImage}`;
     const prev = turns[turns.length - 1];
     if (prev && prev.role === role) {
       prev.content = `${prev.content}\n${content}`;
@@ -283,7 +285,7 @@ export function buildGroupSystemDirective(params: {
     `- 回复时不要加自己的名字前缀（不要写「${params.speakerName}：」），直接说内容。`,
     '- 像真实群聊一样说话：一次只发 1~2 条短消息，比单聊更短更随意；可以接别人的话、吐槽、附和或唱反调，必要时用「@名字」点名某个人。',
     '- 不要复述别人刚说过的话，不要总结全场，不要当主持人挨个点名，也不要替别人说话。',
-    '- 本轮不要输出 <thought>、[FOLLOWUP]、[EARLY]、[PHOTO] 标签；最多 1 个 [STICKER]。',
+    '- 本轮不要输出 <thought>、[FOLLOWUP]、[EARLY] 标签；可以用 1 个 [STICKER: 表情包动作] 斗图；只有群主明确让你发照片 / 自拍时才用 1 个 [PHOTO: 画面描述]。',
   ];
   if (params.replyTo) {
     lines.push(`- 你这次主要是在接 ${params.replyTo.name} 刚说的「${params.replyTo.text.slice(0, 60)}」。`);

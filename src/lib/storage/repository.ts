@@ -530,6 +530,22 @@ export class UnifiedStorageRepository {
     });
   }
 
+  /** 在锁内修改单聊里的一条消息（生图回写等），不会和逐段存档互相覆盖 */
+  async updateConversationMessage(
+    slug: string,
+    messageId: string,
+    mutator: (msg: ConversationMessage) => ConversationMessage
+  ): Promise<ConversationMessage | null> {
+    return this.withLock(`conv:${sanitizeSlug(slug)}`, async () => {
+      const list = await this.getConversation(slug, 0);
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx === -1) return null;
+      list[idx] = mutator(list[idx]);
+      await this.saveConversation(slug, list);
+      return list[idx];
+    });
+  }
+
   private async readSnapshotFiles(slug: string): Promise<PersonaSnapshot[]> {
     const snapDir = this.getSnapshotsDir(slug);
     const entries = await fs.readdir(snapDir).catch(() => []);
@@ -1012,6 +1028,22 @@ export class UnifiedStorageRepository {
       JSON.stringify(messages.slice(-300), null, 2),
       'utf-8'
     );
+  }
+
+  /** 在锁内修改群聊里的一条消息（生图回写等） */
+  async updateGroupMessage(
+    id: string,
+    messageId: string,
+    mutator: (msg: ConversationMessage) => ConversationMessage
+  ): Promise<ConversationMessage | null> {
+    return this.withLock(`group-conv:${sanitizeSlug(id)}`, async () => {
+      const list = await this.getGroupConversation(id, 0);
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx === -1) return null;
+      list[idx] = mutator(list[idx]);
+      await this.saveGroupConversation(id, list);
+      return list[idx];
+    });
   }
 
   async appendGroupMessages(

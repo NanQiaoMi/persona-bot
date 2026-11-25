@@ -16,6 +16,7 @@ import {
 } from '@/lib/persona/conversation-memory';
 import { analyzeRecentRepetition } from '@/lib/persona/repetition-guard';
 import { extractLiveThought, synthesizeInnerThought } from '@/lib/persona/inner-thought';
+import { loadLocalImageAsDataUrl } from '@/lib/persona/appearance-evolution';
 import { buildWorldDirective } from '@/lib/persona/world';
 import { refreshWorld } from '@/lib/persona/world-refresh';
 import {
@@ -30,7 +31,7 @@ import {
   analyzeUserChatStyle,
   polishYoungAdultBursts,
 } from '@/lib/persona/style-loop';
-import { buildLlmHeaders, resolveLlmConfig } from '@/lib/llm/client';
+import { buildLlmHeaders, resolveLlmConfig, type ChatMessageContentPart } from '@/lib/llm/client';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import { storageRepo } from '@/lib/storage/repository';
 import {
@@ -722,6 +723,35 @@ export function mergeStreamDelta(current: string, delta: string): string {
   return current + delta;
 }
 
+/**
+ * 把对话整理成上游格式：最近一条带图片的用户消息以「文字 + 图片」多模态形式发送，
+ * 模型才能真正看到图（之前只告诉模型「对方发了张图」，模型看不到内容）。只带一张，控制开销。
+ */
+export async function buildUpstreamMessages(
+  messages: ChatTurnRequest['messages']
+): Promise<Array<{ role: 'user' | 'assistant'; content: string | ChatMessageContentPart[] }>> {
+  let imageIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'user' && messages[i].imageUrl) {
+      imageIdx = i;
+      break;
+    }
+  }
+  const dataUrl = imageIdx === -1 ? null : await loadLocalImageAsDataUrl(messages[imageIdx].imageUrl).catch(() => null);
+  return messages.map((m, i) => {
+    if (i === imageIdx && dataUrl) {
+      return {
+        role: m.role,
+        content: [
+          { type: 'text', text: m.content || '（发了一张图片）' },
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ],
+      };
+    }
+    return { role: m.role, content: m.content };
+  });
+}
+
 async function fetchBufferedUpstreamLLM(
   endpoint: string,
   apiKey: string,
@@ -733,6 +763,7 @@ async function fetchBufferedUpstreamLLM(
   onContent?: (raw: string) => void
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
   const headers = buildLlmHeaders(apiKey);
+  const upstreamMessages = await buildUpstreamMessages(messages.slice(-16));
 
   const reqStart = Date.now();
   const res = await fetch(endpoint, {
@@ -743,10 +774,7 @@ async function fetchBufferedUpstreamLLM(
       stream: true,
       messages: [
         { role: 'system', content: systemPrompt },
-        ...messages.slice(-16).map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
+        ...upstreamMessages,
       ],
       temperature,
     }),

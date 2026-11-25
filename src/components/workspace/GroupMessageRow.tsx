@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { ConversationMessage } from "@/lib/storage/types";
+import type { ConversationMessage, MediaCard } from "@/lib/storage/types";
 import BlobMascot from "./BlobMascot";
 import type { MascotShapeId } from "./mascot-palette";
 
@@ -150,7 +150,50 @@ export function GroupMessageRow({
           )}
           {body}
         </div>
+
+        {/* 照片 / 表情包：生成中显示占位，完成后显示图片 */}
+        {(msg.mediaCards || [])
+          .filter((card) => card.type === "photo" || card.type === "sticker")
+          .map((card, idx) => (
+            <GroupMediaCard key={idx} card={card} name={bot?.name || ""} />
+          ))}
       </div>
+    </div>
+  );
+}
+
+function GroupMediaCard({ card, name }: { card: MediaCard; name: string }) {
+  const isSticker = card.type === "sticker";
+  if (card.imageUrl && card.status !== "error") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={card.imageUrl}
+        alt={card.caption}
+        title={card.caption}
+        className={`mt-1.5 rounded-2xl border border-[var(--border-subtle)] object-cover ${
+          isSticker ? "w-[120px] h-[120px] bg-transparent" : "max-w-[220px] max-h-[280px]"
+        }`}
+      />
+    );
+  }
+  if (card.status === "error") {
+    return (
+      <div className="mt-1.5 text-[12px] text-[var(--text-muted)]">
+        {card.errorHint || (isSticker ? "表情包没发出去" : "照片没发出去")}
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`mt-1.5 flex items-center justify-center rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-secondary)] text-[12px] text-[var(--text-muted)] ${
+        isSticker ? "w-[120px] h-[120px]" : "w-[200px] h-[150px]"
+      }`}
+      title={card.caption}
+    >
+      {card.status === "generating"
+        ? `${name} 正在${isSticker ? "找表情包" : "拍照"}…`
+        : card.caption.slice(0, 24)}
     </div>
   );
 }
