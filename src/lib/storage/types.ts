@@ -342,3 +342,38 @@ export interface ConversationMemoryState {
   summary?: import('@/lib/persona/conversation-summary').ConversationSummaryState;
   pendingTopics?: import('@/lib/persona/pending-topics').PendingTopic[];
 }
+
+/** 世界设定：角色生活里反复出现的地点、物品、宠物、人物（自动从聊天/朋友圈/照片里归纳） */
+export type WorldEntryKind = 'place' | 'object' | 'pet' | 'person';
+/** candidate：待你确认；confirmed：已收录（会用于聊天与拍照）；dismissed：你忽略过，不再提示 */
+export type WorldEntryStatus = 'candidate' | 'confirmed' | 'dismissed';
+
+export interface WorldEntrySource {
+  type: 'chat' | 'moment' | 'photo' | 'manual';
+  snippet: string;
+  at: string;
+}
+
+export interface WorldEntry {
+  id: string;
+  kind: WorldEntryKind;
+  name: string;
+  description: string;
+  keywords: string[];
+  status: WorldEntryStatus;
+  /** 被提到的次数（不同轮次累计），达到阈值自动收录 */
+  mentionCount: number;
+  sources: WorldEntrySource[];
+  /** 地点的参考照片（在这里拍的第一张照片），并同步成固定场景资产 */
+  imageUrl?: string;
+  sceneAssetId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorldState {
+  entries: WorldEntry[];
+  /** 上次归纳到的消息 id，下次只看之后的新消息 */
+  lastExtractedMessageId?: string;
+  lastExtractedAt?: string;
+}

@@ -5,6 +5,7 @@ import {
 } from '@/lib/grok/image-generator';
 import { buildGuaranteedAppearanceFallback } from '@/lib/persona/appearance-evolution';
 import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
+import { linkPhotoToWorld, worldAnchorsForCaption } from '@/lib/persona/world-refresh';
 import { storageRepo } from '@/lib/storage/repository';
 import { MediaCard } from '@/lib/storage/types';
 
@@ -63,12 +64,21 @@ export async function POST(request: Request) {
       personaName: persona?.name || slug,
       personaStyle: persona?.profile.personalityTags?.slice(0, 3).join(', '),
       appearanceAnchor: persona?.profile.appearanceAnchor,
-      sceneAnchor: matchedScene?.asset.description,
+      // 场景资产 + 世界设定里出现在画面中的元素（宠物长相、物品样子等），保持前后一致
+      sceneAnchor:
+        [matchedScene?.asset.description, await worldAnchorsForCaption(slug, captionText).catch(() => '')]
+          .filter(Boolean)
+          .join('；') || undefined,
       referenceImageUrl: effectiveReferenceUrl,
       baseUrl,
       apiKey,
       imageModel,
     });
+
+    // 在已收录、还没有参考图的地点拍了照：把这张照片设为该地点的参考图并存成固定场景
+    if (mediaType === 'photo' && mediaRes.imageUrl) {
+      await linkPhotoToWorld({ slug, caption: captionText, imageUrl: mediaRes.imageUrl }).catch(() => {});
+    }
 
     let autoLockedReference = false;
     let shouldRefineReference = false;

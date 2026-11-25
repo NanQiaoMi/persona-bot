@@ -16,6 +16,8 @@ import {
 } from '@/lib/persona/conversation-memory';
 import { analyzeRecentRepetition } from '@/lib/persona/repetition-guard';
 import { extractLiveThought, synthesizeInnerThought } from '@/lib/persona/inner-thought';
+import { buildWorldDirective } from '@/lib/persona/world';
+import { refreshWorld } from '@/lib/persona/world-refresh';
 import {
   buildPresenceDirective,
   computeReplyLatencyMs,
@@ -985,6 +987,8 @@ export async function executeGrokChatTurn(
   const memoryDirectives = ownsChannel
     ? buildConversationMemoryDirectives(await storageRepo.getMemoryState(channelPersona.slug))
     : '';
+  // 世界设定：TA 生活里已收录的地点 / 宠物 / 物品 / 人物，说到时保持一致（群聊里也带上）
+  const worldDirective = buildWorldDirective((await storageRepo.getWorld(persona.slug)).entries, lastUserText);
   const repetitionDirective = analyzeRecentRepetition(
     req.messages
       .filter((m) => m.role === 'assistant' && typeof m.content === 'string')
@@ -1010,6 +1014,7 @@ export async function executeGrokChatTurn(
     baseSystemPrompt,
     presence ? buildPresenceDirective(presence) : '',
     memoryDirectives,
+    worldDirective,
     repetitionDirective,
     req.extraSystemPrompt || '',
   ]
@@ -1258,6 +1263,8 @@ export async function executeGrokChatTurn(
       reply: parsed.cleanReply,
       llm,
     }).catch(() => {});
+    // 每聊几轮在后台归纳一次世界设定（地点、宠物、物品、人物）
+    void refreshWorld({ slug: channelPersona.slug, personaName: persona.name, llm }).catch(() => {});
   }
 
     return combinedMessage;
@@ -1419,6 +1426,8 @@ export async function executeGrokChatTurn(
         reply: parsed.cleanReply,
         llm,
       }).catch(() => {});
+      // 每聊几轮在后台归纳一次世界设定（地点、宠物、物品、人物）
+      void refreshWorld({ slug: channelPersona.slug, personaName: persona.name, llm }).catch(() => {});
     }
   }
 

@@ -27,6 +27,7 @@ import {
   RuntimeSettings,
   SceneAsset,
   SnapshotKind,
+  WorldState,
 } from './types';
 
 export const SNAPSHOT_QUOTA: Record<SnapshotKind, number> = { auto: 10, manual: 30 };
@@ -833,6 +834,30 @@ export class UnifiedStorageRepository {
       const current = await this.getSceneAssets(safeSlug);
       const next = await mutator(current);
       return this.saveSceneAssets(safeSlug, next);
+    });
+  }
+
+  async getWorld(slug: string): Promise<WorldState> {
+    const safeSlug = sanitizeSlug(slug);
+    const parsed = await readJsonSafe<WorldState>(path.join(this.getPersonaDir(safeSlug), 'world.json'), {
+      entries: [],
+    });
+    return isRecord(parsed) && Array.isArray(parsed.entries) ? parsed : { entries: [] };
+  }
+
+  /** 原子地读 → 改 → 写世界设定；角色目录已删除时不再建回来 */
+  async updateWorld(
+    slug: string,
+    mutator: (current: WorldState) => WorldState | Promise<WorldState>
+  ): Promise<WorldState> {
+    const safeSlug = sanitizeSlug(slug);
+    return this.withLock(`world:${safeSlug}`, async () => {
+      const current = await this.getWorld(safeSlug);
+      const next = await mutator(current);
+      const dir = this.getPersonaDir(safeSlug);
+      if (!(await fileExists(dir))) return next;
+      await writeFileAtomic(path.join(dir, 'world.json'), JSON.stringify(next, null, 2));
+      return next;
     });
   }
 
