@@ -86,3 +86,12 @@ describe('中途切走不丢消息', () => {
     expect(saved.some((m) => m.role === 'assistant')).toBe(true);
   });
 });
+
+describe('单聊回复清理', () => {
+  it('去掉结尾孤立的「】【」和全角括号标签，保留正常的【】用法与【BURST】分条', async () => {
+    const { splitLiveBursts } = await import('@/lib/grok/stream-orchestrator');
+    expect(splitLiveBursts('明天估计还得继续抓鬼】【。')).toEqual(['明天估计还得继续抓鬼。']);
+    expect(splitLiveBursts('好耶【STICKER: 转圈】')).toEqual(['好耶']);
+    expect(splitLiveBursts('这是【重点】内容【BURST】第二条')).toEqual(['这是【重点】内容', '第二条']);
+  });
+});

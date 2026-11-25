@@ -226,7 +226,11 @@ export function splitLiveBursts(rawText: string): string[] {
     .replace(/<thought>[\s\S]*/gi, '')
     .replace(/\[EARLY:\s*([^\]]+)\]/gi, '$1[BURST]')
     .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '');
+    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '')
+    // 模型偶尔用全角括号写标签（【STICKER: …】）或在结尾留下孤立的「】【」
+    .replace(/【\s*(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP|EARLY)\s*[:：][^】]*】/gi, '')
+    .replace(/】\s*【(?!\s*BURST)/g, '')
+    .replace(/[【】]+(?=[。！？!?~～\s]*$)/g, '');
 
   return withoutTags
     // 模型偶尔写成「[ BURST ]」「【BURST】」，同样视为分条标记
