@@ -187,6 +187,18 @@ export interface ConversationMessage {
   styleMetrics?: MessageStyleMetrics;
   /** 主 bot 发起群聊后在主频道留下的入群卡片 */
   groupInvite?: GroupInviteCard;
+  /** 群聊：引用回复的那条消息 */
+  quote?: MessageQuote;
+  /** 群聊：系统提示（如「夏柚 拍了拍 鹿汐」），居中显示，不算任何人的发言 */
+  systemTip?: boolean;
+  /** 群聊：角色自己聊起来的消息；catchup 表示「你不在时」补上的 */
+  ambient?: 'idle' | 'catchup';
+}
+
+export interface MessageQuote {
+  id: string;
+  name: string;
+  text: string;
 }
 
 export interface GroupInviteCard {
@@ -205,6 +217,8 @@ export interface GroupChat {
   /** 群聊刚建好、还没有角色开口时为 true，前端进群后自动请主 bot 开场 */
   pendingKickoff?: boolean;
   lastMessage?: string;
+  /** 最近几次角色自己聊起来的时间（ISO），用于冷却与每小时上限 */
+  ambientLog?: string[];
   createdAt: string;
   updatedAt: string;
 }

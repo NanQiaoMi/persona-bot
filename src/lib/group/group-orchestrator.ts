@@ -21,7 +21,9 @@ import {
   executeGrokChatTurn,
   StreamEvent,
 } from '@/lib/grok/stream-orchestrator';
+import { QUICK_REACTIONS } from '@/lib/group/ambient-lines';
 import { resolveLlmConfig } from '@/lib/llm/client';
+import { getPresenceState } from '@/lib/persona/daily-rhythm';
 import { storageRepo } from '@/lib/storage/repository';
 import {
   ConversationMessage,
@@ -42,6 +44,10 @@ export interface GroupTurnRequest {
   modelId?: string;
   /** 群刚建好：由主 bot 发开场白，再让成员接话 */
   kickoff?: boolean;
+  /** 这轮结束后有人只丢一句附和的概率（测试可设为 0 或 1），默认 0.2 */
+  reactionChance?: number;
+  /** 按这个时刻判断谁醒着（测试用），默认现在 */
+  now?: Date;
 }
 
 const USER_LABEL = '我（群主）';
@@ -197,12 +203,23 @@ export async function executeGroupTurn(
   const settings = await storageRepo.getSettings();
   const canCallUpstream = resolveLlmConfig(settings, { model: req.modelId }).canCall;
 
+  // 此刻谁醒着、谁在忙：睡着的人不主动回，忙的人少回
+  const availability = new Map(
+    members.map((m) => [m.slug, getPresenceState(m, req.now ?? new Date()).availability])
+  );
+  const availabilityOf = (slug: string) => availability.get(slug) || 'free';
+
   const speakers = req.kickoff
     ? pickSpeakers({ text: '大家', members, history, maxSpeakers: Math.min(3, members.length) })
-    : pickSpeakers({ text: triggerText, members, history });
+    : pickSpeakers({ text: triggerText, members, history, availabilityOf });
 
   const spokenThisRound: string[] = [];
-  const queue: Array<{ persona: PersonaRecord; replyTo?: { name: string; text: string }; isReaction: boolean; chainDepth: number }> =
+  const queue: Array<{
+    persona: PersonaRecord;
+    replyTo?: { name: string; text: string; id?: string };
+    isReaction: boolean;
+    chainDepth: number;
+  }> =
     speakers.map((p) => ({ persona: p, isReaction: false, chainDepth: 0 }));
   const maxTurns = speakers.length + GROUP_MAX_BOT_CHAIN;
   let turnsDone = 0;
@@ -227,6 +244,14 @@ export async function executeGroupTurn(
       thisRoundIds: newMessages.map((m) => m.id),
     });
 
+    // 接的不是紧挨着的上一条时，像微信一样引用那条
+    const lastInHistory = history[history.length - 1];
+    const quote =
+      item.replyTo?.id && lastInHistory && lastInHistory.id !== item.replyTo.id
+        ? { id: item.replyTo.id, name: item.replyTo.name, text: item.replyTo.text.slice(0, 40) }
+        : undefined;
+    let lastMsgId = '';
+
     for (let i = 0; i < bursts.length; i += 1) {
       const text = bursts[i];
       await sleep(computeRealisticTypingDelayMs(text, turnsDone === 0 && i === 0 ? 0 : 1));
@@ -238,8 +263,10 @@ export async function executeGroupTurn(
         fromBot: meta,
         mode: persona.defaultMode,
         bursts: [text],
+        quote: i === 0 ? quote : undefined,
         isDemoMode: canCallUpstream ? undefined : true,
       };
+      lastMsgId = msg.id;
       newMessages.push(msg);
       history.push(msg);
       onEvent?.({
@@ -258,18 +285,41 @@ export async function executeGroupTurn(
     const reactor = pickReactor({
       lastSpeakerSlug: persona.slug,
       lastText,
-      members: members.filter((m) => !queue.some((q) => q.persona.slug === m.slug)),
+      members: members.filter(
+        (m) => !queue.some((q) => q.persona.slug === m.slug) && availabilityOf(m.slug) !== 'asleep'
+      ),
       spokenThisRound,
       chainDepth: item.chainDepth,
     });
     if (reactor && lastText) {
       queue.push({
         persona: reactor,
-        replyTo: { name: persona.name, text: lastText },
+        replyTo: { name: persona.name, text: lastText, id: lastMsgId },
         isReaction: true,
         chainDepth: item.chainDepth + 1,
       });
     }
+  }
+
+  // 偶尔有个醒着、这轮没说话的人只丢一句「+1 / 哈哈哈」，不调用模型
+  const quiet = members.filter(
+    (m) => !spokenThisRound.includes(m.slug) && availabilityOf(m.slug) === 'free'
+  );
+  if (!req.kickoff && quiet.length > 0 && Math.random() < (req.reactionChance ?? 0.2)) {
+    const reactor = quiet[Math.floor(Math.random() * quiet.length) % quiet.length];
+    const text = QUICK_REACTIONS[Math.floor(Math.random() * QUICK_REACTIONS.length) % QUICK_REACTIONS.length];
+    await sleep(800 + Math.random() * 1500);
+    const msg: ConversationMessage = {
+      id: nextId(reactor.slug),
+      role: 'assistant',
+      content: text,
+      timestamp: new Date().toISOString(),
+      fromBot: metaBySlug.get(reactor.slug) || botMeta(reactor),
+      bursts: [text],
+    };
+    newMessages.push(msg);
+    history.push(msg);
+    onEvent?.({ type: 'message_part', message: msg, index: newMessages.length - 1, total: newMessages.length, hasMore: true });
   }
 
   await persist(group, newMessages);
@@ -289,7 +339,7 @@ async function persist(group: GroupChat, newMessages: ConversationMessage[]): Pr
   });
 }
 
-async function generateMemberReply(params: {
+export async function generateMemberReply(params: {
   group: GroupChat;
   persona: PersonaRecord;
   members: PersonaRecord[];
@@ -302,6 +352,12 @@ async function generateMemberReply(params: {
   triggerSpeakerName: string;
   /** 本轮已产生的消息 id（用来认出群友刚发的气泡） */
   thisRoundIds: string[];
+  /** 按这个时刻的作息说话（补聊用） */
+  presenceAt?: string;
+  /** 额外场景说明（如自发闲聊的起头要求） */
+  extraDirective?: string;
+  /** 离线时直接使用的话术（自发闲聊起头用） */
+  offlineOverride?: () => string[];
 }): Promise<string[]> {
   const { group, persona, members, history, canCallUpstream, req } = params;
   const peers = collectGroupPeerBubbles(history, persona.slug, params.thisRoundIds);
@@ -310,7 +366,7 @@ async function generateMemberReply(params: {
     bursts.length === 0 ? bursts : [stripEchoedOpener(bursts[0], roundOpeners), ...bursts.slice(1)];
 
   const offline = () =>
-    dedupeFirst(synthesizeGroupFallbackReply({
+    params.offlineOverride ? dedupeFirst(params.offlineOverride()) : dedupeFirst(synthesizeGroupFallbackReply({
       speaker: {
         slug: persona.slug,
         name: persona.name,
@@ -350,7 +406,8 @@ async function generateMemberReply(params: {
       requestSticker: false,
       modelId: req.modelId,
       skipPersistence: true,
-      extraSystemPrompt: [directive, buildGroupAntiEchoDirective({ peers })]
+      presenceAt: params.presenceAt,
+      extraSystemPrompt: [directive, buildGroupAntiEchoDirective({ peers }), params.extraDirective || '']
         .filter(Boolean)
         .join('\n\n'),
     });

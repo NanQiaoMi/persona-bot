@@ -465,9 +465,125 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   };
 
+  // 群里自己聊起来：记录你最后一次说话/打字的时间，按节奏播放角色们的自发闲聊
+  const lastUserActivityRef = useRef<number>(0);
+  const ambientInFlightRef = useRef(false);
+  const streamingRef = useRef(false);
+  const pendingBurstRef = useRef(false);
+  const ambientPlaybackRef = useRef<{
+    groupId: string;
+    items: Array<{ msg: ConversationMessage; delay: number }>;
+    timer: ReturnType<typeof setTimeout> | null;
+  } | null>(null);
+
+  const appendGroupMessages = useCallback((groupId: string, incoming: ConversationMessage[]) => {
+    if (activeGroupIdRef.current !== groupId || incoming.length === 0) return;
+    setMessages((prev) => {
+      const seen = new Set(prev.map((m) => m.id));
+      const next = [...prev, ...incoming.filter((m) => !seen.has(m.id))];
+      messagesRef.current = next;
+      return next;
+    });
+  }, []);
+
+  /** 立刻把还没播放完的自发闲聊全部显示出来（你开口或切走时） */
+  const flushAmbientPlayback = useCallback(() => {
+    const pb = ambientPlaybackRef.current;
+    if (!pb) return;
+    if (pb.timer) clearTimeout(pb.timer);
+    ambientPlaybackRef.current = null;
+    appendGroupMessages(pb.groupId, pb.items.map((it) => it.msg));
+  }, [appendGroupMessages]);
+
+  const playAmbient = useCallback(
+    (groupId: string, msgs: ConversationMessage[], delays: number[]) => {
+      flushAmbientPlayback();
+      const pb = {
+        groupId,
+        items: msgs.map((msg, i) => ({ msg, delay: Math.min(20_000, Math.max(0, delays[i] ?? 1500)) })),
+        timer: null as ReturnType<typeof setTimeout> | null,
+      };
+      ambientPlaybackRef.current = pb;
+      const step = () => {
+        const next = pb.items[0];
+        if (!next || ambientPlaybackRef.current !== pb) return;
+        pb.timer = setTimeout(() => {
+          if (ambientPlaybackRef.current !== pb) return;
+          pb.items.shift();
+          appendGroupMessages(groupId, [next.msg]);
+          if (pb.items.length === 0) {
+            ambientPlaybackRef.current = null;
+            void loadGroups();
+          } else {
+            step();
+          }
+        }, next.delay);
+      };
+      step();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appendGroupMessages, flushAmbientPlayback]
+  );
+
+  const requestAmbient = useCallback(
+    async (groupId: string, mode: "idle" | "catchup") => {
+      if (ambientInFlightRef.current) return;
+      ambientInFlightRef.current = true;
+      try {
+        const res = await fetch(`/api/groups/${encodeURIComponent(groupId)}/ambient`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode, userIdleMs: Date.now() - lastUserActivityRef.current }),
+        });
+        const data = await res.json();
+        if (!data?.success || !data.ok || !Array.isArray(data.messages)) return;
+        if (activeGroupIdRef.current !== groupId) return;
+        // 生成期间你开口了：不再播放，直接补上（顺序以服务端为准）
+        if (mode === "catchup" || streamingRef.current || Date.now() - lastUserActivityRef.current < 5_000) {
+          appendGroupMessages(groupId, data.messages);
+          void loadGroups();
+        } else {
+          playAmbient(groupId, data.messages, data.playbackDelays || []);
+        }
+      } catch {
+        // 自发闲聊失败不打扰你
+      } finally {
+        ambientInFlightRef.current = false;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appendGroupMessages, playAmbient]
+  );
+
+  useEffect(() => {
+    lastUserActivityRef.current = Date.now();
+  }, [input]);
+
+  useEffect(() => {
+    streamingRef.current = Boolean(streaming);
+    pendingBurstRef.current = pendingBurst;
+  });
+
+  // 停在群里没说话时，大约每 15 秒看一次要不要有人起话题（服务端再按冷却与上限把关）
+  useEffect(() => {
+    if (!activeGroupId) return;
+    lastUserActivityRef.current = Date.now();
+    const timer = setInterval(() => {
+      const gid = activeGroupIdRef.current;
+      if (!gid || gid !== activeGroupId) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (streamingRef.current || pendingBurstRef.current || ambientPlaybackRef.current) return;
+      if (inputRef.current.trim()) return;
+      if (Date.now() - lastUserActivityRef.current < 75_000) return;
+      void requestAmbient(gid, "idle");
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [activeGroupId, requestAmbient]);
+
   // 进入 / 退出群聊：切换消息列表；新建的群自动让主 bot 开场
   const kickoffDoneRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    flushAmbientPlayback();
     activeGroupIdRef.current = activeGroupId;
     if (burstTimerRef.current) {
       clearTimeout(burstTimerRef.current);
@@ -498,6 +614,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         ) {
           kickoffDoneRef.current.add(activeGroupId);
           await runStreamRequestRef.current?.([], activeMode, { kickoff: true });
+        } else if (groupMessages.length > 0) {
+          // 隔了一段时间再打开：补上你不在时大家聊的（服务端判断空档是否够长）
+          void requestAmbient(activeGroupId, "catchup");
         }
       } catch (err) {
         console.error("Failed to load group:", err);
@@ -962,6 +1081,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           : "");
     if (!text && !options?.imageUrl) return;
     if (streaming) return;
+    // 你一开口：没播完的群友闲聊立刻显示，再发你的话
+    flushAmbientPlayback();
+    lastUserActivityRef.current = Date.now();
 
     const userMsg: ConversationMessage = {
       id: `msg_${Date.now()}_u`,

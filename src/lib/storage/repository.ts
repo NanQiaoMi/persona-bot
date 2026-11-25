@@ -107,6 +107,25 @@ async function fileExists(targetPath: string): Promise<boolean> {
   }
 }
 
+/**
+ * 原子写入：先写临时文件再改名替换，读的一方永远看到完整的旧内容或新内容，
+ * 不会读到「刚清空、还没写完」的半截文件（并发读写同一个角色时会发生）。
+ */
+async function writeFileAtomic(
+  targetPath: string,
+  data: string,
+  encoding: BufferEncoding = 'utf-8'
+): Promise<void> {
+  const tmp = `${targetPath}.${process.pid}.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.tmp`;
+  try {
+    await fs.writeFile(tmp, data, encoding);
+    await fs.rename(tmp, targetPath);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
+}
+
 async function readJsonSafe<T>(targetPath: string, fallback: T): Promise<T> {
   try {
     const raw = await fs.readFile(targetPath, 'utf-8');
@@ -385,21 +404,21 @@ export class UnifiedStorageRepository {
     };
 
     await Promise.all([
-      fs.writeFile(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8'),
-      fs.writeFile(path.join(dir, 'persona.md'), normalized.personaMd || '', 'utf-8'),
-      fs.writeFile(path.join(dir, 'memories.md'), normalized.memoriesMd || '', 'utf-8'),
-      fs.writeFile(path.join(dir, 'ai_profile.md'), normalized.aiProfileMd || '', 'utf-8'),
-      fs.writeFile(
+      writeFileAtomic(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8'),
+      writeFileAtomic(path.join(dir, 'persona.md'), normalized.personaMd || '', 'utf-8'),
+      writeFileAtomic(path.join(dir, 'memories.md'), normalized.memoriesMd || '', 'utf-8'),
+      writeFileAtomic(path.join(dir, 'ai_profile.md'), normalized.aiProfileMd || '', 'utf-8'),
+      writeFileAtomic(
         path.join(dir, 'emotion.json'),
         JSON.stringify(normalized.emotionState, null, 2),
         'utf-8'
       ),
-      fs.writeFile(
+      writeFileAtomic(
         path.join(dir, 'corrections.json'),
         JSON.stringify(normalized.corrections || [], null, 2),
         'utf-8'
       ),
-      fs.writeFile(path.join(dir, 'spec.json'), JSON.stringify(spec, null, 2), 'utf-8'),
+      writeFileAtomic(path.join(dir, 'spec.json'), JSON.stringify(spec, null, 2), 'utf-8'),
     ]);
 
     return normalized;
@@ -494,7 +513,7 @@ export class UnifiedStorageRepository {
     const dir = this.getPersonaDir(slug);
     await fs.mkdir(dir, { recursive: true });
     const trimmed = messages.slice(-200);
-    await fs.writeFile(
+    await writeFileAtomic(
       path.join(dir, 'conversations.json'),
       JSON.stringify(trimmed, null, 2),
       'utf-8'
@@ -573,7 +592,7 @@ export class UnifiedStorageRepository {
       spec: persona.spec,
     };
 
-    await fs.writeFile(
+    await writeFileAtomic(
       path.join(snapDir, `${id}.json`),
       JSON.stringify(snapshot, null, 2),
       'utf-8'
@@ -749,7 +768,7 @@ export class UnifiedStorageRepository {
     };
     await fs.mkdir(this.dataDir, { recursive: true });
     const targetPath = path.join(this.dataDir, 'settings.json');
-    await fs.writeFile(targetPath, JSON.stringify(updated, null, 2), 'utf-8');
+    await writeFileAtomic(targetPath, JSON.stringify(updated, null, 2), 'utf-8');
     return updated;
   }
 
@@ -765,7 +784,7 @@ export class UnifiedStorageRepository {
     const dir = this.getPersonaDir(safeSlug);
     await fs.mkdir(dir, { recursive: true });
     const trimmed = posts.slice(0, 60);
-    await fs.writeFile(
+    await writeFileAtomic(
       path.join(dir, 'moments.json'),
       JSON.stringify(trimmed, null, 2),
       'utf-8'
@@ -797,7 +816,7 @@ export class UnifiedStorageRepository {
     const dir = this.getPersonaDir(safeSlug);
     await fs.mkdir(dir, { recursive: true });
     const trimmed = assets.slice(0, 30);
-    await fs.writeFile(
+    await writeFileAtomic(
       path.join(dir, 'assets.json'),
       JSON.stringify(trimmed, null, 2),
       'utf-8'
@@ -841,7 +860,7 @@ export class UnifiedStorageRepository {
         .then((st) => st.isDirectory())
         .catch(() => false);
       if (!exists) return next;
-      await fs.writeFile(path.join(dir, 'memory-state.json'), JSON.stringify(next, null, 2), 'utf-8');
+      await writeFileAtomic(path.join(dir, 'memory-state.json'), JSON.stringify(next, null, 2), 'utf-8');
       return next;
     });
   }
@@ -856,28 +875,54 @@ export class UnifiedStorageRepository {
     return path.join(this.getGroupsDir(), sanitizeSlug(id));
   }
 
+  /**
+   * 旧版把所有群放在一个 groups.json 里；多个进程同时建群会互相覆盖。
+   * 现在每个群单独存 groups/<id>/group.json。首次读取时把旧索引迁过来，旧文件改名留作备份。
+   */
+  private groupIndexMigrated = false;
+
+  private async migrateLegacyGroupIndex(): Promise<void> {
+    if (this.groupIndexMigrated) return;
+    const legacyPath = path.join(this.getGroupsDir(), 'groups.json');
+    const legacy = await readJsonSafe<GroupChat[] | null>(legacyPath, null);
+    if (Array.isArray(legacy)) {
+      for (const g of legacy) {
+        if (!g?.id) continue;
+        const file = path.join(this.getGroupDir(g.id), 'group.json');
+        if (!(await fileExists(file))) {
+          await fs.mkdir(this.getGroupDir(g.id), { recursive: true });
+          await writeFileAtomic(file, JSON.stringify(g, null, 2));
+        }
+      }
+      await fs.rename(legacyPath, path.join(this.getGroupsDir(), 'groups.legacy-backup.json')).catch(() => {});
+    }
+    this.groupIndexMigrated = true;
+  }
+
+  private async readGroupFile(id: string): Promise<GroupChat | null> {
+    const parsed = await readJsonSafe<GroupChat | null>(path.join(this.getGroupDir(id), 'group.json'), null);
+    return parsed && isRecord(parsed) && typeof parsed.id === 'string' ? parsed : null;
+  }
+
+  private async writeGroupFile(group: GroupChat): Promise<void> {
+    await fs.mkdir(this.getGroupDir(group.id), { recursive: true });
+    await writeFileAtomic(path.join(this.getGroupDir(group.id), 'group.json'), JSON.stringify(group, null, 2));
+  }
+
   async listGroups(): Promise<GroupChat[]> {
-    const parsed = await readJsonSafe<GroupChat[]>(
-      path.join(this.getGroupsDir(), 'groups.json'),
-      []
-    );
-    const list = Array.isArray(parsed) ? parsed : [];
-    return [...list].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    await this.migrateLegacyGroupIndex();
+    const entries = await fs.readdir(this.getGroupsDir(), { withFileTypes: true }).catch(() => []);
+    const groups = (
+      await Promise.all(entries.filter((e) => e.isDirectory()).map((e) => this.readGroupFile(e.name)))
+    ).filter((g): g is GroupChat => Boolean(g));
+    return groups
+      .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+      .slice(0, 50);
   }
 
   async getGroup(id: string): Promise<GroupChat | null> {
-    const safeId = sanitizeSlug(id);
-    const groups = await this.listGroups();
-    return groups.find((g) => g.id === safeId) || null;
-  }
-
-  private async writeGroupIndex(groups: GroupChat[]): Promise<void> {
-    await fs.mkdir(this.getGroupsDir(), { recursive: true });
-    await fs.writeFile(
-      path.join(this.getGroupsDir(), 'groups.json'),
-      JSON.stringify(groups.slice(0, 50), null, 2),
-      'utf-8'
-    );
+    await this.migrateLegacyGroupIndex();
+    return this.readGroupFile(sanitizeSlug(id));
   }
 
   async createGroup(input: {
@@ -885,46 +930,41 @@ export class UnifiedStorageRepository {
     memberSlugs: string[];
     topic?: string;
   }): Promise<GroupChat> {
-    return this.withLock('groups:index', async () => {
-      const groups = await this.listGroups();
-      const nowIso = new Date().toISOString();
-      const group: GroupChat = {
-        id: `group-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-        name: input.name.trim().slice(0, 30) || '新群聊',
-        topic: input.topic?.trim().slice(0, 120) || undefined,
-        memberSlugs: Array.from(new Set(input.memberSlugs.map((s) => sanitizeSlug(s)))).slice(0, 8),
-        pendingKickoff: true,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      };
-      await this.writeGroupIndex([group, ...groups]);
-      return group;
-    });
+    await this.migrateLegacyGroupIndex();
+    const nowIso = new Date().toISOString();
+    const group: GroupChat = {
+      id: `group-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      name: input.name.trim().slice(0, 30) || '新群聊',
+      topic: input.topic?.trim().slice(0, 120) || undefined,
+      memberSlugs: Array.from(new Set(input.memberSlugs.map((s) => sanitizeSlug(s)))).slice(0, 8),
+      pendingKickoff: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    await this.writeGroupFile(group);
+    return group;
   }
 
   async updateGroup(
     id: string,
-    patch: Partial<Pick<GroupChat, 'name' | 'topic' | 'memberSlugs' | 'pendingKickoff' | 'lastMessage'>>
+    patch: Partial<Pick<GroupChat, 'name' | 'topic' | 'memberSlugs' | 'pendingKickoff' | 'lastMessage' | 'ambientLog'>>
   ): Promise<GroupChat | null> {
     const safeId = sanitizeSlug(id);
-    return this.withLock('groups:index', async () => {
-      const groups = await this.listGroups();
-      const idx = groups.findIndex((g) => g.id === safeId);
-      if (idx === -1) return null;
-      const next: GroupChat = { ...groups[idx], ...patch, updatedAt: new Date().toISOString() };
-      groups[idx] = next;
-      await this.writeGroupIndex(groups);
+    await this.migrateLegacyGroupIndex();
+    return this.withLock(`group:${safeId}`, async () => {
+      const current = await this.readGroupFile(safeId);
+      if (!current) return null;
+      const next: GroupChat = { ...current, ...patch, updatedAt: new Date().toISOString() };
+      await this.writeGroupFile(next);
       return next;
     });
   }
 
   async deleteGroup(id: string): Promise<boolean> {
     const safeId = sanitizeSlug(id);
-    return this.withLock('groups:index', async () => {
-      const groups = await this.listGroups();
-      const rest = groups.filter((g) => g.id !== safeId);
-      if (rest.length === groups.length) return false;
-      await this.writeGroupIndex(rest);
+    await this.migrateLegacyGroupIndex();
+    return this.withLock(`group:${safeId}`, async () => {
+      if (!(await this.readGroupFile(safeId))) return false;
       await fs.rm(this.getGroupDir(safeId), { recursive: true, force: true });
       return true;
     });
@@ -942,7 +982,7 @@ export class UnifiedStorageRepository {
   async saveGroupConversation(id: string, messages: ConversationMessage[]): Promise<void> {
     const dir = this.getGroupDir(id);
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(
+    await writeFileAtomic(
       path.join(dir, 'conversations.json'),
       JSON.stringify(messages.slice(-300), null, 2),
       'utf-8'

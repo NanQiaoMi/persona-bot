@@ -52,6 +52,7 @@ describe('群聊一轮编排（离线兜底）', () => {
 
     const produced = await executeGroupTurn({
       groupId: group.id,
+      now: new Date(2026, 10, 25, 20, 0),
       userText: `${b.name} 你觉得呢？`,
     });
 
@@ -116,6 +117,7 @@ describe('群聊连发合并', () => {
     const group = await storageRepo.createGroup({ name: '连发群', memberSlugs: [a.slug, b.slug] });
     const produced = await executeGroupTurn({
       groupId: group.id,
+      now: new Date(2026, 10, 25, 20, 0),
       userTurns: [{ content: '我跟你们说' }, { content: '今天发生了件离谱的事' }],
     });
     expect(produced.slice(0, 2).map((m) => [m.role, m.content])).toEqual([

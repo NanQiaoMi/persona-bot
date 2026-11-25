@@ -88,6 +88,8 @@ export interface PickSpeakersInput<T extends GroupMemberLite> {
   history: ConversationMessage[];
   maxSpeakers?: number;
   random?: RandomFn;
+  /** 每个成员此刻的状态；睡着的人不主动回，忙的人少回 */
+  availabilityOf?: (slug: string) => 'free' | 'busy' | 'asleep';
 }
 
 /**
@@ -102,26 +104,35 @@ export function pickSpeakers<T extends GroupMemberLite>({
   history,
   maxSpeakers = GROUP_MAX_SPEAKERS,
   random = Math.random,
+  availabilityOf,
 }: PickSpeakersInput<T>): T[] {
   if (members.length === 0) return [];
-  const cap = Math.max(1, Math.min(maxSpeakers, members.length));
 
+  // 被点名的人即使在睡觉也会（迷迷糊糊地）回；没被点名的睡着的人不出声
   const mentioned = findMentionedMembers(text, members);
-  const ranked = [...members]
+  const awake = availabilityOf
+    ? members.filter((m) => availabilityOf(m.slug) !== 'asleep')
+    : members;
+  // 大家都睡了也至少有一个人被吵醒回一句，不然群像坏了一样
+  const pool = awake.length > 0 ? awake : [members[Math.floor(random() * members.length) % members.length]];
+  const cap = Math.max(1, Math.min(maxSpeakers, pool.length + mentioned.length));
+
+  const ranked = [...pool]
     .map((m) => ({
       member: m,
       score:
-        topicRelevance(text, m) * 2 +
-        Math.min(turnsSinceSpoke(history, m.slug), 8) * 0.35 +
-        random() * 0.9,
+        (topicRelevance(text, m) * 2 +
+          Math.min(turnsSinceSpoke(history, m.slug), 8) * 0.35 +
+          random() * 0.9) *
+        (availabilityOf?.(m.slug) === 'busy' ? 0.5 : 1),
     }))
     .sort((a, b) => b.score - a.score)
     .map((r) => r.member);
 
   if (mentioned.length > 0) {
-    const result = mentioned.slice(0, cap);
-    // 点名一个人时，偶尔有旁人忍不住插一句
-    if (result.length === 1 && cap > 1 && random() < 0.3) {
+    const result = mentioned.slice(0, Math.max(1, Math.min(maxSpeakers, mentioned.length)));
+    // 点名一个人时，偶尔有醒着的旁人忍不住插一句
+    if (result.length === 1 && maxSpeakers > 1 && random() < 0.3) {
       const extra = ranked.find((m) => m.slug !== result[0].slug);
       if (extra) result.push(extra);
     }
@@ -134,7 +145,7 @@ export function pickSpeakers<T extends GroupMemberLite>({
 
   const result = [ranked[0]];
   const isLongOrQuestion = text.trim().length > 14 || /[?？吗呢么]$/.test(text.trim());
-  if (cap >= 2 && random() < (isLongOrQuestion ? 0.6 : 0.35)) {
+  if (cap >= 2 && ranked[1] && random() < (isLongOrQuestion ? 0.6 : 0.35)) {
     result.push(ranked[1]);
   }
   return result;
