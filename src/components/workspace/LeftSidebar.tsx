@@ -295,10 +295,22 @@ export default function LeftSidebar({
                         </div>
                         {group.lastMessage && (
                           <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                            {!isActive && (group.unreadCount || 0) > 0 && (
+                              <span className="text-[var(--text-muted)]">[{group.unreadCount}条] </span>
+                            )}
                             {group.lastMessage}
                           </p>
                         )}
                       </div>
+                      {/* 未读：像微信一样的红色数字角标 */}
+                      {!isActive && (group.unreadCount || 0) > 0 && (
+                        <span
+                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FA5151] text-white text-[10.5px] font-semibold leading-[18px] text-center group-hover:opacity-0 transition-opacity"
+                          aria-label={`${group.unreadCount} 条未读`}
+                        >
+                          {(group.unreadCount || 0) > 99 ? "99+" : group.unreadCount}
+                        </span>
+                      )}
                     </button>
                     {onDeleteGroup && (
                       <button

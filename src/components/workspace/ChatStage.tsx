@@ -14,6 +14,12 @@ import {
 import { MascotShapeId } from "./mascot-palette";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrokComposer from "./GrokComposer";
+import {
+  GroupMessageRow,
+  GroupSystemTip,
+  GroupTypingRow,
+  NewMessagesDivider,
+} from "./GroupMessageRow";
 import PageArtifactCard from "./PageArtifactCard";
 import SaveSceneAssetButton from "./SaveSceneAssetButton";
 import ThoughtSearchTrace from "./ThoughtSearchTrace";
@@ -71,6 +77,10 @@ interface ChatStageProps {
   activeGroup?: GroupChat | null;
   onOpenGroup?: (groupId: string) => void;
   onExitGroup?: () => void;
+  /** 群聊：谁正在输入（自发闲聊播放时由外部设置） */
+  groupTyping?: { slug: string; name: string } | null;
+  /** 群聊：从这条消息开始是你还没看过的（显示「以下为新消息」） */
+  newMessagesFromId?: string | null;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -175,6 +185,8 @@ export default function ChatStage({
   activeGroup,
   onOpenGroup,
   onExitGroup,
+  groupTyping,
+  newMessagesFromId,
   thinkMode,
   onToggleThink,
   deepSearch,
@@ -368,6 +380,19 @@ export default function ChatStage({
   }
 
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
+  // 群聊：成员名（用于 @ 高亮）、头像图片、按名字找人（「X 正在输入」）
+  const groupMembers = activeGroup
+    ? (personas || []).filter((p) => activeGroup.memberSlugs.includes(p.slug))
+    : [];
+  const groupMemberNames = groupMembers.flatMap((p) => [p.name, p.name.split(/\s+/)[0]]);
+  const groupAvatarImageOf = (slug: string) =>
+    groupMembers.find((p) => p.slug === slug)?.profile.avatarImage;
+  const groupTypingMember = (() => {
+    if (!activeGroup) return null;
+    if (groupTyping) return groupMembers.find((p) => p.slug === groupTyping.slug) || null;
+    const name = streaming?.statusText?.match(/^(.+?)\s*正在输入/)?.[1]?.trim();
+    return name ? groupMembers.find((p) => p.name === name) || null : null;
+  })();
   const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
@@ -689,6 +714,50 @@ export default function ChatStage({
                     </span>
                   </div>
                 ) : null;
+
+                const newDividerNode =
+                  activeGroup && newMessagesFromId && msg.id === newMessagesFromId ? (
+                    <NewMessagesDivider />
+                  ) : null;
+
+                // 群聊：拍一拍等系统提示居中显示
+                if (activeGroup && msg.systemTip) {
+                  return (
+                    <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
+                      {timeDividerNode}
+                      {newDividerNode}
+                      <GroupSystemTip text={msg.content} />
+                    </Fragment>
+                  );
+                }
+
+                // 群聊：微信群样式（左侧头像、名字、引用、@ 高亮）
+                if (activeGroup && !isUser && msg.fromBot) {
+                  const groupContinuation = Boolean(
+                    !showTimeDivider &&
+                      !newDividerNode &&
+                      prevMsg &&
+                      prevMsg.role === "assistant" &&
+                      !prevMsg.systemTip &&
+                      prevMsg.fromBot?.slug === msg.fromBot.slug
+                  );
+                  return (
+                    <Fragment key={msg.id || `${msg.timestamp}-${idx}`}>
+                      {timeDividerNode}
+                      {newDividerNode}
+                      <div className={`animate-msg-ai w-full ${groupContinuation ? "-mt-3" : ""}`}>
+                        <GroupMessageRow
+                          msg={msg}
+                          showHeader={!groupContinuation}
+                          memberNames={groupMemberNames}
+                          avatarImageOf={groupAvatarImageOf}
+                          onSelectPersona={onSelectPersona}
+                          renderBody={(text) => <GrokMessageBody content={text} />}
+                        />
+                      </div>
+                    </Fragment>
+                  );
+                }
 
                 if (isUser) {
                   return (
@@ -1144,8 +1213,20 @@ export default function ChatStage({
                 );
               })}
 
+              {/* 群聊：显示具体是谁正在输入（带头像） */}
+              {activeGroup && groupTypingMember && (
+                <div className="animate-msg-ai w-full">
+                  <GroupTypingRow
+                    name={groupTypingMember.name}
+                    shape={getMascotConfigForPersona(groupTypingMember.slug, groupTypingMember.profile).shape}
+                    color={getMascotConfigForPersona(groupTypingMember.slug, groupTypingMember.profile).color}
+                    image={groupTypingMember.profile.avatarImage}
+                  />
+                </div>
+              )}
+
               {/* Live Streaming Turn with Animated Thinking Mascot */}
-              {streaming && (
+              {streaming && !(activeGroup && groupTypingMember) && (
                 <div
                   className={`flex flex-col items-start animate-msg-ai ${
                     messages[messages.length - 1]?.role === "assistant"
