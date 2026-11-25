@@ -962,6 +962,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const decoder = new TextDecoder();
       let buffer = "";
       let finalMessage: ConversationMessage | null = null;
+      // 本轮所有消息（群聊里照片 / 表情包可能挂在任意一位成员的消息上）
+      let turnMessages: ConversationMessage[] = [];
       let pendingFollowup: PendingFollowup | undefined;
       const committedIds = new Set<string>();
 
@@ -1077,6 +1079,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               );
             } else if (payload.type === "done" && payload.message) {
               finalMessage = payload.message as ConversationMessage;
+              turnMessages = Array.isArray(payload.messages)
+                ? (payload.messages as ConversationMessage[])
+                : [finalMessage];
               if (payload.followup) {
                 pendingFollowup = payload.followup as PendingFollowup;
               }
@@ -1109,14 +1114,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         ];
 
         // Trigger non-blocking background image/sticker generation for any pending cards
-        const pendingCards = finalMessage.mediaCards || [];
-        pendingCards.forEach((card, cardIndex) => {
+        const cardSources = turnMessages.length > 0 ? turnMessages : [finalMessage];
+        cardSources.forEach((sourceMsg) => (sourceMsg.mediaCards || []).forEach((card, cardIndex) => {
           if (
             (card.type === "sticker" || card.type === "photo") &&
             card.status === "generating"
           ) {
-            const targetMessageId = finalMessage!.id;
-            const targetSlug = activeSlug;
+            const targetMessageId = sourceMsg.id;
+            // 群聊：用发图那位成员的形象生成，结果写回群聊记录
+            const targetSlug = requestGroupId ? sourceMsg.fromBot?.slug || activeSlug : activeSlug;
             void fetch("/api/media/generate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1126,6 +1132,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                 cardIndex,
                 kind: card.type,
                 caption: card.caption,
+                groupId: requestGroupId || undefined,
               }),
             })
               .then((r) => r.json())
@@ -1174,7 +1181,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                 );
               });
           }
-        });
+        }));
         // Schedule autonomous delayed follow-up if the model chose [FOLLOWUP: delaySec | content]
         if (pendingFollowup && pendingFollowup.content) {
           const scheduledSlug = activeSlug;

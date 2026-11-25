@@ -28,6 +28,7 @@ import { storageRepo } from '@/lib/storage/repository';
 import {
   ConversationMessage,
   GroupChat,
+  MediaCard,
   PersonaMode,
   PersonaRecord,
 } from '@/lib/storage/types';
@@ -225,6 +226,8 @@ export async function executeGroupTurn(
     : pickSpeakers({ text: triggerText, members, history, availabilityOf });
 
   const spokenThisRound: string[] = [];
+  // 一轮最多一张照片 / 表情包，避免每个人都刷图
+  let visualUsed = false;
   const queue: Array<{
     persona: PersonaRecord;
     replyTo?: { name: string; text: string; id?: string };
@@ -240,6 +243,7 @@ export async function executeGroupTurn(
     const { persona } = item;
     const meta = metaBySlug.get(persona.slug) || botMeta(persona);
     onEvent?.({ type: 'status', text: `${persona.name} 正在输入...` });
+    let memberMedia: MediaCard[] = [];
 
     const bursts = await generateMemberReply({
       group,
@@ -253,7 +257,12 @@ export async function executeGroupTurn(
       triggerText: item.replyTo?.text || triggerText,
       triggerSpeakerName: item.replyTo?.name || triggerSpeakerName,
       thisRoundIds: newMessages.map((m) => m.id),
+      onMedia: (cards) => {
+        memberMedia = cards;
+      },
     });
+    const roundCards = !visualUsed && canCallUpstream && memberMedia.length > 0 ? memberMedia.slice(0, 1) : [];
+    if (roundCards.length > 0) visualUsed = true;
 
     // 接的不是紧挨着的上一条时，像微信一样引用那条
     const lastInHistory = history[history.length - 1];
@@ -275,6 +284,8 @@ export async function executeGroupTurn(
         mode: persona.defaultMode,
         bursts: [text],
         quote: i === 0 ? quote : undefined,
+        // 照片 / 表情包挂在这位成员的最后一条气泡上
+        mediaCards: i === bursts.length - 1 && roundCards.length > 0 ? roundCards : undefined,
         isDemoMode: canCallUpstream ? undefined : true,
       };
       lastMsgId = msg.id;
@@ -372,6 +383,8 @@ export async function generateMemberReply(params: {
   extraDirective?: string;
   /** 离线时直接使用的话术（自发闲聊起头用） */
   offlineOverride?: () => string[];
+  /** 拿到这位成员这次想发的照片 / 表情包卡片 */
+  onMedia?: (cards: MediaCard[]) => void;
 }): Promise<string[]> {
   const { group, persona, members, history, canCallUpstream, req } = params;
   const peers = collectGroupPeerBubbles(history, persona.slug, params.thisRoundIds);
@@ -410,9 +423,16 @@ export async function generateMemberReply(params: {
     const transcript = buildGroupTranscriptForSpeaker(history, persona.slug, {
       userName: USER_LABEL,
     });
+    // 群主这一轮发了图：把最近那张作为真实图片附给模型，让成员真的看见并接话
+    const roundIds = new Set(params.thisRoundIds);
+    const roundImage = [...history].reverse().find((m) => m.role === 'user' && m.imageUrl && roundIds.has(m.id))?.imageUrl;
     const result = await executeGrokChatTurn({
       slug: persona.slug,
-      messages: transcript.map((t) => ({ ...t, timestamp: new Date().toISOString() })),
+      messages: transcript.map((t, i) => ({
+        ...t,
+        timestamp: new Date().toISOString(),
+        imageUrl: roundImage && i === transcript.length - 1 && t.role === 'user' ? roundImage : undefined,
+      })),
       mode: persona.defaultMode,
       thinkMode: false,
       deepSearch: false,
@@ -421,7 +441,12 @@ export async function generateMemberReply(params: {
       modelId: req.modelId,
       skipPersistence: true,
       presenceAt: params.presenceAt,
-      extraSystemPrompt: [directive, buildGroupAntiEchoDirective({ peers }), params.extraDirective || '']
+      extraSystemPrompt: [
+        directive,
+        buildGroupAntiEchoDirective({ peers }),
+        roundImage ? '- 群主刚在群里发了一张图片（已附上）：先就图里的具体内容说点什么，别假装没看到。' : '',
+        params.extraDirective || '',
+      ]
         .filter(Boolean)
         .join('\n\n'),
     });
@@ -430,6 +455,8 @@ export async function generateMemberReply(params: {
       return offline();
     }
     const bursts = normalizeGroupBursts(result.bursts, result.content, persona.name);
+    const visual = (result.mediaCards || []).filter((c) => c.type === 'photo' || c.type === 'sticker');
+    if (visual.length > 0) params.onMedia?.(visual);
     return bursts.length > 0 ? dedupeFirst(bursts) : offline();
   } catch (err) {
     console.warn(`[group] ${persona.slug} 生成失败，改用离线群聊话术：`, err);
