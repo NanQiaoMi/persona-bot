@@ -349,7 +349,12 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(partEvents[partEvents.length - 1].hasMore).toBe(false);
     expect(partEvents[partEvents.length - 1].message.id).toBe(finalMsg.id);
     expect(doneEvent?.messages).toHaveLength(partEvents.length);
-    expect(appendSpy).toHaveBeenCalledTimes(1);
+    // 先存你的消息，再每发出一段存一段（中途切走也不会丢）
+    expect(appendSpy).toHaveBeenCalledTimes(1 + partEvents.length);
+    expect(appendSpy.mock.calls[0][1][0].role).toBe('user');
+    expect(appendSpy.mock.calls.slice(1).map((c) => c[1][0].id)).toEqual(
+      partEvents.map((e) => e.message.id)
+    );
 
     appendSpy.mockRestore();
     emotionSpy.mockRestore();

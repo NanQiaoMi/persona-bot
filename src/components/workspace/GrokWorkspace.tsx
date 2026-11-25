@@ -79,6 +79,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
   const activeSlugRef = useRef(activeSlug);
+  const streamingRef = useRef(false);
   // 连发合并：发出一条后先等一小会儿，期间再发的消息合并成同一轮让对方一起回
   const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burstStartedAtRef = useRef<number>(0);
@@ -372,19 +373,71 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   }, [checkMomentsUpdate]);
 
+  // 切回来时如果这里还有回复在生成（你中途切走过），显示「正在输入」并持续刷新，直到写完
+  const [backgroundTyping, setBackgroundTyping] = useState<string | null>(null);
+  const inflightWatchRef = useRef(0);
+  const watchInflight = useCallback(
+    async (target: { slug?: string; groupId?: string }, label: string) => {
+      const watchId = ++inflightWatchRef.current;
+      const stillHere = () =>
+        inflightWatchRef.current === watchId &&
+        (target.groupId
+          ? activeGroupIdRef.current === target.groupId
+          : !activeGroupIdRef.current && activeSlugRef.current === target.slug);
+      const query = target.groupId
+        ? `groupId=${encodeURIComponent(target.groupId)}`
+        : `slug=${encodeURIComponent(target.slug || "")}`;
+      const reload = async () => {
+        const res = await fetch(
+          target.groupId
+            ? `/api/groups/${encodeURIComponent(target.groupId)}`
+            : `/api/conversations?slug=${encodeURIComponent(target.slug || "")}&limit=100`
+        );
+        const data = await res.json();
+        if (stillHere() && data?.success && Array.isArray(data.messages)) {
+          setMessages(data.messages);
+        }
+      };
+      try {
+        for (let i = 0; i < 90 && stillHere(); i += 1) {
+          // 你自己正在发消息、页面在实时接收时，交给实时推送显示
+          if (streamingRef.current) break;
+          const res = await fetch(`/api/chat/inflight?${query}`);
+          const data = await res.json();
+          if (!stillHere()) return;
+          if (!data?.inflight) {
+            if (i > 0) await reload();
+            break;
+          }
+          setBackgroundTyping(data.label || label);
+          await reload();
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      } catch {
+        // 查询失败不影响正常使用
+      } finally {
+        if (inflightWatchRef.current === watchId) setBackgroundTyping(null);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     let active = true;
     const init = async () => {
       await Promise.all([loadPersonaList(), loadGroups()]);
       if (active) {
         await loadActivePersonaDetail(activeSlug);
+        if (active && !activeGroupIdRef.current) {
+          void watchInflight({ slug: activeSlug }, "对方");
+        }
       }
     };
     init();
     return () => {
       active = false;
     };
-  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail]);
+  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail, watchInflight]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -502,7 +555,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const ambientInFlightRef = useRef(false);
   const [groupTyping, setGroupTyping] = useState<{ slug: string; name: string } | null>(null);
   const [newMessagesFromId, setNewMessagesFromId] = useState<string | null>(null);
-  const streamingRef = useRef(false);
   const pendingBurstRef = useRef(false);
   const ambientPlaybackRef = useRef<{
     groupId: string;
@@ -720,7 +772,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         ) {
           kickoffDoneRef.current.add(activeGroupId);
           await runStreamRequestRef.current?.([], activeMode, { kickoff: true });
-        } else if (groupMessages.length > 0) {
+        } else {
+          void watchInflight({ groupId: activeGroupId }, "群里有人");
+        }
+        if (!data.group?.pendingKickoff && groupMessages.length > 0) {
           // 隔了一段时间再打开：补上你不在时大家聊的（服务端判断空档是否够长）
           void requestAmbient(activeGroupId, "catchup");
         }
@@ -1447,6 +1502,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onOpenGroup={handleSelectGroup}
         onExitGroup={() => handleSelectPersona("master-bot")}
         groupTyping={groupTyping}
+        backgroundTypingName={
+          backgroundTyping === "对方" ? activePersona?.name || "对方" : backgroundTyping
+        }
         newMessagesFromId={newMessagesFromId}
         thinkMode={thinkMode}
         onToggleThink={() => setThinkMode((v) => !v)}

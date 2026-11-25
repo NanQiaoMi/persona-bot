@@ -173,6 +173,7 @@ export async function executeGroupTurn(
       bursts: [opening],
     };
     newMessages.push(masterMsg);
+    await storageRepo.appendGroupMessages(group.id, [masterMsg]);
     history.push(masterMsg);
     onEvent?.({ type: 'message_part', message: masterMsg, index: 0, total: 1, hasMore: true });
     triggerText = opening;
@@ -195,6 +196,8 @@ export async function executeGroupTurn(
         mode: req.mode,
       };
       newMessages.push(userMsg);
+      // 每条一产生就存：你中途切走也不会丢
+      await storageRepo.appendGroupMessages(group.id, [userMsg]);
       history.push(userMsg);
     }
     // 连发的几条一起作为本轮话题，决定谁来接
@@ -276,6 +279,8 @@ export async function executeGroupTurn(
       };
       lastMsgId = msg.id;
       newMessages.push(msg);
+      // 每条一产生就存：你中途切走也不会丢
+      await storageRepo.appendGroupMessages(group.id, [msg]);
       history.push(msg);
       onEvent?.({
         type: 'message_part',
@@ -326,6 +331,7 @@ export async function executeGroupTurn(
       bursts: [text],
     };
     newMessages.push(msg);
+    await storageRepo.appendGroupMessages(group.id, [msg]);
     history.push(msg);
     onEvent?.({ type: 'message_part', message: msg, index: newMessages.length - 1, total: newMessages.length, hasMore: true });
   }
@@ -336,9 +342,9 @@ export async function executeGroupTurn(
   return newMessages;
 }
 
+/** 消息已逐条存过，这里只更新群的最后一条与开场状态 */
 async function persist(group: GroupChat, newMessages: ConversationMessage[]): Promise<void> {
   if (newMessages.length === 0) return;
-  await storageRepo.appendGroupMessages(group.id, newMessages);
   const last = newMessages[newMessages.length - 1];
   const prefix = last.fromBot?.name ? `${last.fromBot.name}：` : '';
   await storageRepo.updateGroup(group.id, {

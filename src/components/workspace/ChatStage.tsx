@@ -81,6 +81,8 @@ interface ChatStageProps {
   groupTyping?: { slug: string; name: string } | null;
   /** 群聊：从这条消息开始是你还没看过的（显示「以下为新消息」） */
   newMessagesFromId?: string | null;
+  /** 你切走期间还在生成的回复：切回来后显示「XX 正在输入…」直到写完 */
+  backgroundTypingName?: string | null;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -187,6 +189,7 @@ export default function ChatStage({
   onExitGroup,
   groupTyping,
   newMessagesFromId,
+  backgroundTypingName,
   thinkMode,
   onToggleThink,
   deepSearch,
@@ -1222,6 +1225,22 @@ export default function ChatStage({
                     color={getMascotConfigForPersona(groupTypingMember.slug, groupTypingMember.profile).color}
                     image={groupTypingMember.profile.avatarImage}
                   />
+                </div>
+              )}
+
+              {/* 切走期间还在生成的回复：切回来后继续显示正在输入 */}
+              {!streaming && !(activeGroup && groupTypingMember) && backgroundTypingName && (
+                <div className="flex items-start animate-msg-ai">
+                  <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
+                    <div className="flex items-center gap-1" aria-hidden="true">
+                      <span className="typing-dot" />
+                      <span className="typing-dot typing-dot-2" />
+                      <span className="typing-dot typing-dot-3" />
+                    </div>
+                    <span className="text-[12.5px] font-medium animate-text-shimmer">
+                      {backgroundTypingName} 正在输入...
+                    </span>
+                  </div>
                 </div>
               )}
 
