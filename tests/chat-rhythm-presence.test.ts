@@ -137,7 +137,7 @@ describe('连发合并', () => {
   });
 
   it('一轮里连发的三条都写进聊天记录，重试时不会重复写', async () => {
-    const slug = 'lin-wan';
+    const slug = 'xia-you';
     await storageRepo.saveConversation(slug, []);
     const ts = (n: number) => new Date(Date.UTC(2026, 10, 25, 12, 0, n)).toISOString();
     const messages = [

@@ -156,7 +156,7 @@ describe('主动消息接入作息与待关心的事（路由）', () => {
   it('把到点的事告诉模型，主动问过之后标记为已问', async () => {
     const { storageRepo } = await import('@/lib/storage/repository');
     const { POST } = await import('@/app/api/chat/proactive/route');
-    const slug = 'zero-arch';
+    const slug = 'shen-zhi';
     await storageRepo.listPersonas(); // 确保内置角色目录已初始化
     const before = await storageRepo.getSettings();
     await storageRepo.saveSettings({ llmApiKey: 'sk-test-proactive', llmBaseUrl: 'http://127.0.0.1:9/v1' });

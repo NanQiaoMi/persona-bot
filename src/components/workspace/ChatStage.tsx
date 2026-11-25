@@ -571,9 +571,9 @@ export default function ChatStage({
                         icon: "📋",
                         badgeBg:
                           "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
-                        title: "让 艾拉 和 Zero 联合分析",
+                        title: "让 鹿汐 和 陈野 联合分析",
                         sub: "跨 Bot 观点碰撞 + 汇总执行明细",
-                        text: "让 艾拉 和 Zero 帮我分析一下现在做个人 AI 助手最容易踩的 3 个坑，并给出可执行建议",
+                        text: "让 鹿汐 和 陈野 帮我分析一下现在做个人 AI 助手最容易踩的 3 个坑，并给出可执行建议",
                         enableSearch: false,
                       },
                       {

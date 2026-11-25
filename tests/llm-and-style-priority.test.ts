@@ -89,7 +89,7 @@ describe('B7 persona style takes priority over the global young-adult defaults',
   });
 
   it('assembler uses the persona-first style section when anchored', () => {
-    const persona = BUILTIN_PRESETS.find((p) => p.slug === 'grok-ella')!;
+    const persona = BUILTIN_PRESETS.find((p) => p.slug === 'lu-xi')!;
     const assembler = new PromptAssembler();
     const anchored = assembler.assembleFromRecord(persona, {
       blendedStyle: blendStyle(emojiLover, [], 'authentic'),

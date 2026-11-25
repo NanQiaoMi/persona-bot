@@ -128,14 +128,14 @@ describe('滚动摘要', () => {
 
 describe('长记忆维护（存储联动）', () => {
   it('提取待关心的事、到点后出现在提示词里、问过之后不再出现', async () => {
-    const slug = 'lin-wan';
+    const slug = 'xia-you';
     await storageRepo.saveConversation(slug, []);
     await storageRepo.updateMemoryState(slug, () => ({}));
 
     const wed = new Date(2026, 10, 25, 15, 0);
     await refreshConversationMemory({
       slug,
-      personaName: '林晚',
+      personaName: '夏柚',
       userText: '明天要面试了好紧张',
       reply: '你肯定行',
       now: wed,
@@ -150,7 +150,7 @@ describe('长记忆维护（存储联动）', () => {
 
     await refreshConversationMemory({
       slug,
-      personaName: '林晚',
+      personaName: '夏柚',
       userText: '在吗',
       reply: '面试咋样了，顺利吗',
       now: thuNight,
@@ -160,7 +160,7 @@ describe('长记忆维护（存储联动）', () => {
   });
 
   it('清空聊天记录时一并清空摘要和待关心的事', async () => {
-    const slug = 'lin-wan';
+    const slug = 'xia-you';
     await storageRepo.updateMemoryState(slug, () => ({
       summary: { text: '- 旧摘要', updatedAt: '', source: 'extractive' },
       pendingTopics: [],

@@ -568,11 +568,11 @@ export function synthesizePersonaAwareFallback(
       bursts.push('如果你愿意把前提条件补全两句，我们可以直接推演出最省力的破局方案。');
     } else {
       thought =
-        persona.slug === 'lin-wan'
-          ? `他怎么又发「${userMessage.slice(0, 16)}」过来……明明挺在意他的下文，但回太热情好像又显得我一直在等手机似的。\n算了，照旧先嘴硬撇清一句，再悄悄留个话口给他吧。`
+        persona.slug === 'xia-you'
+          ? `他怎么又发「${userMessage.slice(0, 16)}」过来……明明挺在意他的下文，但回太热情好像又显得我一直在等他上线似的。\n算了，照旧先嘴硬撇清一句，再悄悄留个话口给他吧。`
           : `看到他发来「${userMessage.slice(0, 18)}」，手里的事刚好也忙得差不多了。\n顺口接上话茬聊聊，看看他后面还憋着什么乐子。`;
-      mood = persona.slug === 'lin-wan' ? '嘴硬心软' : '自然在线';
-      if (persona.slug === 'lin-wan') {
+      mood = persona.slug === 'xia-you' ? '嘴硬心软' : '自然在线';
+      if (persona.slug === 'xia-you') {
         bursts.push(
           isEmotional
             ? '大晚上的说这些干嘛……不过你要是真觉得累了，歇一会儿也没人会笑话你。'
@@ -857,7 +857,7 @@ export async function executeGrokChatTurn(
 ): Promise<ConversationMessage> {
   const channelPersona =
     (await storageRepo.getPersona(req.slug)) ||
-    (await storageRepo.getPersona('grok-ella'))!;
+    (await storageRepo.getPersona('lu-xi'))!;
   const mentionedResponder =
     req.mentionedSlug && req.mentionedSlug !== channelPersona.slug
       ? await storageRepo.getPersona(req.mentionedSlug)
