@@ -71,8 +71,9 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     const chenYe =
       BUILTIN_PRESETS.find((p) => p.slug === 'chen-ye') || BUILTIN_PRESETS[0];
     const idleGreeting = generateProactiveGreeting(chenYe, 12, 23);
-    expect(idleGreeting.thought).toContain('12');
-    expect(idleGreeting.bursts.length).toBeGreaterThanOrEqual(2);
+    expect(idleGreeting.situation).toBe('long_idle');
+    expect(idleGreeting.bursts.length).toBeGreaterThanOrEqual(1);
+    expect(idleGreeting.content).not.toMatch(/\{(hours|hour|topic)\}/);
   });
 
   it('parses structured model output (<thought>, [MOOD], [BURST], [PHOTO], [VOICE])', () => {

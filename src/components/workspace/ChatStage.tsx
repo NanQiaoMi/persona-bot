@@ -7,6 +7,7 @@ import {
   MediaCard,
   PersonaMode,
   PersonaRecord,
+  GroupChat,
   PersonaSummary,
   SearchResultItem,
 } from "@/lib/storage/types";
@@ -66,6 +67,10 @@ interface ChatStageProps {
   onSetReferencePhoto?: (imageUrl: string) => Promise<void>;
   isRefiningReference?: boolean;
   onRefineReferencePortrait?: (sourceImageUrl: string) => Promise<void>;
+  /** 当前打开的群聊（挂在主 bot 下）；为空表示普通单聊 */
+  activeGroup?: GroupChat | null;
+  onOpenGroup?: (groupId: string) => void;
+  onExitGroup?: () => void;
 }
 
 function renderInlineMarkdown(text: string) {
@@ -167,6 +172,9 @@ export default function ChatStage({
   onStopStreaming,
   onQuickCorrect,
   onSelectPersona,
+  activeGroup,
+  onOpenGroup,
+  onExitGroup,
   thinkMode,
   onToggleThink,
   deepSearch,
@@ -429,7 +437,32 @@ export default function ChatStage({
           )}
         </div>
 
-        {/* Center Floating Pill with Living BlobMascot */}
+        {/* Center Floating Pill with Living BlobMascot（群聊时显示群名与成员） */}
+        {activeGroup ? (
+          <div className="pointer-events-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill">
+            <button
+              type="button"
+              onClick={onExitGroup}
+              className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] px-1"
+              title="返回主 bot"
+              aria-label="返回主 bot"
+            >
+              ‹
+            </button>
+            <span className="text-[13.5px] font-semibold text-[var(--text-primary)] max-w-[180px] truncate">
+              {activeGroup.name}
+            </span>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {streaming ? (
+                <span className="animate-text-shimmer font-medium">
+                  {streaming.statusText || "群里有人在输入..."}
+                </span>
+              ) : (
+                `${activeGroup.memberSlugs.length + 1} 人`
+              )}
+            </span>
+          </div>
+        ) : (
         <button
           type="button"
           onClick={onToggleInspector}
@@ -459,6 +492,7 @@ export default function ChatStage({
             )}
           </span>
         </button>
+        )}
 
         {/* Right Floating Share Pill */}
         <div className="pointer-events-auto flex items-center justify-end gap-2 min-w-[84px]">
@@ -786,8 +820,27 @@ export default function ChatStage({
                       </div>
                     )}
 
+                    {/* 群聊：像微信群一样，只在气泡上方显示小头像 + 名字 */}
+                    {activeGroup && msg.fromBot && !isContinuation && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectPersona?.(msg.fromBot!.slug)}
+                        className="mb-1 inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                        title={`和 ${msg.fromBot.name} 单聊`}
+                      >
+                        <BlobMascot
+                          shape={(msg.fromBot.shape as MascotShapeId) || "circle"}
+                          color={msg.fromBot.color || "#1683FF"}
+                          size={18}
+                          trackPointer={false}
+                          animated={false}
+                        />
+                        <span className="font-medium">{msg.fromBot.name}</span>
+                      </button>
+                    )}
+
                     {/* Incoming Relay Header ("消息来自 [mini mascot] {name}") */}
-                    {msg.fromBot && !isContinuation && (
+                    {!activeGroup && msg.fromBot && !isContinuation && (
                       <div className="w-full mb-2.5 flex flex-col items-center gap-2">
                         <div className="w-full flex items-center gap-3 text-[11px] text-[#2563EB]">
                           <div className="h-px flex-1 bg-[var(--border-subtle)]" />
@@ -910,6 +963,24 @@ export default function ChatStage({
 
                     {/* Elevated White Interactive "Page" Artifact Card */}
                     {msg.pageCard && <PageArtifactCard card={msg.pageCard} />}
+
+                    {msg.groupInvite && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenGroup?.(msg.groupInvite!.groupId)}
+                        className="mt-1 w-full max-w-[320px] text-left rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-composer)] px-4 py-3 hover:border-[var(--border-strong)] hover:-translate-y-0.5 transition-all"
+                      >
+                        <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                          群聊 · {msg.groupInvite.name}
+                        </div>
+                        <div className="mt-0.5 text-[11.5px] text-[var(--text-muted)] truncate">
+                          {msg.groupInvite.memberNames.join("、")}
+                        </div>
+                        <div className="mt-2 text-[12px] font-medium text-[var(--accent,#1683FF)]">
+                          进入群聊 ›
+                        </div>
+                      </button>
+                    )}
 
                     {/* Multimodal Sticker / Photo / Voice Cards */}
                     {msg.mediaCards && msg.mediaCards.length > 0 && (
@@ -1251,7 +1322,7 @@ export default function ChatStage({
 
       {/* Floating Bottom Capsule Composer */}
       <GrokComposer
-        personaName={persona.name}
+        personaName={activeGroup ? `群「${activeGroup.name}」` : persona.name}
         accentColor={mascotCfg.color}
         personas={personas}
         value={input}

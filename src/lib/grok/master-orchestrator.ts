@@ -4,6 +4,7 @@ import {
   StreamEvent,
 } from '@/lib/grok/stream-orchestrator';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
+import { detectGroupIntent } from '@/lib/group/director';
 import { storageRepo } from '@/lib/storage/repository';
 import {
   ConversationMessage,
@@ -61,6 +62,46 @@ export async function executeMasterBotTurn(
     content: '',
   };
   const lastUserText = lastUserMsgObj.content || '';
+
+  // 「拉个群聊聊 X」：建群并在主频道留下入群卡片，而不是派活汇总
+  const groupIntent = detectGroupIntent(lastUserText, subBots);
+  if (groupIntent && groupIntent.members.length >= 2) {
+    const group = await storageRepo.createGroup({
+      name: groupIntent.name,
+      memberSlugs: groupIntent.members.map((m) => m.slug),
+      topic: groupIntent.topic,
+    });
+    const memberNames = groupIntent.members.map((m) => m.name);
+    const content = groupIntent.topic
+      ? `群建好了，拉了${memberNames.join('、')}进来，话题就聊「${groupIntent.topic}」，点下面进群`
+      : `群建好了，拉了${memberNames.join('、')}进来，点下面进群`;
+    const nowIso = new Date().toISOString();
+    const userRecord: ConversationMessage = {
+      id: `msg_${Date.now()}_user`,
+      role: 'user',
+      content: lastUserText,
+      timestamp: lastUserMsgObj.timestamp || nowIso,
+      imageUrl: lastUserMsgObj.imageUrl,
+    };
+    const reply: ConversationMessage = {
+      id: `msg_${Date.now()}_master_group`,
+      role: 'assistant',
+      content,
+      timestamp: nowIso,
+      bursts: [content],
+      groupInvite: {
+        groupId: group.id,
+        name: group.name,
+        memberNames,
+        topic: group.topic,
+      },
+    };
+    await storageRepo.appendMessages('master-bot', [userRecord, reply]);
+    onEvent?.({ type: 'message_part', message: reply, index: 0, total: 1, hasMore: false });
+    onEvent?.({ type: 'done', message: reply, messages: [reply] });
+    return reply;
+  }
+
   const targets = selectSubBotsForPrompt(lastUserText, subBots);
 
   if (targets.length === 0) {
