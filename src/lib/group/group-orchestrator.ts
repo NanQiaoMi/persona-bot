@@ -16,6 +16,8 @@ import {
   stripEchoedOpener,
   addressesEveryone,
   buildSleepingTip,
+  findMentionedMembers,
+  recentlyActiveSlugs,
 } from '@/lib/group/director';
 import { synthesizeGroupFallbackReply } from '@/lib/group/fallback';
 import {
@@ -220,8 +222,14 @@ export async function executeGroupTurn(
   const canCallUpstream = resolveLlmConfig(settings, { model: req.modelId }).canCall;
 
   // 此刻谁醒着、谁在忙：睡着的人不主动回，忙的人少回
+  // 刚被吵醒、最近 15 分钟内说过话的人算醒着，不会一会儿又被当成在睡
+  const nowForPresence = req.now ?? new Date();
+  const recentlyAwake = recentlyActiveSlugs(history, nowForPresence);
   const availability = new Map(
-    members.map((m) => [m.slug, getPresenceState(m, req.now ?? new Date()).availability])
+    members.map((m) => {
+      const a = getPresenceState(m, nowForPresence).availability;
+      return [m.slug, a === 'asleep' && recentlyAwake.has(m.slug) ? 'free' : a] as const;
+    })
   );
   const availabilityOf = (slug: string) => availability.get(slug) || 'free';
 
@@ -230,7 +238,13 @@ export async function executeGroupTurn(
     : pickSpeakers({ text: triggerText, members, history, availabilityOf });
 
   // 喊了所有人、却有人睡着没回：在群里留一条灰色提示，免得像被无视（近期已提示过就不重复）
-  if (!req.kickoff && triggerText && addressesEveryone(triggerText)) {
+  // 点名了具体的人（@夏柚 @鹿汐 你们两个呢）就不算喊所有人，不提示
+  if (
+    !req.kickoff &&
+    triggerText &&
+    addressesEveryone(triggerText) &&
+    findMentionedMembers(triggerText, members).length === 0
+  ) {
     const sleeping = members.filter(
       (m) => availabilityOf(m.slug) === 'asleep' && !speakers.some((s) => s.slug === m.slug)
     );

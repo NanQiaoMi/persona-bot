@@ -98,6 +98,25 @@ export interface PickSpeakersInput<T extends GroupMemberLite> {
  * 2. 叫「大家/你们」时，最多 maxSpeakers 人都回
  * 3. 否则挑 1 人主接，按概率再补 1 人插话——像真实群聊，不是每个人都回每句话
  */
+/** 被吵醒后算作醒着的时长：这段时间内在群里说过话的人不再按作息当成在睡 */
+export const GROUP_RECENTLY_AWAKE_MINUTES = 15;
+
+/** 最近一段时间内在群里说过话的成员（不含灰色提示） */
+export function recentlyActiveSlugs(
+  history: Array<{ fromBot?: { slug: string }; systemTip?: boolean; timestamp: string }>,
+  now: Date,
+  windowMinutes = GROUP_RECENTLY_AWAKE_MINUTES
+): Set<string> {
+  const since = now.getTime() - windowMinutes * 60_000;
+  const out = new Set<string>();
+  for (const m of history) {
+    if (!m.fromBot || m.systemTip) continue;
+    const t = new Date(m.timestamp).getTime();
+    if (Number.isFinite(t) && t >= since && t <= now.getTime() + 60_000) out.add(m.fromBot.slug);
+  }
+  return out;
+}
+
 /** 这句话是不是在喊所有人（你们 / 大家 / 各位…） */
 export function addressesEveryone(text: string): boolean {
   return EVERYONE_REGEX.test(text || '');

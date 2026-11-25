@@ -122,3 +122,57 @@ describe('喊了所有人时，睡着的人', () => {
     }
   });
 });
+
+describe('刚被吵醒的人与点名时的提示', () => {
+  it('最近 15 分钟内说过话的人算醒着', async () => {
+    const { recentlyActiveSlugs } = await import('@/lib/group/director');
+    const now = new Date(2026, 10, 26, 3, 10);
+    const at = (min: number) => new Date(now.getTime() - min * 60_000).toISOString();
+    const active = recentlyActiveSlugs(
+      [
+        { fromBot: { slug: 'a' }, timestamp: at(2) },
+        { fromBot: { slug: 'b' }, timestamp: at(30) },
+        { fromBot: { slug: 'c' }, systemTip: true, timestamp: at(1) },
+        { timestamp: at(1) },
+      ],
+      now
+    );
+    expect([...active]).toEqual(['a']);
+  });
+
+  it('点名了具体的人不出提示；刚说过话的人不会被说成在睡', async () => {
+    await pretendModelConfigured();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => sse('嗯…被吵醒了'));
+    const all = (await storageRepo.listPersonas()).filter((p) => !p.isMaster && p.slug !== 'master-bot');
+    const now = new Date(2026, 10, 26, 4, 30);
+    const asleep = all.filter((p) => getPresenceState(p, now).availability === 'asleep').slice(0, 3);
+    expect(asleep.length).toBeGreaterThanOrEqual(3);
+    const [woke, b, c] = asleep;
+    const group = await storageRepo.createGroup({ name: '刚醒群', memberSlugs: asleep.map((p) => p.slug) });
+    await storageRepo.appendGroupMessages(group.id, [
+      {
+        id: 'woke-1',
+        role: 'assistant',
+        content: '那我先发一张',
+        timestamp: new Date(now.getTime() - 60_000).toISOString(),
+        fromBot: { slug: woke.slug, name: woke.name },
+      },
+    ]);
+
+    const named = await executeGroupTurn({
+      groupId: group.id,
+      userTurns: [{ content: `@${b.name} @${c.name} 你们两个呢` }],
+      now,
+      reactionChance: 0,
+    });
+    expect(named.filter((m) => m.systemTip)).toHaveLength(0);
+
+    const everyone = await executeGroupTurn({
+      groupId: group.id,
+      userTurns: [{ content: '你们都在干嘛' }],
+      now: new Date(now.getTime() + 2 * 60_000),
+      reactionChance: 0,
+    });
+    for (const tip of everyone.filter((m) => m.systemTip)) expect(tip.content).not.toContain(woke.name);
+  });
+});
