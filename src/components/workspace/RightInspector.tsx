@@ -12,6 +12,7 @@ import {
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
 import MomentsFeed from "./MomentsFeed";
+import WorldAssetsPanel from "./WorldAssetsPanel";
 
 type LibraryTab = "emotion" | "persona" | "memories" | "growth" | "corrections";
 
@@ -695,6 +696,9 @@ export default function RightInspector({
                     />
                   </div>
                 </div>
+
+                {/* 世界设定：从聊天 / 朋友圈 / 照片里自动归纳的地点、宠物、物品、人物 */}
+                <WorldAssetsPanel slug={persona.slug} personaName={persona.name} />
 
                 {/* Scene / Environment Fixed Asset Library */}
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
