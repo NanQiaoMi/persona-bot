@@ -158,8 +158,13 @@ describe('主动消息接入作息与待关心的事（路由）', () => {
     const { POST } = await import('@/app/api/chat/proactive/route');
     const slug = 'shen-zhi';
     await storageRepo.listPersonas(); // 确保内置角色目录已初始化
-    const before = await storageRepo.getSettings();
-    await storageRepo.saveSettings({ llmApiKey: 'sk-test-proactive', llmBaseUrl: 'http://127.0.0.1:9/v1' });
+    // 只在本测试进程里模拟「配置了模型」，不写共享的设置文件（避免影响并行运行的其他测试）
+    const real = await storageRepo.getSettings();
+    vi.spyOn(storageRepo, 'getSettings').mockResolvedValue({
+      ...real,
+      llmApiKey: 'sk-test-proactive',
+      llmBaseUrl: 'http://127.0.0.1:9/v1',
+    });
     const past = new Date(Date.now() - 26 * 3600_000).toISOString();
     const due = new Date(Date.now() - 2 * 3600_000).toISOString();
     await storageRepo.updateMemoryState(slug, () => ({
@@ -200,7 +205,7 @@ describe('主动消息接入作息与待关心的事（路由）', () => {
       const state = await storageRepo.getMemoryState(slug);
       expect(state.pendingTopics?.[0].status).toBe('asked');
     } finally {
-      await storageRepo.saveSettings({ llmApiKey: before.llmApiKey, llmBaseUrl: before.llmBaseUrl });
+      vi.restoreAllMocks();
     }
   });
 });

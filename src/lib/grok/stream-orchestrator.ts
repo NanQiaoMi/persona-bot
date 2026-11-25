@@ -15,6 +15,7 @@ import {
   refreshConversationMemory,
 } from '@/lib/persona/conversation-memory';
 import { analyzeRecentRepetition } from '@/lib/persona/repetition-guard';
+import { extractLiveThought, synthesizeInnerThought } from '@/lib/persona/inner-thought';
 import {
   buildPresenceDirective,
   computeReplyLatencyMs,
@@ -725,7 +726,9 @@ async function fetchBufferedUpstreamLLM(
   model: string,
   systemPrompt: string,
   messages: ChatTurnRequest['messages'],
-  temperature: number
+  temperature: number,
+  /** 每收到一段就回调当前累积的原始输出（用于实时显示内心戏） */
+  onContent?: (raw: string) => void
 ): Promise<{ rawOutput: string; reasoningContent: string; thoughtDurationMs: number }> {
   const headers = buildLlmHeaders(apiKey);
 
@@ -803,6 +806,7 @@ async function fetchBufferedUpstreamLLM(
 
         if (typeof delta.content === 'string' && delta.content) {
           rawContent = mergeStreamDelta(rawContent, delta.content);
+          onContent?.(rawContent);
           if (rawContent.includes('</thought>') && !thoughtEnd) {
             thoughtEnd = Date.now();
           }
@@ -1018,6 +1022,7 @@ export async function executeGrokChatTurn(
   const canCallUpstream = llm.canCall;
 
   let rawModelOutput = '';
+  let liveThoughtSent = '';
   let nativeReasoning = '';
   let thoughtDurationMs = 950;
   let isDemoMode = false;
@@ -1039,7 +1044,21 @@ export async function executeGrokChatTurn(
         model,
         systemPrompt,
         req.messages,
-        temperature
+        temperature,
+        // 内心戏边写边推给前端，不用等整条回复生成完
+        onEvent && thinkEnabled
+          ? (raw) => {
+              const live = extractLiveThought(raw);
+              if (!live || !live.thought || live.thought === liveThoughtSent) return;
+              liveThoughtSent = live.thought;
+              onEvent({
+                type: 'thought',
+                delta: '',
+                fullThought: live.thought,
+                durationMs: Date.now() - turnStartMs,
+              });
+            }
+          : undefined
       );
 
       rawModelOutput = buffered.rawOutput;
@@ -1073,10 +1092,30 @@ export async function executeGrokChatTurn(
     );
   }
 
-  const parsed = parseStructuredModelOutput(
-    rawModelOutput,
-    nativeReasoning || ''
-  );
+  // 模型原生的推理过程多是分析腔，不当作角色的内心戏；内心戏只来自 <thought> 或下面的补写
+  void nativeReasoning;
+  const parsed = parseStructuredModelOutput(rawModelOutput, '');
+
+  // 模型这轮漏写了内心戏：根据这轮真实的对话和回复补写一段（失败就不显示，不用模板顶替）
+  if (thinkEnabled && !parsed.thought.trim() && !isDemoMode && canCallUpstream) {
+    const brief = [
+      persona.profile.occupation ? `职业：${persona.profile.occupation}。` : '',
+      persona.profile.personalityTags?.length
+        ? `性格：${persona.profile.personalityTags.slice(0, 5).join('、')}。`
+        : '',
+      persona.profile.bio ? persona.profile.bio.slice(0, 60) : '',
+    ].join('');
+    parsed.thought = await synthesizeInnerThought(llm, {
+      personaName: persona.name,
+      personaBrief: brief,
+      recent: req.messages
+        .filter((m) => typeof m.content === 'string')
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.content })),
+      reply: parsed.cleanReply,
+      mood: parsed.mood || undefined,
+    });
+  }
 
   const sanitizedBursts = sanitizeGatewayRefusalLeaks(parsed.bursts);
   const emojiTrimmedBursts = polishYoungAdultBursts(
@@ -1254,7 +1293,16 @@ export async function executeGrokChatTurn(
 
   // Smooth paced simulated streaming ("假流式": buffer complete response first, then type out and emit multi-messages sequentially)
   const startTs = Date.now();
-  if (thinkEnabled && parsed.thought) {
+  if (thinkEnabled && parsed.thought && liveThoughtSent && parsed.thought.startsWith(liveThoughtSent.slice(0, 20))) {
+    // 生成时已经实时显示过内心戏：只补发一次完整版，不再重新「打字」
+    onEvent({
+      type: 'thought',
+      delta: '',
+      fullThought: parsed.thought,
+      durationMs: Math.max(500, Date.now() - turnStartMs),
+    });
+    thoughtDurationMs = Math.max(500, Date.now() - turnStartMs);
+  } else if (thinkEnabled && parsed.thought) {
     const stepSize = Math.max(8, Math.ceil(parsed.thought.length / 5));
     let acc = '';
     for (let i = 0; i < parsed.thought.length; i += stepSize) {

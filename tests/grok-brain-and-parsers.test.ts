@@ -62,7 +62,8 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
 
     const formatted = formatSearchContextForPrompt(searchResp);
     expect(formatted).toContain('DeepSearch 实时联网检索结果');
-  });
+    // 这条会真的联网检索（维基 / DuckDuckGo），网络慢时会超过默认 5 秒
+  }, 20_000);
 
   it('generates time-aware proactive greetings based on hour and idle duration', () => {
     expect(getTimePeriodInfo(2).period).toBe('late_night');
