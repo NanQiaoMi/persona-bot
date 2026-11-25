@@ -63,10 +63,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [growthNoticeBySlug, setGrowthNoticeBySlug] = useState<
     Record<string, string | null>
   >({});
+  const [unreadMomentsBySlug, setUnreadMomentsBySlug] = useState<
+    Record<string, boolean>
+  >({});
+  const [momentsRefreshSignalBySlug, setMomentsRefreshSignalBySlug] = useState<
+    Record<string, number>
+  >({});
   const refiningRefSlugsRef = useRef<Record<string, boolean>>({});
   const prevProfileMetaRef = useRef<
     Record<string, { tags: string[]; appearanceAnchor?: string }>
   >({});
+  const latestMomentIdRef = useRef<Record<string, string>>({});
+  const momentCheckTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const followupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
@@ -126,6 +134,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       clearTimeout(idleTimerRef.current);
       idleTimerRef.current = null;
     }
+    momentCheckTimersRef.current.forEach((t) => clearTimeout(t));
+    momentCheckTimersRef.current = [];
     return () => {
       streamAbortRef.current?.abort();
       streamAbortRef.current = null;
@@ -137,6 +147,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         clearTimeout(idleTimerRef.current);
         idleTimerRef.current = null;
       }
+      momentCheckTimersRef.current.forEach((t) => clearTimeout(t));
+      momentCheckTimersRef.current = [];
     };
   }, [activeSlug]);
 
@@ -211,6 +223,57 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   }, []);
 
+  const checkMomentsUpdate = useCallback(
+    async (slug: string, options?: { markUnreadIfChanged?: boolean }) => {
+      try {
+        const res = await fetch(
+          `/api/personas/${encodeURIComponent(slug)}/moments`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        if (!data?.success || !Array.isArray(data.posts)) return;
+        const topId = data.posts[0]?.id as string | undefined;
+        if (!topId) return;
+        const prevTopId = latestMomentIdRef.current[slug];
+        if (!prevTopId) {
+          latestMomentIdRef.current[slug] = topId;
+          return;
+        }
+        if (topId !== prevTopId) {
+          latestMomentIdRef.current[slug] = topId;
+          if (options?.markUnreadIfChanged) {
+            setUnreadMomentsBySlug((prev) => ({ ...prev, [slug]: true }));
+          }
+          setMomentsRefreshSignalBySlug((prev) => ({
+            ...prev,
+            [slug]: (prev[slug] || 0) + 1,
+          }));
+        }
+      } catch {
+        // Ignore silent moments polling error
+      }
+    },
+    []
+  );
+
+  const handleClearUnreadMoments = useCallback(() => {
+    setUnreadMomentsBySlug((prev) =>
+      prev[activeSlug] ? { ...prev, [activeSlug]: false } : prev
+    );
+  }, [activeSlug]);
+
+  const handleMomentsFeedLoaded = useCallback(
+    (latestPostId?: string) => {
+      if (latestPostId) {
+        latestMomentIdRef.current[activeSlug] = latestPostId;
+      }
+      setUnreadMomentsBySlug((prev) =>
+        prev[activeSlug] ? { ...prev, [activeSlug]: false } : prev
+      );
+    },
+    [activeSlug]
+  );
+
   const loadGroups = useCallback(async () => {
     try {
       const res = await fetch("/api/groups");
@@ -271,10 +334,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       } else {
         setMessages([]);
       }
+      void checkMomentsUpdate(slug, { markUnreadIfChanged: false });
     } catch (err) {
       console.error("Failed to load active persona:", err);
     }
-  }, []);
+  }, [checkMomentsUpdate]);
 
   useEffect(() => {
     let active = true;
@@ -752,6 +816,18 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           );
         }
 
+        // Check silently after turn completes if the persona autonomously posted a new moment
+        const turnSlug = activeSlug;
+        momentCheckTimersRef.current.forEach((t) => clearTimeout(t));
+        momentCheckTimersRef.current = [
+          setTimeout(() => {
+            void checkMomentsUpdate(turnSlug, { markUnreadIfChanged: true });
+          }, 4000),
+          setTimeout(() => {
+            void checkMomentsUpdate(turnSlug, { markUnreadIfChanged: true });
+          }, 12000),
+        ];
+
         // Trigger non-blocking background image/sticker generation for any pending cards
         const pendingCards = finalMessage.mediaCards || [];
         pendingCards.forEach((card, cardIndex) => {
@@ -1227,6 +1303,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               mode: "manual",
             });
           }}
+          hasUnreadMoments={Boolean(
+            activePersona && unreadMomentsBySlug[activePersona.slug]
+          )}
+          momentsRefreshSignal={
+            activePersona ? momentsRefreshSignalBySlug[activePersona.slug] || 0 : 0
+          }
+          onClearUnreadMoments={handleClearUnreadMoments}
+          onMomentsFeedLoaded={handleMomentsFeedLoaded}
           onOpenAvatarPicker={() => setShowAvatarPicker(true)}
           onClose={() => setShowInspector(false)}
         />

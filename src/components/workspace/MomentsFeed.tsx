@@ -1,28 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  MomentPost,
-  MomentTopic,
-  PersonaRecord,
-} from "@/lib/storage/types";
+import { MomentPost, PersonaRecord } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import SaveSceneAssetButton from "./SaveSceneAssetButton";
 
 interface MomentsFeedProps {
   persona: PersonaRecord;
+  refreshSignal?: number;
+  onFeedLoaded?: (latestPostId?: string) => void;
 }
-
-const TOPIC_OPTIONS: Array<{
-  id: MomentTopic | "random";
-  label: string;
-}> = [
-  { id: "random", label: "✨ 随缘一条" },
-  { id: "travel", label: "✈️ 旅行" },
-  { id: "scenery", label: "🌄 风景" },
-  { id: "selfie", label: "📸 自拍" },
-  { id: "food", label: "🍜 美食" },
-];
 
 function formatRelativeTime(iso: string, nowMs: number): string {
   const ts = new Date(iso).getTime();
@@ -41,11 +28,14 @@ function formatRelativeTime(iso: string, nowMs: number): string {
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-export default function MomentsFeed({ persona }: MomentsFeedProps) {
+export default function MomentsFeed({
+  persona,
+  refreshSignal = 0,
+  onFeedLoaded,
+}: MomentsFeedProps) {
   const [posts, setPosts] = useState<MomentPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [topicMenuOpen, setTopicMenuOpen] = useState(false);
+  const [autoPublishing, setAutoPublishing] = useState(false);
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -60,64 +50,69 @@ export default function MomentsFeed({ persona }: MomentsFeedProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/personas/${encodeURIComponent(persona.slug)}/moments`, {
-      cache: "no-store",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        setNowMs(Date.now());
-        if (data?.success && Array.isArray(data.posts)) {
-          setPosts(data.posts);
-        } else {
-          setNotice(data?.error || "朋友圈加载失败");
-        }
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let pollCount = 0;
+    let initialTopId: string | undefined;
+
+    const pullMoments = () =>
+      fetch(`/api/personas/${encodeURIComponent(persona.slug)}/moments`, {
+        cache: "no-store",
       })
-      .catch(() => {
-        if (!cancelled) {
-          setNotice("网络不太稳，稍后再刷新看看");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          setNowMs(Date.now());
+          if (data?.success && Array.isArray(data.posts)) {
+            setPosts(data.posts);
+            const nextTopId = data.posts[0]?.id as string | undefined;
+            onFeedLoaded?.(nextTopId);
+
+            const isAuto = Boolean(data.autoPublishing);
+            setAutoPublishing(isAuto);
+
+            if (initialTopId === undefined) {
+              initialTopId = nextTopId;
+              if (isAuto && !pollTimer) {
+                pollTimer = setInterval(() => {
+                  pollCount += 1;
+                  if (pollCount > 8) {
+                    if (pollTimer) clearInterval(pollTimer);
+                    pollTimer = null;
+                    setAutoPublishing(false);
+                    return;
+                  }
+                  void pullMoments();
+                }, 4500);
+              }
+            } else if (!isAuto || (nextTopId && nextTopId !== initialTopId)) {
+              if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+              }
+              setAutoPublishing(false);
+            }
+          } else {
+            setNotice(data?.error || "朋友圈加载失败");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setNotice("网络不太稳，稍后再刷新看看");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        });
+
+    void pullMoments();
 
     return () => {
       cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
     };
-  }, [persona.slug]);
-
-  const handleGeneratePost = async (topic: MomentTopic | "random" = "random") => {
-    if (generating) return;
-    setGenerating(true);
-    setTopicMenuOpen(false);
-    setNotice(null);
-    try {
-      const res = await fetch(
-        `/api/personas/${encodeURIComponent(persona.slug)}/moments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "generate",
-            topic: topic === "random" ? undefined : topic,
-          }),
-        }
-      );
-      const data = await res.json();
-      if (data?.success && Array.isArray(data.posts)) {
-        setPosts(data.posts);
-      } else {
-        setNotice(data?.error || "新动态生成没成功，再试一次吧");
-      }
-    } catch {
-      setNotice("网络不太稳，动态没发出去");
-    } finally {
-      setGenerating(false);
-    }
-  };
+  }, [persona.slug, refreshSignal, onFeedLoaded]);
 
   const handleToggleLike = async (postId: string) => {
     setPosts((prev) =>
@@ -206,17 +201,12 @@ export default function MomentsFeed({ persona }: MomentsFeedProps) {
             <span className="px-2 py-0.5 rounded-full bg-black/30 backdrop-blur-sm text-[10px] text-white/90">
               朋友圈
             </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={generating}
-                onClick={() => setTopicMenuOpen((v) => !v)}
-                className="px-2.5 py-1 rounded-full bg-black/35 hover:bg-black/50 backdrop-blur-sm text-[11px] font-medium text-white transition-all cursor-pointer disabled:opacity-60 flex items-center gap-1"
-              >
-                <span>{generating ? "✨" : "📷"}</span>
-                <span>{generating ? "正在拍照发文..." : "发新动态"}</span>
-              </button>
-            </div>
+            {autoPublishing && (
+              <span className="px-2 py-0.5 rounded-full bg-black/30 backdrop-blur-sm text-[10px] text-white/85 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>正在更新动态…</span>
+              </span>
+            )}
           </div>
 
           <div className="relative flex items-end justify-end gap-2.5 z-10 translate-y-2">
@@ -242,22 +232,6 @@ export default function MomentsFeed({ persona }: MomentsFeedProps) {
             </div>
           </div>
         </div>
-
-        {/* Topic Quick Picker */}
-        {topicMenuOpen && !generating && (
-          <div className="px-3 pt-3 pb-1 flex flex-wrap gap-1.5 animate-fade-in">
-            {TOPIC_OPTIONS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => void handleGeneratePost(t.id)}
-                className="px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[#18a999]/15 border border-[var(--border-subtle)] hover:border-[#18a999]/40 text-[10.5px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="px-3 pt-3 pb-2.5 text-right text-[10.5px] text-[var(--text-muted)] truncate">
           {signature}
@@ -293,7 +267,7 @@ export default function MomentsFeed({ persona }: MomentsFeedProps) {
       ) : posts.length === 0 ? (
         <div className="p-5 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center space-y-2">
           <div className="text-[11.5px] text-[var(--text-muted)]">
-            还没有朋友圈动态，点右上角让 {persona.name} 发一条吧
+            {persona.name} 正在整理近况，稍后就会自己发动态啦
           </div>
         </div>
       ) : (
