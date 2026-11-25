@@ -61,6 +61,8 @@ export interface ChatTurnRequest {
   extraSystemPrompt?: string;
   /** 群聊里发起本轮发言的会话 id，用于媒体卡片回写 */
   groupId?: string;
+  /** 按这个时刻计算角色作息（群聊补「你不在时」的消息用），默认现在 */
+  presenceAt?: string;
 }
 
 export type StreamEvent =
@@ -903,7 +905,10 @@ export async function executeGrokChatTurn(
           .join('\n')
       : lastUserMsgObj.content || '';
   const hasImage = trailingUserTurns.some((m) => Boolean(m.imageUrl)) || Boolean(lastUserMsgObj.imageUrl);
-  const presence = persona.isMaster || persona.slug === 'master-bot' ? null : getPresenceState(persona);
+  const presence =
+    persona.isMaster || persona.slug === 'master-bot'
+      ? null
+      : getPresenceState(persona, req.presenceAt ? new Date(req.presenceAt) : new Date());
 
   // Stage 1: DeepSearch
   let searchResp: DeepSearchResponse | null = null;

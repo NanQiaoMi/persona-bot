@@ -116,6 +116,9 @@ describe('群聊一轮里不同角色不撞开头（离线）', () => {
       const produced = await executeGroupTurn({
         groupId: group.id,
         userTurns: [{ content: '大家快看' }, { content: `哈哈哈哈 笑死我了 ${i}` }],
+        // 固定在白天、不加随机附和：只测「两个角色不撞开头」本身
+        now: new Date(2026, 10, 25, 20, 0),
+        reactionChance: 0,
       });
       const firstBySlug = new Map<string, string>();
       for (const m of produced) {
