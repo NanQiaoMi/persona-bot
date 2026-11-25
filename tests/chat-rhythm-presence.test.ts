@@ -137,7 +137,7 @@ describe('连发合并', () => {
   });
 
   it('一轮里连发的三条都写进聊天记录，重试时不会重复写', async () => {
-    const slug = 'xia-you';
+    const slug = 'lu-xi'; // 每个测试文件用不同角色，避免并行时互相清空记录
     await storageRepo.saveConversation(slug, []);
     const ts = (n: number) => new Date(Date.UTC(2026, 10, 25, 12, 0, n)).toISOString();
     const messages = [
@@ -147,17 +147,17 @@ describe('连发合并', () => {
     ];
 
     await executeGrokChatTurn({ slug, messages, thinkMode: false, deepSearch: false });
+    // 其他测试文件（如主 bot 派活）会并行往同一个角色的记录里写，只看本测试自己的三条
+    const ours = new Set(messages.map((m) => m.content));
+    const mine = (list: Awaited<ReturnType<typeof storageRepo.getConversation>>) =>
+      list.filter((m) => m.role === 'user' && ours.has(m.content)).map((m) => m.content);
     let saved = await storageRepo.getConversation(slug, 0);
-    expect(saved.filter((m) => m.role === 'user').map((m) => m.content)).toEqual([
-      '我跟你说',
-      '今天好离谱',
-      '老板又改需求了',
-    ]);
+    expect(mine(saved)).toEqual(['我跟你说', '今天好离谱', '老板又改需求了']);
 
     // 重新生成：客户端把同样三条再带上来
     await executeGrokChatTurn({ slug, messages, thinkMode: false, deepSearch: false });
     saved = await storageRepo.getConversation(slug, 0);
-    expect(saved.filter((m) => m.role === 'user')).toHaveLength(3);
+    expect(mine(saved)).toHaveLength(3);
   });
 });
 

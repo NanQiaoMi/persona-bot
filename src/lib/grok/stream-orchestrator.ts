@@ -910,6 +910,24 @@ export async function executeGrokChatTurn(
       ? null
       : getPresenceState(persona, req.presenceAt ? new Date(req.presenceAt) : new Date());
 
+  // 先把你这轮的消息存下来：即使你中途切走、生成出错，你说过的话也不会丢
+  const baseTs = Date.now();
+  if (!req.skipPersistence) {
+    const source = trailingUserTurns.length > 0 ? trailingUserTurns : [lastUserMsgObj];
+    const stored = await storageRepo.getConversation(channelPersona.slug, 60);
+    const fresh = filterUnsavedUserTurns(source, stored).map((m, i) => ({
+      id: `msg_${baseTs}_user${source.length > 1 ? `_${i}` : ''}`,
+      role: 'user' as const,
+      content: m.content || '[图片]',
+      timestamp: m.timestamp || new Date(baseTs).toISOString(),
+      imageUrl: m.imageUrl,
+      mode: activeMode,
+    }));
+    if (fresh.length > 0) {
+      await storageRepo.appendMessages(channelPersona.slug, fresh);
+    }
+  }
+
   // Stage 1: DeepSearch
   let searchResp: DeepSearchResponse | null = null;
   const shouldSearch =
@@ -1148,19 +1166,6 @@ export async function executeGrokChatTurn(
     };
   }
 
-  const baseTs = Date.now();
-  const buildUserRecordsToSave = async (): Promise<ConversationMessage[]> => {
-    const source = trailingUserTurns.length > 0 ? trailingUserTurns : [lastUserMsgObj];
-    const stored = await storageRepo.getConversation(channelPersona.slug, 60);
-    return filterUnsavedUserTurns(source, stored).map((m, i) => ({
-      id: `msg_${baseTs}_user${source.length > 1 ? `_${i}` : ''}`,
-      role: 'user' as const,
-      content: m.content || '[图片]',
-      timestamp: m.timestamp || new Date(baseTs).toISOString(),
-      imageUrl: m.imageUrl,
-      mode: activeMode,
-    }));
-  };
   const modelLabel = isDemoMode ? '离线演示' : model;
 
   if (!onEvent) {
@@ -1186,8 +1191,6 @@ export async function executeGrokChatTurn(
       styleMetrics,
     };
 
-    const userMessageRecords = await buildUserRecordsToSave();
-
     if (req.skipPersistence) return combinedMessage;
 
     await storageRepo.updateEmotionAndIntimacy(
@@ -1196,10 +1199,7 @@ export async function executeGrokChatTurn(
     newIntimacy,
     relationshipState
   );
-    await storageRepo.appendMessages(channelPersona.slug, [
-      ...userMessageRecords,
-      combinedMessage,
-    ]);
+    await storageRepo.appendMessages(channelPersona.slug, [combinedMessage]);
     void runPostTurnPipeline({
     slug: persona.slug,
     conversationSlug: channelPersona.slug,
@@ -1336,12 +1336,14 @@ export async function executeGrokChatTurn(
       total: segments.length,
       hasMore: !isLast,
     });
+    // 每发出一段就存一段：你切走、刷新或生成中断时，已经发出的回复都还在
+    if (!req.skipPersistence) {
+      await storageRepo.appendMessages(channelPersona.slug, [assistantMessages[i]]);
+    }
   }
 
   const finalAssistantMessage =
     assistantMessages[assistantMessages.length - 1];
-
-  const userMessageRecords = await buildUserRecordsToSave();
 
   if (!req.skipPersistence) {
     await storageRepo.updateEmotionAndIntimacy(
@@ -1350,10 +1352,6 @@ export async function executeGrokChatTurn(
       newIntimacy,
       relationshipState
     );
-    await storageRepo.appendMessages(channelPersona.slug, [
-      ...userMessageRecords,
-      ...assistantMessages,
-    ]);
     void runPostTurnPipeline({
       slug: persona.slug,
       conversationSlug: channelPersona.slug,

@@ -1,3 +1,4 @@
+import { beginInflight, endInflight, inflightKey } from '@/lib/chat/inflight';
 import { executeGroupTurn } from '@/lib/group/group-orchestrator';
 import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
 import { executeGrokChatTurn, StreamEvent } from '@/lib/grok/stream-orchestrator';
@@ -38,10 +39,19 @@ export async function POST(request: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
+        // 你中途切走时连接会断开：之后的推送直接丢弃，但生成与存档照常进行到底，消息不会丢
+        let clientGone = false;
         const sendEvent = (event: StreamEvent) => {
-          const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
-          controller.enqueue(encoder.encode(payload));
+          if (clientGone) return;
+          try {
+            const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+            controller.enqueue(encoder.encode(payload));
+          } catch {
+            clientGone = true;
+          }
         };
+        const key = inflightKey({ slug: body.slug, groupId: isGroupTurn ? body.groupId : undefined });
+        const token = key ? beginInflight(key, isGroupTurn ? '群里有人' : '') : '';
 
         try {
           const payload = {
@@ -80,13 +90,20 @@ export async function POST(request: Request) {
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Stream execution failed';
-          controller.enqueue(
-            encoder.encode(
-              `event: error\ndata: ${JSON.stringify({ error: message })}\n\n`
-            )
-          );
+          try {
+            controller.enqueue(
+              encoder.encode(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`)
+            );
+          } catch {
+            // 连接已断开
+          }
         } finally {
-          controller.close();
+          if (key) endInflight(key, token);
+          try {
+            controller.close();
+          } catch {
+            // 连接已断开时 close 也会报错，忽略
+          }
         }
       },
     });
