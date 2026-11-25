@@ -9,6 +9,7 @@ import {
   renderPersonaMarkdown,
 } from '@/lib/persona/spec';
 import {
+  ConversationMemoryState,
   ConversationMessage,
   CorrectionItem,
   GroupChat,
@@ -399,7 +400,10 @@ export class UnifiedStorageRepository {
     if (!(await fileExists(dir))) {
       return false;
     }
-    await fs.rm(dir, { recursive: true, force: true });
+    // 与长记忆后台写入共用一把锁：正在写的先写完，之后的写入会发现目录已删而跳过
+    await this.withLock(`memory-state:${safeSlug}`, () =>
+      fs.rm(dir, { recursive: true, force: true })
+    );
     return true;
   }
 
@@ -799,6 +803,35 @@ export class UnifiedStorageRepository {
       const current = await this.getSceneAssets(safeSlug);
       const next = await mutator(current);
       return this.saveSceneAssets(safeSlug, next);
+    });
+  }
+
+  async getMemoryState(slug: string): Promise<ConversationMemoryState> {
+    const safeSlug = sanitizeSlug(slug);
+    const parsed = await readJsonSafe<ConversationMemoryState>(
+      path.join(this.getPersonaDir(safeSlug), 'memory-state.json'),
+      {}
+    );
+    return isRecord(parsed) ? parsed : {};
+  }
+
+  async updateMemoryState(
+    slug: string,
+    mutator: (current: ConversationMemoryState) => ConversationMemoryState | Promise<ConversationMemoryState>
+  ): Promise<ConversationMemoryState> {
+    const safeSlug = sanitizeSlug(slug);
+    return this.withLock(`memory-state:${safeSlug}`, async () => {
+      const current = await this.getMemoryState(safeSlug);
+      const next = await mutator(current);
+      const dir = this.getPersonaDir(safeSlug);
+      // 后台维护可能晚于删除角色才完成：角色目录已不存在时不要再把它建回来
+      const exists = await fs
+        .stat(dir)
+        .then((st) => st.isDirectory())
+        .catch(() => false);
+      if (!exists) return next;
+      await fs.writeFile(path.join(dir, 'memory-state.json'), JSON.stringify(next, null, 2), 'utf-8');
+      return next;
     });
   }
 

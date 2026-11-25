@@ -11,6 +11,11 @@ import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { scoreReply, toMessageStyleMetrics } from '@/lib/persona/eval/scorer';
 import { fingerprintFromPersonaMd } from '@/lib/persona/fingerprint';
 import {
+  buildConversationMemoryDirectives,
+  refreshConversationMemory,
+} from '@/lib/persona/conversation-memory';
+import { analyzeRecentRepetition } from '@/lib/persona/repetition-guard';
+import {
   buildPresenceDirective,
   computeReplyLatencyMs,
   getPresenceState,
@@ -944,8 +949,18 @@ export async function executeGrokChatTurn(
       .slice(-20),
     activeMode
   );
+  // 长记忆与防重复：只在角色自己的频道里用（@ 唤起的角色不带别人频道的记忆）
+  const ownsChannel = persona.slug === channelPersona.slug;
+  const memoryDirectives = ownsChannel
+    ? buildConversationMemoryDirectives(await storageRepo.getMemoryState(channelPersona.slug))
+    : '';
+  const repetitionDirective = analyzeRecentRepetition(
+    req.messages
+      .filter((m) => m.role === 'assistant' && typeof m.content === 'string')
+      .map((m) => m.content)
+  ).directive;
   const assembler = new PromptAssembler();
-  const systemPrompt = assembler.assembleFromRecord(persona, {
+  const baseSystemPrompt = assembler.assembleFromRecord(persona, {
     mode: activeMode,
     thinkMode: thinkEnabled,
     searchContext: searchResp,
@@ -959,9 +974,16 @@ export async function executeGrokChatTurn(
       attitude: turnEmotion.description,
       intimacy: newIntimacy,
     },
-  }) +
-    (presence ? `\n\n${buildPresenceDirective(presence)}` : '') +
-    (req.extraSystemPrompt ? `\n\n${req.extraSystemPrompt}` : '');
+  });
+  const systemPrompt = [
+    baseSystemPrompt,
+    presence ? buildPresenceDirective(presence) : '',
+    memoryDirectives,
+    repetitionDirective,
+    req.extraSystemPrompt || '',
+  ]
+    .filter((part) => part && part.trim())
+    .join('\n\n');
 
   const llm = resolveLlmConfig(settings, { model: req.modelId });
   const { apiKey, model } = llm;
@@ -1180,6 +1202,15 @@ export async function executeGrokChatTurn(
     reply: parsed.cleanReply,
     recalledMemories,
   }).catch(() => {});
+  if (ownsChannel) {
+    void refreshConversationMemory({
+      slug: channelPersona.slug,
+      personaName: persona.name,
+      userText: lastUserText,
+      reply: parsed.cleanReply,
+      llm,
+    }).catch(() => {});
+  }
 
     return combinedMessage;
   }
@@ -1325,6 +1356,15 @@ export async function executeGrokChatTurn(
       reply: parsed.cleanReply,
       recalledMemories,
     }).catch(() => {});
+    if (ownsChannel) {
+      void refreshConversationMemory({
+        slug: channelPersona.slug,
+        personaName: persona.name,
+        userText: lastUserText,
+        reply: parsed.cleanReply,
+        llm,
+      }).catch(() => {});
+    }
   }
 
   const pendingFollowup: PendingFollowup | undefined = parsed.followup

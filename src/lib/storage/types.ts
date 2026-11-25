@@ -318,3 +318,9 @@ export interface SceneAsset {
   keywords: string[];
   createdAt: string;
 }
+
+/** 每个角色与用户的长对话记忆：滚动摘要 + 待跟进的事（存在角色目录的 memory-state.json） */
+export interface ConversationMemoryState {
+  summary?: import('@/lib/persona/conversation-summary').ConversationSummaryState;
+  pendingTopics?: import('@/lib/persona/pending-topics').PendingTopic[];
+}

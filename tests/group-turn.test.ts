@@ -49,7 +49,6 @@ describe('群聊一轮编排（离线兜底）', () => {
       name: '测试群',
       memberSlugs: [a.slug, b.slug],
     });
-    const before = await storageRepo.getConversation(b.slug, 0);
 
     const produced = await executeGroupTurn({
       groupId: group.id,
@@ -58,8 +57,10 @@ describe('群聊一轮编排（离线兜底）', () => {
 
     expect(produced[0].role).toBe('user');
     expect(produced[1].fromBot?.slug).toBe(b.slug);
+    // 其他测试文件会并行写单聊记录，所以只断言群聊消息没有混进单聊
     const after = await storageRepo.getConversation(b.slug, 0);
-    expect(after.length).toBe(before.length);
+    const producedIds = new Set(produced.map((m) => m.id));
+    expect(after.some((m) => producedIds.has(m.id))).toBe(false);
   });
 
   it('群不存在时抛错，空消息被拒绝', async () => {
