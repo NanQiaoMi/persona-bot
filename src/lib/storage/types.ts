@@ -185,6 +185,28 @@ export interface ConversationMessage {
   isDemoMode?: boolean;
   /** 本轮回复的风格评测结果（仅供自进化与成长面板使用，不注入 Prompt） */
   styleMetrics?: MessageStyleMetrics;
+  /** 主 bot 发起群聊后在主频道留下的入群卡片 */
+  groupInvite?: GroupInviteCard;
+}
+
+export interface GroupInviteCard {
+  groupId: string;
+  name: string;
+  memberNames: string[];
+  topic?: string;
+}
+
+/** 主 bot 发起的多角色群聊 */
+export interface GroupChat {
+  id: string;
+  name: string;
+  topic?: string;
+  memberSlugs: string[];
+  /** 群聊刚建好、还没有角色开口时为 true，前端进群后自动请主 bot 开场 */
+  pendingKickoff?: boolean;
+  lastMessage?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MessageStyleMetrics {
@@ -295,4 +317,10 @@ export interface SceneAsset {
   description: string;
   keywords: string[];
   createdAt: string;
+}
+
+/** 每个角色与用户的长对话记忆：滚动摘要 + 待跟进的事（存在角色目录的 memory-state.json） */
+export interface ConversationMemoryState {
+  summary?: import('@/lib/persona/conversation-summary').ConversationSummaryState;
+  pendingTopics?: import('@/lib/persona/pending-topics').PendingTopic[];
 }

@@ -58,6 +58,10 @@ export async function POST(request: Request) {
     }
 
     await storageRepo.saveConversation(slug, messages);
+    if (messages.length === 0) {
+      // 「新对话」：旧摘要和待关心的事一起清掉，避免新对话里冒出上一段的记忆
+      await storageRepo.updateMemoryState(slug, (state) => ({ ...state, summary: undefined, pendingTopics: [] }));
+    }
 
     if (emotionState || typeof intimacy === 'number') {
       await storageRepo.updateEmotionAndIntimacy(
