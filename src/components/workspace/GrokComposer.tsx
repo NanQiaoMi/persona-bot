@@ -526,7 +526,7 @@ export default function GrokComposer({
             aria-label={
               disabled ? "停止回复" : hasContent ? "发送消息" : "语音/主动破冰"
             }
-            className="w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
+            className="group/send w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
             style={{ backgroundColor: accentColor }}
             title={
               disabled
