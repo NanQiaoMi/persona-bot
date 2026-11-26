@@ -30,6 +30,13 @@ const EVERYONE_REGEX = /(大家|你们|各位|所有人|全体|都来|一起|每
 const GROUP_INTENT_REGEX =
   /((拉|建|开|组|搞|发起|创建)\s*(个|一个|一下)?\s*(群|群聊))|(群聊一下)|(拉.{1,30}进群)/;
 const ALL_MEMBERS_REGEX = /(所有|全部|大家|都拉|全拉|每个)/;
+/** 输入框里选了「@所有人」：群里每个 Bot 都要回 */
+export const MENTION_ALL_TOKEN = '@所有人';
+const MENTION_ALL_REGEX = /@(所有人|全体成员|全体|all)(?![A-Za-z])/i;
+
+export function mentionsAll(text: string): boolean {
+  return MENTION_ALL_REGEX.test(text || '');
+}
 
 /** 角色名的可匹配写法：全名、去掉空格后的首段、slug */
 function nameTokens(member: GroupMemberLite): string[] {
@@ -158,6 +165,15 @@ export function pickSpeakers<T extends GroupMemberLite>({
     }))
     .sort((a, b) => b.score - a.score)
     .map((r) => r.member);
+
+  // @所有人：每个人都回（睡着的也被吵醒），被单独点名的先说，其余按相关度排，醒着的在前
+  if (mentionsAll(text)) {
+    const rest = ranked.filter((m) => !mentioned.some((x) => x.slug === m.slug));
+    const sleepers = members.filter(
+      (m) => !mentioned.some((x) => x.slug === m.slug) && !rest.some((x) => x.slug === m.slug)
+    );
+    return [...mentioned, ...rest, ...sleepers];
+  }
 
   if (mentioned.length > 0) {
     const result = mentioned.slice(0, Math.max(1, Math.min(maxSpeakers, mentioned.length)));

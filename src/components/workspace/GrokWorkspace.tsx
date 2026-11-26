@@ -400,11 +400,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       );
       const data = await res.json();
       if (data.success && Array.isArray(data.groups)) {
-        // 从没打开过的群：以现在为起点开始计未读，不把历史消息都算成未读
+        // 第一次见到的群：以现在为起点开始计未读，不把历史消息都算成未读；
+        // 还是空的群记成 ''，之后群友发的第一批消息就会显示未读（以前空群会一直漏掉）
         let changed = false;
         for (const g of data.groups as GroupChat[]) {
-          if (!groupSeenRef.current[g.id] && g.lastMessageId) {
-            groupSeenRef.current[g.id] = g.lastMessageId;
+          if (typeof groupSeenRef.current[g.id] !== "string") {
+            groupSeenRef.current[g.id] = g.lastMessageId || "";
             g.unreadCount = 0;
             changed = true;
           }
@@ -996,7 +997,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     let stopped = false;
     const sweep = async () => {
       if (stopped || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
-      let any = false;
       for (const g of groupsRef.current) {
         if (stopped || g.id === activeGroupIdRef.current) continue;
         try {
@@ -1005,13 +1005,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ mode: "catchup" }),
           });
-          const data = await res.json();
-          if (data?.ok) any = true;
+          await res.json().catch(() => null);
         } catch {
           // 忽略单个群的失败
         }
       }
-      if (any && !stopped) void loadGroups();
+      // 没有新补的聊天也刷新一下：别处（主 bot 建群、群里后台回复）带来的未读和预览也能跟上
+      if (!stopped) void loadGroups();
     };
     const first = setTimeout(sweep, 20_000);
     const timer = setInterval(sweep, 5 * 60_000);

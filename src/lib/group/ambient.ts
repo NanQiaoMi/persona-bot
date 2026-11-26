@@ -60,9 +60,15 @@ export function decideAmbient(params: {
   const lastMsg = lastMessageTime(history);
 
   if (mode === 'catchup') {
-    const sinceLast = t - (lastMsg || new Date(group.createdAt).getTime() || t);
-    if (sinceLast < AMBIENT_CONFIG.catchupGapMs) return { ok: false, reason: '离上次聊天还不到 2 小时' };
-    if (lastAmbient && lastAmbient > lastMsg) return { ok: false, reason: '这段空档已经补过了' };
+    // 补过的聊天时间戳落在空档里（比补的那一刻早），所以以「最后一条消息」和「上次补聊」中较晚的为起点；
+    // 以前只要补过一次、之后没人说话，就再也不会补，群会一直停在那里没有新未读
+    const since = Math.max(lastMsg || new Date(group.createdAt).getTime() || t, lastAmbient);
+    if (t - since < AMBIENT_CONFIG.catchupGapMs) {
+      return {
+        ok: false,
+        reason: lastAmbient > lastMsg ? '这段空档已经补过了' : '离上次聊天还不到 2 小时',
+      };
+    }
     return { ok: true, reason: 'catchup' };
   }
 

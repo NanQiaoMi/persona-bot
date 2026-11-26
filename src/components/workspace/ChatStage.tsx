@@ -816,7 +816,8 @@ export default function ChatStage({
       <GrokComposer
         personaName={activeGroup ? `群「${activeGroup.name}」` : persona.name}
         accentColor={mascotCfg.color}
-        personas={personas}
+        personas={activeGroup ? groupMembers : personas}
+        mentionAllCount={activeGroup ? groupMembers.length : undefined}
         value={input}
         onChange={onChangeInput}
         onSend={onSend}

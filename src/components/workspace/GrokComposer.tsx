@@ -28,7 +28,13 @@ interface GrokComposerProps {
   personaName?: string;
   accentColor?: string;
   personas?: PersonaSummary[];
+  /** 群聊里传群成员人数：@ 列表最上面多一项「@所有人」，选了之后群里每个 Bot 都回 */
+  mentionAllCount?: number;
 }
+
+/** 「@所有人」在候选列表里的占位项 */
+const MENTION_ALL_SLUG = "__mention_all__";
+const MENTION_ALL_LABEL = "所有人";
 
 export default function GrokComposer({
   value,
@@ -43,6 +49,7 @@ export default function GrokComposer({
   personaName,
   accentColor = "#18a999",
   personas = [],
+  mentionAllCount,
 }: GrokComposerProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -123,13 +130,25 @@ export default function GrokComposer({
       ? null
       : value.match(/(?:^|\s)@([^\s@]*)$/);
   const mentionQuery = mentionMatch ? mentionMatch[1].toLowerCase() : "";
-  const filteredMentions = mentionMatch
-    ? personas.filter(
-        (p) =>
-          !mentionQuery ||
-          p.name.toLowerCase().includes(mentionQuery) ||
-          p.slug.toLowerCase().includes(mentionQuery)
-      )
+  const showMentionAll =
+    Boolean(mentionMatch) &&
+    (mentionAllCount ?? 0) > 1 &&
+    (!mentionQuery ||
+      MENTION_ALL_LABEL.includes(mentionQuery) ||
+      "all".startsWith(mentionQuery) ||
+      "全体".includes(mentionQuery));
+  const filteredMentions: PersonaSummary[] = mentionMatch
+    ? [
+        ...(showMentionAll
+          ? [{ slug: MENTION_ALL_SLUG, name: MENTION_ALL_LABEL } as PersonaSummary]
+          : []),
+        ...personas.filter(
+          (p) =>
+            !mentionQuery ||
+            p.name.toLowerCase().includes(mentionQuery) ||
+            p.slug.toLowerCase().includes(mentionQuery)
+        ),
+      ]
     : [];
   const showMentionMenu = Boolean(mentionMatch) && filteredMentions.length > 0;
   const clampedMentionIdx =
@@ -143,7 +162,7 @@ export default function GrokComposer({
       (fullMatch) => (fullMatch.startsWith(" ") ? ` @${bot.name} ` : `@${bot.name} `)
     );
     onChange(replaced);
-    setSelectedMentionSlug(bot.slug);
+    setSelectedMentionSlug(bot.slug === MENTION_ALL_SLUG ? undefined : bot.slug);
     setDismissedAtValue(null);
     setMentionIndex(0);
     setTimeout(() => textInputRef.current?.focus(), 0);
@@ -361,7 +380,8 @@ export default function GrokComposer({
           <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
             <div className="max-h-60 overflow-y-auto space-y-0.5">
               {filteredMentions.map((bot, idx) => {
-                const mascot = getMascotConfigForPersona(bot.slug, bot.profile);
+                const isAll = bot.slug === MENTION_ALL_SLUG;
+                const mascot = isAll ? null : getMascotConfigForPersona(bot.slug, bot.profile);
                 const isSelected = idx === clampedMentionIdx;
                 return (
                   <button
@@ -376,20 +396,30 @@ export default function GrokComposer({
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <BlobMascot
-                        shape={mascot.shape}
-                        color={mascot.color}
-                        image={mascot.image}
-                        size={22}
-                        trackPointer={false}
-                        animated={false}
-                      />
+                      {isAll || !mascot ? (
+                        <span
+                          aria-hidden
+                          className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[12px] font-semibold text-white shrink-0"
+                          style={{ backgroundColor: accentColor }}
+                        >
+                          @
+                        </span>
+                      ) : (
+                        <BlobMascot
+                          shape={mascot.shape}
+                          color={mascot.color}
+                          image={mascot.image}
+                          size={22}
+                          trackPointer={false}
+                          animated={false}
+                        />
+                      )}
                       <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
                         {bot.name}
                       </span>
                     </div>
                     <span className="text-[11px] text-[var(--text-muted)] shrink-0">
-                      Bot
+                      {isAll ? `全员 ${mentionAllCount}` : "Bot"}
                     </span>
                   </button>
                 );
