@@ -15,7 +15,10 @@ export type LineIconName =
   | "bolt"
   | "heart"
   | "compass"
-  | "spark";
+  | "spark"
+  | "layers"
+  | "book"
+  | "shield";
 
 const PATHS: Record<LineIconName, React.ReactNode> = {
   // 折线上扬：热门新鲜事
@@ -81,6 +84,28 @@ const PATHS: Record<LineIconName, React.ReactNode> = {
   ),
   spark: (
     <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" />
+  ),
+  // 叠起来的三层：五层人格
+  layers: (
+    <>
+      <path d="M12 4l8 4-8 4-8-4z" />
+      <path d="M4 12l8 4 8-4" />
+      <path d="M4 16l8 4 8-4" />
+    </>
+  ),
+  // 翻开的书：共同记忆
+  book: (
+    <>
+      <path d="M12 6.5C10.3 5.3 8 5 4.5 5v12.5c3.5 0 5.8.3 7.5 1.5 1.7-1.2 4-1.5 7.5-1.5V5C16 5 13.7 5.3 12 6.5z" />
+      <path d="M12 6.5V19" />
+    </>
+  ),
+  // 带勾的盾牌：纠偏 OOC
+  shield: (
+    <>
+      <path d="M12 3.5l7 2.8v5.2c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6.3z" />
+      <path d="M9 12l2.2 2.2L15.5 10" />
+    </>
   ),
 };
 

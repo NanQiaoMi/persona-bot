@@ -3,7 +3,7 @@ import { thumbUrl } from "@/lib/media/thumb-url";
 
 import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import LineIcon from "@/components/workspace/LineIcon";
+import LineIcon, { type LineIconName } from "@/components/workspace/LineIcon";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { heuristicTraits } from "@/lib/persona/traits";
 import {
@@ -19,6 +19,14 @@ import MomentsFeed from "./MomentsFeed";
 import WorldAssetsPanel from "./WorldAssetsPanel";
 
 type LibraryTab = "emotion" | "persona" | "memories" | "growth" | "corrections";
+
+const LIBRARY_TABS: Array<{ id: LibraryTab; label: string; short: string; icon: LineIconName }> = [
+  { id: "emotion", label: "情绪雷达", short: "情绪", icon: "pulse" },
+  { id: "persona", label: "五层人格", short: "人格", icon: "layers" },
+  { id: "memories", label: "共同记忆", short: "记忆", icon: "book" },
+  { id: "growth", label: "成长日志", short: "成长", icon: "trend" },
+  { id: "corrections", label: "纠偏 OOC", short: "纠偏", icon: "shield" },
+];
 
 interface RightInspectorProps {
   persona: PersonaRecord | null;
@@ -275,27 +283,33 @@ function RightInspector({
         ) : (
           <div className="space-y-3.5 animate-fade-in">
             {/* Sub-tabs inside 资料库 */}
-            <div className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px]">
-              {[
-                { id: "emotion", label: "情绪雷达" },
-                { id: "persona", label: "五层人格" },
-                { id: "memories", label: "共同记忆" },
-                { id: "growth", label: "成长日志" },
-                { id: "corrections", label: "纠偏OOC" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setLibraryTab(tab.id as LibraryTab)}
-                  className={`py-1.5 rounded-xl font-medium transition-all cursor-pointer ${
-                    libraryTab === tab.id
-                      ? "bg-[var(--bg-secondary)] text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* 窄栏里 5 个四字标签挤在一行：改成「图标 + 两字短名」，完整名字放在悬停提示里 */}
+            <div
+              role="tablist"
+              aria-label="资料库分类"
+              className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)]"
+            >
+              {LIBRARY_TABS.map((tab) => {
+                const active = libraryTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    title={tab.label}
+                    onClick={() => setLibraryTab(tab.id)}
+                    className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[11px] leading-none font-medium transition-all cursor-pointer ${
+                      active
+                        ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
+                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    <LineIcon name={tab.icon} size={15} />
+                    <span>{tab.short}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {latestGrowthNotice && (
