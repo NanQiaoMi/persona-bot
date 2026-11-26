@@ -55,13 +55,25 @@ export interface GroupTurnRequest {
   reactionChance?: number;
   /** 按这个时刻判断谁醒着（测试用），默认现在 */
   now?: Date;
+  /** 客户端已断开连接时返回 true，跳过打字等待 */
+  shouldSkipDelays?: () => boolean;
 }
 
 const USER_LABEL = '我（群主）';
 
-function sleep(ms: number): Promise<void> {
-  if (process.env.VITEST || ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function sleep(ms: number, shouldSkip?: () => boolean): Promise<void> {
+  if (process.env.VITEST || ms <= 0 || shouldSkip?.()) return;
+  if (!shouldSkip || ms <= 250) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    return;
+  }
+  let left = ms;
+  while (left > 0) {
+    if (shouldSkip()) return;
+    const chunk = Math.min(250, left);
+    await new Promise((resolve) => setTimeout(resolve, chunk));
+    left -= chunk;
+  }
 }
 
 function hashSeed(text: string): number {
@@ -316,7 +328,10 @@ export async function executeGroupTurn(
       const cardsHere = i === bursts.length - 1 && roundCards.length > 0 ? roundCards : undefined;
       // 没字的气泡只用来挂表情包；这轮图片名额已被别人用掉时就不发
       if (!text.trim() && !cardsHere) continue;
-      await sleep(computeRealisticTypingDelayMs(text, turnsDone === 0 && i === 0 ? 0 : 1));
+      await sleep(
+        computeRealisticTypingDelayMs(text, turnsDone === 0 && i === 0 ? 0 : 1),
+        req.shouldSkipDelays
+      );
       const msg: ConversationMessage = {
         id: nextId(persona.slug),
         role: 'assistant',
@@ -374,7 +389,7 @@ export async function executeGroupTurn(
   if (!req.kickoff && quiet.length > 0 && Math.random() < (req.reactionChance ?? 0.2)) {
     const reactor = quiet[Math.floor(Math.random() * quiet.length) % quiet.length];
     const text = QUICK_REACTIONS[Math.floor(Math.random() * QUICK_REACTIONS.length) % QUICK_REACTIONS.length];
-    await sleep(800 + Math.random() * 1500);
+    await sleep(800 + Math.random() * 1500, req.shouldSkipDelays);
     const msg: ConversationMessage = {
       id: nextId(reactor.slug),
       role: 'assistant',

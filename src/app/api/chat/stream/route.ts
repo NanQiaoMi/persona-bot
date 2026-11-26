@@ -38,16 +38,25 @@ export async function POST(request: Request) {
     }
 
     const encoder = new TextEncoder();
+    // 你中途切走时连接会断开：之后的推送直接丢弃并跳过打字等待，但生成与存档照常进行到底
+    let clientGone = false;
 
     const stream = new ReadableStream({
       async start(controller) {
-        // 你中途切走时连接会断开：之后的推送直接丢弃，但生成与存档照常进行到底，消息不会丢
-        let clientGone = false;
-        // 这一轮存下的消息（用来在服务端直接开始生成照片 / 表情包）
-        let turnMessages: ConversationMessage[] = [];
+        // 这一轮存下的消息（按 id 实时收集，用来在服务端直接开始生成照片 / 表情包）
+        const collectedMessages = new Map<string, ConversationMessage>();
+        const recordMessages = (msgs: ConversationMessage[]) => {
+          for (const m of msgs) {
+            if (m?.id) collectedMessages.set(m.id, m);
+          }
+        };
         const sendEvent = (event: StreamEvent) => {
-          if (event.type === 'done') {
-            turnMessages = event.messages && event.messages.length > 0 ? event.messages : [event.message];
+          if (event.type === 'message_part' && event.message) {
+            recordMessages([event.message]);
+          } else if (event.type === 'done') {
+            recordMessages(
+              event.messages && event.messages.length > 0 ? event.messages : [event.message]
+            );
           }
           if (clientGone) return;
           try {
@@ -71,6 +80,7 @@ export async function POST(request: Request) {
             requestPhoto: body.requestPhoto,
             requestSticker: body.requestSticker,
             modelId: body.modelId,
+            shouldSkipDelays: () => clientGone,
           };
 
           if (isGroupTurn) {
@@ -87,6 +97,7 @@ export async function POST(request: Request) {
                 mode: body.mode,
                 modelId: body.modelId,
                 kickoff: Boolean(body.kickoff),
+                shouldSkipDelays: () => clientGone,
               },
               sendEvent
             );
@@ -110,7 +121,7 @@ export async function POST(request: Request) {
           void enqueueNewMediaCards({
             slug: body.slug,
             groupId: isGroupTurn ? body.groupId : undefined,
-            messages: turnMessages,
+            messages: Array.from(collectedMessages.values()),
           }).catch(() => {});
           try {
             controller.close();
@@ -118,6 +129,9 @@ export async function POST(request: Request) {
             // 连接已断开时 close 也会报错，忽略
           }
         }
+      },
+      cancel() {
+        clientGone = true;
       },
     });
 

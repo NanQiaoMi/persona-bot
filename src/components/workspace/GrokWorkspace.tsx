@@ -16,6 +16,11 @@ import {
 import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
 import { hasPendingMedia } from "@/lib/media/media-state";
+import {
+  buildStreamRequestBody,
+  mergePolledMessages,
+  type PendingBurstSnapshot,
+} from "@/lib/chat/switch-sync";
 import CommandPalette from "./CommandPalette";
 import CreateBotModal from "./CreateBotModal";
 import CreateGroupModal from "./CreateGroupModal";
@@ -103,6 +108,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     ? groups.find((g) => g.id === activeGroupId) || null
     : null;
   const streamAbortRef = useRef<AbortController | null>(null);
+  const streamSessionIdRef = useRef(0);
+  const detailLoadIdRef = useRef(0);
+  const pendingBurstDataRef = useRef<PendingBurstSnapshot | null>(null);
   const runStreamRequestRef = useRef<
     | ((
         history: ConversationMessage[],
@@ -111,6 +119,46 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       ) => Promise<void>)
     | null
   >(null);
+
+  const [streaming, setStreaming] = useState<{
+    isSearching: boolean;
+    searchQuery?: string;
+    searchResults?: SearchResultItem[];
+    statusText?: string;
+    thought: string;
+    thoughtDurationMs?: number;
+    isStreamingThought: boolean;
+    reply: string;
+    bursts?: string[];
+    mediaCards?: MediaCard[];
+  } | null>(null);
+
+  const flushPendingBurst = useCallback((options?: { background?: boolean }) => {
+    if (burstTimerRef.current) {
+      clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = null;
+    }
+    const snapshot = pendingBurstDataRef.current;
+    pendingBurstDataRef.current = null;
+    queueMicrotask(() => setPendingBurst(false));
+    if (!snapshot) return;
+
+    const sameTarget =
+      activeGroupIdRef.current === snapshot.groupId &&
+      (Boolean(snapshot.groupId) || activeSlugRef.current === snapshot.slug);
+
+    if (!options?.background && sameTarget && runStreamRequestRef.current) {
+      void runStreamRequestRef.current(snapshot.messages, snapshot.mode);
+      return;
+    }
+
+    // 切走对话或后台发送：不绑定当前页 AbortController，不改新页面 UI，由服务端接管存档与生图
+    void fetch("/api/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildStreamRequestBody(snapshot)),
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -129,13 +177,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       queueMicrotask(() => setActiveGroupId(null));
     }
     idleNudgeCountRef.current = 0;
-    if (burstTimerRef.current) {
-      clearTimeout(burstTimerRef.current);
-      burstTimerRef.current = null;
-      queueMicrotask(() => setPendingBurst(false));
-    }
+    flushPendingBurst({ background: true });
+    streamSessionIdRef.current += 1;
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
+    queueMicrotask(() => setStreaming(null));
     if (followupTimerRef.current) {
       clearTimeout(followupTimerRef.current);
       followupTimerRef.current = null;
@@ -147,6 +193,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     momentCheckTimersRef.current.forEach((t) => clearTimeout(t));
     momentCheckTimersRef.current = [];
     return () => {
+      flushPendingBurst({ background: true });
+      streamSessionIdRef.current += 1;
       streamAbortRef.current?.abort();
       streamAbortRef.current = null;
       if (followupTimerRef.current) {
@@ -160,7 +208,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       momentCheckTimersRef.current.forEach((t) => clearTimeout(t));
       momentCheckTimersRef.current = [];
     };
-  }, [activeSlug]);
+  }, [activeSlug, flushPendingBurst]);
 
   /**
    * 安排「这一轮」真正发出去的时间：每来一条新消息就重新等 BURST_WINDOW_MS；
@@ -182,6 +230,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           activeSlugRef.current !== slugAtSchedule ||
           activeGroupIdRef.current !== groupAtSchedule
         ) {
+          flushPendingBurst({ background: true });
           return;
         }
         const waited = Date.now() - burstStartedAtRef.current;
@@ -189,13 +238,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           tick(TYPING_EXTEND_MS);
           return;
         }
-        burstTimerRef.current = null;
-        setPendingBurst(false);
-        void runStreamRequestRef.current?.(messagesRef.current, activeMode);
+        flushPendingBurst({ background: false });
       }, delay);
     };
     tick(BURST_WINDOW_MS);
-  }, [activeMode]);
+  }, [flushPendingBurst]);
 
   const clearScheduledFollowup = useCallback(() => {
     if (followupTimerRef.current) {
@@ -207,19 +254,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       idleTimerRef.current = null;
     }
   }, []);
-
-  const [streaming, setStreaming] = useState<{
-    isSearching: boolean;
-    searchQuery?: string;
-    searchResults?: SearchResultItem[];
-    statusText?: string;
-    thought: string;
-    thoughtDurationMs?: number;
-    isStreamingThought: boolean;
-    reply: string;
-    bursts?: string[];
-    mediaCards?: MediaCard[];
-  } | null>(null);
 
   const loadPersonaList = useCallback(async () => {
     try {
@@ -329,13 +363,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   }, [saveGroupSeen]);
 
   const loadActivePersonaDetail = useCallback(async (slug: string) => {
+    const myLoadId = ++detailLoadIdRef.current;
     try {
       const [pRes, cRes] = await Promise.all([
-        fetch(`/api/personas/${encodeURIComponent(slug)}`),
-        fetch(`/api/conversations?slug=${encodeURIComponent(slug)}&limit=100`),
+        fetch(`/api/personas/${encodeURIComponent(slug)}`, { cache: "no-store" }),
+        fetch(`/api/conversations?slug=${encodeURIComponent(slug)}&limit=100`, { cache: "no-store" }),
       ]);
       const pData = await pRes.json();
       const cData = await cRes.json();
+      if (detailLoadIdRef.current !== myLoadId || activeSlugRef.current !== slug) {
+        return;
+      }
 
       if (pData.success && pData.persona) {
         const nextPersona = pData.persona as PersonaRecord;
@@ -382,6 +420,31 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   }, [checkMomentsUpdate]);
 
+  const requestMediaRecover = useCallback(async (target: { slug?: string; groupId?: string }) => {
+    try {
+      await fetch("/api/media/recover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(target),
+      });
+    } catch {
+      // 补生成失败不影响聊天
+    }
+  }, []);
+
+  const checkInflightOnce = useCallback(async (target: { slug?: string; groupId?: string }) => {
+    try {
+      const query = target.groupId
+        ? `groupId=${encodeURIComponent(target.groupId)}`
+        : `slug=${encodeURIComponent(target.slug || "")}`;
+      const res = await fetch(`/api/chat/inflight?${query}`, { cache: "no-store" });
+      const data = await res.json();
+      return Boolean(data?.inflight);
+    } catch {
+      return false;
+    }
+  }, []);
+
   // 切回来时如果这里还有回复在生成（你中途切走过），显示「正在输入」并持续刷新，直到写完
   const [backgroundTyping, setBackgroundTyping] = useState<string | null>(null);
   const inflightWatchRef = useRef(0);
@@ -396,26 +459,33 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const query = target.groupId
         ? `groupId=${encodeURIComponent(target.groupId)}`
         : `slug=${encodeURIComponent(target.slug || "")}`;
-      const reload = async () => {
+      const reload = async (): Promise<ConversationMessage[] | null> => {
         const res = await fetch(
           target.groupId
             ? `/api/groups/${encodeURIComponent(target.groupId)}`
-            : `/api/conversations?slug=${encodeURIComponent(target.slug || "")}&limit=100`
+            : `/api/conversations?slug=${encodeURIComponent(target.slug || "")}&limit=100`,
+          { cache: "no-store" }
         );
         const data = await res.json();
         if (stillHere() && data?.success && Array.isArray(data.messages)) {
-          setMessages(data.messages);
+          const list = data.messages as ConversationMessage[];
+          setMessages((prev) => mergePolledMessages(prev, list));
+          return list;
         }
+        return null;
       };
       try {
         for (let i = 0; i < 90 && stillHere(); i += 1) {
           // 你自己正在发消息、页面在实时接收时，交给实时推送显示
           if (streamingRef.current) break;
-          const res = await fetch(`/api/chat/inflight?${query}`);
+          const res = await fetch(`/api/chat/inflight?${query}`, { cache: "no-store" });
           const data = await res.json();
           if (!stillHere()) return;
           if (!data?.inflight) {
-            if (i > 0) await reload();
+            const latest = await reload();
+            if (latest && latest.some((m) => hasPendingMedia(m.mediaCards))) {
+              void requestMediaRecover(target);
+            }
             break;
           }
           setBackgroundTyping(data.label || label);
@@ -428,28 +498,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         if (inflightWatchRef.current === watchId) setBackgroundTyping(null);
       }
     },
-    []
+    [requestMediaRecover]
   );
 
   // ── 照片 / 表情包的补生成与重试 ──────────────────────────────
   // 打开单聊 / 群聊时，请服务端把卡住或到点重试的图片重新排队（连不上生图服务时会标记「网络恢复后自动补发」）
-  const requestMediaRecover = useCallback(async (target: { slug?: string; groupId?: string }) => {
-    try {
-      await fetch("/api/media/recover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(target),
-      });
-    } catch {
-      // 补生成失败不影响聊天
-    }
-  }, []);
-
   useEffect(() => {
     void requestMediaRecover(activeGroupId ? { groupId: activeGroupId } : { slug: activeSlug });
   }, [activeSlug, activeGroupId, requestMediaRecover]);
 
-  // 还有图片在等结果时，每 4 秒只刷新图片卡片的状态；每 20 秒再请服务端检查一次要不要补发
+  // 还有图片在等结果时，每 4 秒刷新图片卡片状态与新消息；每 20 秒再请服务端检查一次要不要补发
   const mediaPending = messages.some((m) => hasPendingMedia(m.mediaCards));
   const mediaStreaming = Boolean(streaming);
   useEffect(() => {
@@ -464,23 +522,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         const res = await fetch(
           target.groupId
             ? `/api/groups/${encodeURIComponent(target.groupId)}`
-            : `/api/conversations?slug=${encodeURIComponent(target.slug || "")}&limit=100`
+            : `/api/conversations?slug=${encodeURIComponent(target.slug || "")}&limit=100`,
+          { cache: "no-store" }
         );
         const data = await res.json();
         if (cancelled || !data?.success || !Array.isArray(data.messages)) return;
-        const fresh = new Map<string, ConversationMessage>(
-          (data.messages as ConversationMessage[]).map((m) => [m.id, m])
-        );
-        setMessages((prev) => {
-          let changed = false;
-          const next = prev.map((m) => {
-            const f = fresh.get(m.id);
-            if (!f || !m.mediaCards || JSON.stringify(f.mediaCards) === JSON.stringify(m.mediaCards)) return m;
-            changed = true;
-            return { ...m, mediaCards: f.mediaCards };
-          });
-          return changed ? next : prev;
-        });
+        const serverMsgs = data.messages as ConversationMessage[];
+        setMessages((prev) => mergePolledMessages(prev, serverMsgs));
       } catch {
         // 下次再刷
       }
@@ -498,10 +546,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const handleRetryMedia = useCallback(
     async (messageId: string, cardIndex: number) => {
       const groupId = activeGroupIdRef.current;
+      const channelSlug = activeSlugRef.current;
       const target = messages.find((m) => m.id === messageId);
-      const slug = groupId ? target?.fromBot?.slug : activeSlugRef.current;
+      const slug = groupId ? target?.fromBot?.slug : channelSlug;
+      const personaSlug = !groupId && target?.fromBot?.slug ? target.fromBot.slug : undefined;
       if (!target || !slug) return;
-      const patchCard = (patch: Partial<MediaCard>) =>
+      const isSameView = () =>
+        activeGroupIdRef.current === groupId &&
+        (Boolean(groupId) || activeSlugRef.current === channelSlug);
+      const patchCard = (patch: Partial<MediaCard>) => {
+        if (!isSameView()) return;
         setMessages((prev) =>
           prev.map((m) => {
             if (m.id !== messageId || !m.mediaCards?.[cardIndex]) return m;
@@ -510,12 +564,20 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
             return { ...m, mediaCards: cards };
           })
         );
+      };
       patchCard({ status: "generating", waitingForNetwork: undefined, errorHint: undefined });
       try {
         const res = await fetch("/api/media/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug, messageId, cardIndex, groupId: groupId || undefined, manual: true }),
+          body: JSON.stringify({
+            slug,
+            ...(personaSlug ? { personaSlug } : {}),
+            messageId,
+            cardIndex,
+            groupId: groupId || undefined,
+            manual: true,
+          }),
         });
         const data = await res.json();
         if (data?.card) patchCard(data.card);
@@ -534,19 +596,26 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         loadPersonaList().then(() => markSplashStep("personas")),
         loadGroups().then(() => markSplashStep("groups")),
       ]);
-      if (active) {
+      if (!active) return;
+      if (!activeGroupIdRef.current) {
+        // 先查 inflight 再拉聊天记录：避免服务端刚结束 inflight、消息却没拉到的竞态漏刷
+        const isInflight = await checkInflightOnce({ slug: activeSlug });
+        if (!active || activeGroupIdRef.current || activeSlugRef.current !== activeSlug) return;
         await loadActivePersonaDetail(activeSlug);
         markSplashStep("detail");
-        if (active && !activeGroupIdRef.current) {
+        if (active && !activeGroupIdRef.current && activeSlugRef.current === activeSlug && isInflight) {
           void watchInflight({ slug: activeSlug }, "对方");
         }
+      } else {
+        await loadActivePersonaDetail(activeSlug);
+        markSplashStep("detail");
       }
     };
     init();
     return () => {
       active = false;
     };
-  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail, watchInflight, markSplashStep]);
+  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail, checkInflightOnce, watchInflight, markSplashStep]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -844,20 +913,22 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     queueMicrotask(() => {
       setNewMessagesFromId(null);
       setGroupTyping(null);
+      setStreaming(null);
     });
     activeGroupIdRef.current = activeGroupId;
-    if (burstTimerRef.current) {
-      clearTimeout(burstTimerRef.current);
-      burstTimerRef.current = null;
-      queueMicrotask(() => setPendingBurst(false));
-    }
+    flushPendingBurst({ background: true });
+    streamSessionIdRef.current += 1;
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
     if (!activeGroupId) return;
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/groups/${encodeURIComponent(activeGroupId)}`);
+        const isInflight = await checkInflightOnce({ groupId: activeGroupId });
+        if (cancelled || activeGroupIdRef.current !== activeGroupId) return;
+        const res = await fetch(`/api/groups/${encodeURIComponent(activeGroupId)}`, {
+          cache: "no-store",
+        });
         const data = await res.json();
         if (cancelled || activeGroupIdRef.current !== activeGroupId) return;
         if (!data.success) {
@@ -881,7 +952,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         ) {
           kickoffDoneRef.current.add(activeGroupId);
           await runStreamRequestRef.current?.([], activeMode, { kickoff: true });
-        } else {
+        } else if (isInflight) {
           void watchInflight({ groupId: activeGroupId }, "群里有人");
         }
         if (!data.group?.pendingKickoff && groupMessages.length > 0) {
@@ -900,23 +971,31 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
   const handleSelectPersona = (slug: string) => {
     const wasInGroup = Boolean(activeGroupIdRef.current);
+    if (!wasInGroup && slug === activeSlugRef.current) return;
+    flushPendingBurst({ background: true });
+    streamSessionIdRef.current += 1;
     activeGroupIdRef.current = null;
     setActiveGroupId(null);
     if (slug === activeSlug && wasInGroup) {
       // 从群聊回到同一个角色（群聊挂在主 bot 下，最常见的是回到主 bot）：
       // 角色没变，不会触发切换角色时的「还在生成就继续显示正在输入」，这里要自己接上，
       // 否则你在群里时还没写完的回复，回来后停在半截、也不再刷新
-      void loadActivePersonaDetail(slug).then(() => {
-        if (!activeGroupIdRef.current && activeSlugRef.current === slug) {
+      void (async () => {
+        const isInflight = await checkInflightOnce({ slug });
+        if (activeGroupIdRef.current || activeSlugRef.current !== slug) return;
+        await loadActivePersonaDetail(slug);
+        if (!activeGroupIdRef.current && activeSlugRef.current === slug && isInflight) {
           void watchInflight({ slug }, "对方");
         }
-      });
+      })();
     }
     setActiveSlug(slug);
   };
 
   const handleSelectGroup = (groupId: string) => {
     if (activeGroupIdRef.current === groupId) return;
+    flushPendingBurst({ background: true });
+    streamSessionIdRef.current += 1;
     activeGroupIdRef.current = groupId;
     setMessages([]);
     setActiveSlug("master-bot");
@@ -1029,7 +1108,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       kickoff?: boolean;
     }
   ) => {
+    const mySessionId = ++streamSessionIdRef.current;
+    const requestSlug = activeSlugRef.current;
     const requestGroupId = activeGroupIdRef.current;
+    const isCurrentSession = () =>
+      streamSessionIdRef.current === mySessionId &&
+      activeGroupIdRef.current === requestGroupId &&
+      (Boolean(requestGroupId) || activeSlugRef.current === requestSlug);
+    const isSameChannel = () =>
+      activeGroupIdRef.current === requestGroupId &&
+      (Boolean(requestGroupId) || activeSlugRef.current === requestSlug);
+
     clearScheduledFollowup();
     idleNudgeCountRef.current = 0;
     const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
@@ -1052,7 +1141,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          slug: activeSlug,
+          slug: requestSlug,
           groupId: requestGroupId || undefined,
           kickoff: options?.kickoff,
           mentionedSlug: requestGroupId ? undefined : options?.mentionedSlug,
@@ -1086,6 +1175,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        if (!isCurrentSession()) break;
         buffer += decoder.decode(value, { stream: true });
 
         const blocks = buffer.split("\n\n");
@@ -1099,7 +1189,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
           try {
             const payload = JSON.parse(dataLine.slice(6));
-            if (activeGroupIdRef.current !== requestGroupId) continue;
+            if (!isCurrentSession()) continue;
             if (payload.type === "status") {
               setStreaming((prev) =>
                 prev
@@ -1208,7 +1298,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         }
       }
 
-      if (finalMessage) {
+      if (finalMessage && isCurrentSession()) {
         if (!committedIds.has(finalMessage.id)) {
           setMessages((prev) =>
             prev.some((m) => m.id === finalMessage!.id)
@@ -1218,7 +1308,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         }
 
         // Check silently after turn completes if the persona autonomously posted a new moment
-        const turnSlug = activeSlug;
+        const turnSlug = requestSlug;
         momentCheckTimersRef.current.forEach((t) => clearTimeout(t));
         momentCheckTimersRef.current = [
           setTimeout(() => {
@@ -1237,13 +1327,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
             card.status === "generating"
           ) {
             const targetMessageId = sourceMsg.id;
-            // 群聊：用发图那位成员的形象生成，结果写回群聊记录
-            const targetSlug = requestGroupId ? sourceMsg.fromBot?.slug || activeSlug : activeSlug;
+            // 群聊：用发图那位成员的形象生成，结果写回群聊记录；单聊 @提及 时区分频道与形象归属
+            const targetChannelSlug = requestGroupId
+              ? sourceMsg.fromBot?.slug || requestSlug
+              : requestSlug;
+            const targetPersonaSlug =
+              !requestGroupId && sourceMsg.fromBot?.slug ? sourceMsg.fromBot.slug : undefined;
+            const visualSlug = targetPersonaSlug || targetChannelSlug;
             void fetch("/api/media/generate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                slug: targetSlug,
+                slug: targetChannelSlug,
+                ...(targetPersonaSlug ? { personaSlug: targetPersonaSlug } : {}),
                 messageId: targetMessageId,
                 cardIndex,
                 kind: card.type,
@@ -1254,33 +1350,40 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               .then((r) => r.json())
               .then((resData) => {
                 if (resData?.success && resData.card) {
-                  setMessages((prevMsgs) =>
-                    prevMsgs.map((m) => {
-                      if (m.id !== targetMessageId) return m;
-                      const updated = [...(m.mediaCards || [])];
-                      updated[cardIndex] = {
-                        ...updated[cardIndex],
-                        ...resData.card,
-                      };
-                      return { ...m, mediaCards: updated };
-                    })
-                  );
+                  if (isSameChannel()) {
+                    setMessages((prevMsgs) =>
+                      prevMsgs.map((m) => {
+                        if (m.id !== targetMessageId) return m;
+                        const updated = [...(m.mediaCards || [])];
+                        updated[cardIndex] = {
+                          ...updated[cardIndex],
+                          ...resData.card,
+                        };
+                        return { ...m, mediaCards: updated };
+                      })
+                    );
+                  }
                   if (
                     resData.autoLockedReference &&
-                    activeSlugRef.current === targetSlug
+                    activeSlugRef.current === visualSlug
                   ) {
-                    void loadActivePersonaDetail(targetSlug);
+                    void loadActivePersonaDetail(visualSlug);
                   }
                   if (resData.shouldRefineReference && resData.sourcePhotoUrl) {
-                    void handleRefineReferencePortrait(targetSlug, {
+                    void handleRefineReferencePortrait(visualSlug, {
                       sourceImageUrl: resData.sourcePhotoUrl,
                       expectedCurrentRef: resData.sourcePhotoUrl,
                       mode: "auto",
                     });
                   }
+                } else if (isSameChannel()) {
+                  void requestMediaRecover(
+                    requestGroupId ? { groupId: requestGroupId } : { slug: requestSlug }
+                  );
                 }
               })
               .catch(() => {
+                if (!isSameChannel()) return;
                 setMessages((prevMsgs) =>
                   prevMsgs.map((m) => {
                     if (m.id !== targetMessageId) return m;
@@ -1295,18 +1398,21 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                     return { ...m, mediaCards: updated };
                   })
                 );
+                void requestMediaRecover(
+                  requestGroupId ? { groupId: requestGroupId } : { slug: requestSlug }
+                );
               });
           }
         }));
         // Schedule autonomous delayed follow-up if the model chose [FOLLOWUP: delaySec | content]
         if (pendingFollowup && pendingFollowup.content) {
-          const scheduledSlug = activeSlug;
+          const scheduledSlug = requestSlug;
           const scheduledFollowup = pendingFollowup;
           const delayMs =
             Math.max(5, Math.min(120, scheduledFollowup.delaySec || 8)) * 1000;
           followupTimerRef.current = setTimeout(() => {
             followupTimerRef.current = null;
-            if (activeSlugRef.current !== scheduledSlug) return;
+            if (activeSlugRef.current !== scheduledSlug || activeGroupIdRef.current) return;
             void fetch("/api/chat/followup", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1321,7 +1427,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                 if (
                   resData?.success &&
                   resData.message &&
-                  activeSlugRef.current === scheduledSlug
+                  activeSlugRef.current === scheduledSlug &&
+                  !activeGroupIdRef.current
                 ) {
                   setMessages((prevMsgs) => [
                     ...prevMsgs,
@@ -1345,8 +1452,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         console.error("Streaming chat error:", error);
       }
     } finally {
-      streamAbortRef.current = null;
-      setStreaming(null);
+      if (streamSessionIdRef.current === mySessionId) {
+        streamAbortRef.current = null;
+        setStreaming(null);
+      }
     }
   };
 
@@ -1390,6 +1499,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     if (isDirective) {
       if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
       burstTimerRef.current = null;
+      pendingBurstDataRef.current = null;
       setPendingBurst(false);
       await runStreamRequest(nextHistory, activeMode, {
         requestPhoto: options?.requestPhoto,
@@ -1398,6 +1508,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       });
       return;
     }
+    pendingBurstDataRef.current = {
+      slug: activeSlugRef.current,
+      groupId: activeGroupIdRef.current,
+      mode: activeMode,
+      thinkMode,
+      deepSearch,
+      messages: nextHistory,
+    };
     scheduleBurstFlush(burstTimerRef.current ? false : true);
   };
 

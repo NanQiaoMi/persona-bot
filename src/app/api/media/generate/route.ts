@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { slug, messageId, cardIndex = 0, groupId, manual } = body || {};
+    const { slug, personaSlug, messageId, cardIndex = 0, groupId, manual } = body || {};
 
     if (!slug || !messageId) {
       return NextResponse.json({ success: false, error: 'Missing slug or messageId' }, { status: 400 });
@@ -20,6 +20,9 @@ export async function POST(request: Request) {
     const result = await runMediaJob(
       {
         slug: String(slug),
+        ...(typeof personaSlug === 'string' && personaSlug.trim()
+          ? { personaSlug: personaSlug.trim() }
+          : {}),
         messageId: String(messageId),
         cardIndex: Number.isInteger(cardIndex) ? cardIndex : 0,
         groupId: typeof groupId === 'string' && groupId ? groupId : undefined,
