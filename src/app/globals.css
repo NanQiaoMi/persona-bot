@@ -567,3 +567,334 @@ body {
     animation: none !important;
   }
 }
+
+/* ───────────── 动效变量（与 feat/motion-system 同名同值） ───────────── */
+:root {
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1.15);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ───────────── 启动动画「小团子醒来」 ─────────────
+ * 时间轴见 docs/superpowers/plans/2026-11-26-splash-animation-plan.md
+ * 完整版为默认；html[data-splash="short"] 为会话内再次打开的简短版；
+ * prefers-reduced-motion 为静态版。只动 transform / opacity。 */
+
+.splash-root {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  cursor: default;
+  user-select: none;
+  transition: opacity var(--splash-exit, 360ms) var(--ease-standard);
+  /* 兜底：脚本完全没跑起来时 10 秒后自己消失 */
+  animation: splash-failsafe 300ms ease 10s forwards;
+}
+
+.splash-root[data-state="exiting"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 420px;
+  height: 420px;
+  margin: -250px 0 0 -210px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, var(--accent-teal) 0%, transparent 65%);
+  opacity: 0.08;
+  animation: splash-glow-in 120ms ease-out both;
+}
+
+[data-theme="dark"] .splash-glow {
+  opacity: 0.14;
+}
+
+.splash-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transform: translateY(-20px);
+}
+
+.splash-mascot {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  transition: transform var(--splash-exit, 360ms) var(--ease-standard),
+    opacity var(--splash-exit, 360ms) var(--ease-standard);
+}
+
+.splash-root[data-state="exiting"] .splash-mascot {
+  transform: scale(1.15);
+  opacity: 0;
+}
+
+.splash-blob {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.splash-blob-drop,
+.splash-blob-body,
+.splash-eyes,
+.splash-eyes-blink,
+.splash-eyes-look {
+  transform-box: fill-box;
+  transform-origin: center center;
+}
+
+.splash-blob-drop {
+  transform-origin: center bottom;
+  animation: splash-drop 400ms var(--ease-spring) 120ms both;
+}
+
+.splash-blob-body {
+  transform-origin: center bottom;
+  animation: splash-gulp 220ms var(--ease-spring) 900ms,
+    blob-breathe 4.2s ease-in-out 1200ms infinite;
+}
+
+.splash-eyes {
+  animation: splash-eyes-open 240ms var(--ease-standard) 520ms both;
+}
+
+.splash-eyes-blink {
+  animation: splash-blink 140ms linear 780ms, blob-blink 4.4s ease-in-out 2400ms infinite;
+}
+
+.splash-eyes-look {
+  animation: splash-look 360ms var(--ease-standard) 820ms;
+}
+
+.splash-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 9999px;
+  background: var(--dot-color);
+  opacity: 0;
+  animation: splash-dot-fly 380ms var(--ease-spring) both;
+}
+
+.splash-wordmark {
+  display: flex;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.splash-wordmark > span {
+  display: inline-block;
+  animation: splash-rise 300ms var(--ease-standard) both;
+  animation-delay: calc(760ms + var(--i) * 25ms);
+}
+
+.splash-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--text-muted);
+  animation: splash-rise 300ms var(--ease-standard) 1000ms both;
+}
+
+.splash-steps {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.splash-step {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--border-strong);
+  transition: background-color var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.splash-step[data-on="true"] {
+  background: var(--accent-teal);
+  transform: scale(1.2);
+}
+
+@keyframes splash-failsafe {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+@keyframes splash-glow-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes splash-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.6);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+  78% {
+    transform: translateY(0) scale(0.97, 1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes splash-gulp {
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes splash-eyes-open {
+  from {
+    transform: scaleY(0.1);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes splash-blink {
+  50% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes splash-look {
+  40%,
+  60% {
+    transform: translateX(-2.5px);
+  }
+}
+
+@keyframes splash-dot-fly {
+  0% {
+    opacity: 0;
+    transform: translate(var(--dot-x), var(--dot-y)) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(calc(var(--dot-x) * 0.85), calc(var(--dot-y) * 0.85)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes splash-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 简短版：只有团子 + 光晕，字标与状态在数据慢时才淡入 */
+[data-splash="short"] .splash-blob-drop {
+  animation: splash-pop 200ms var(--ease-standard) both;
+}
+[data-splash="short"] .splash-blob-body {
+  animation: blob-breathe 4.2s ease-in-out 200ms infinite;
+}
+[data-splash="short"] .splash-eyes,
+[data-splash="short"] .splash-eyes-look {
+  animation: none;
+}
+[data-splash="short"] .splash-eyes-blink {
+  animation: blob-blink 4.4s ease-in-out 1200ms infinite;
+}
+[data-splash="short"] .splash-dot {
+  display: none;
+}
+[data-splash="short"] .splash-wordmark > span {
+  animation: splash-rise 200ms var(--ease-standard) 400ms both;
+}
+[data-splash="short"] .splash-status {
+  animation: splash-rise 200ms var(--ease-standard) 500ms both;
+}
+
+/* 退场时底下的工作台轻轻浮现 */
+[data-splash-reveal] {
+  transition: opacity var(--splash-exit, 360ms) var(--ease-standard),
+    transform var(--splash-exit, 360ms) var(--ease-standard);
+}
+[data-splash-reveal="pending"] {
+  opacity: 0.6;
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-glow,
+  .splash-blob-drop,
+  .splash-blob-body,
+  .splash-eyes,
+  .splash-eyes-blink,
+  .splash-eyes-look,
+  .splash-wordmark > span,
+  .splash-status,
+  [data-splash="short"] .splash-blob-drop,
+  [data-splash="short"] .splash-blob-body,
+  [data-splash="short"] .splash-eyes-blink,
+  [data-splash="short"] .splash-wordmark > span,
+  [data-splash="short"] .splash-status {
+    animation: none !important;
+  }
+  .splash-dot {
+    display: none;
+  }
+  .splash-root[data-state="exiting"] .splash-mascot {
+    transform: none;
+  }
+  [data-splash-reveal="pending"] {
+    opacity: 1;
+    transform: none;
+  }
+  .splash-step {
+    transition: none;
+  }
+}

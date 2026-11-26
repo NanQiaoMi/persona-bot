@@ -20,6 +20,7 @@ import CreateBotModal from "./CreateBotModal";
 import CreateGroupModal from "./CreateGroupModal";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
+import SplashScreen, { hasSplashPlayed, type SplashPhase } from "./SplashScreen";
 
 interface GrokWorkspaceProps {
   initialSlug?: string;
@@ -27,6 +28,14 @@ interface GrokWorkspaceProps {
 
 export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
+  // 启动动画：整个页面只播一次；客户端路由切换回来时直接跳过
+  const [splashPhase, setSplashPhase] = useState<SplashPhase>(() =>
+    hasSplashPlayed() ? "done" : "playing"
+  );
+  const [splashSteps, setSplashSteps] = useState({ personas: false, groups: false, detail: false });
+  const markSplashStep = useCallback((step: "personas" | "groups" | "detail") => {
+    setSplashSteps((prev) => (prev[step] ? prev : { ...prev, [step]: true }));
+  }, []);
   const [activeSlug, setActiveSlug] = useState<string>(
     initialSlug || "lu-xi"
   );
@@ -425,9 +434,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   useEffect(() => {
     let active = true;
     const init = async () => {
-      await Promise.all([loadPersonaList(), loadGroups()]);
+      await Promise.all([
+        loadPersonaList().then(() => markSplashStep("personas")),
+        loadGroups().then(() => markSplashStep("groups")),
+      ]);
       if (active) {
         await loadActivePersonaDetail(activeSlug);
+        markSplashStep("detail");
         if (active && !activeGroupIdRef.current) {
           void watchInflight({ slug: activeSlug }, "对方");
         }
@@ -437,7 +450,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     return () => {
       active = false;
     };
-  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail, watchInflight]);
+  }, [activeSlug, loadPersonaList, loadGroups, loadActivePersonaDetail, watchInflight, markSplashStep]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1474,7 +1487,20 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <>
+    {splashPhase !== "done" && (
+      <SplashScreen
+        ready={Boolean(activePersona)}
+        steps={splashSteps}
+        onPhaseChange={setSplashPhase}
+      />
+    )}
+    <div
+      data-splash-reveal={
+        splashPhase === "playing" ? "pending" : splashPhase === "exiting" ? "revealing" : undefined
+      }
+      className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]"
+    >
       {sidebarOpen && (
         <LeftSidebar
           personas={personas}
@@ -1673,5 +1699,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         onClose={() => setShowSettings(false)}
       />
     </div>
+    </>
   );
 }

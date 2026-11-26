@@ -15,3 +15,8 @@
 
 ## ADR-004: DeepSearch 采用免 Key 内置检索 + 专业搜索 API 双擎自适应
 - **决策**: 默认通过免 Key 公开接口（Wikipedia / DuckDuckGo Instant Answer）结合主题兜底实现开箱即用联网；当用户填写 Tavily 或 Serper API Key 时自动升级为高精度全网搜索。
+
+## ADR-005: 启动动画用纯 CSS + 内联 SVG，不引入动效库
+- **背景**: 首次打开只有一个居中的「正在连接 PersonaBot...」，暗色用户还会先闪一下白屏（主题要等 JS 跑起来才切换）。
+- **决策**: 启动画面随服务端 HTML 一起输出，动画全部用 CSS keyframes（只动 transform / opacity），`<head>` 里一段同步小脚本负责首帧主题与「完整版 / 简短版」判断；退场时机由 `src/lib/motion/splash.ts` 纯函数决定（完整版至少 900ms、数据晚到立即退场、8 秒超时）。
+- **收益**: JS 还没加载就开始播放；零新依赖（framer-motion、Lottie 都要等水合才动，还要多几十 KB）；规则可单测；顺带修掉暗色闪白。

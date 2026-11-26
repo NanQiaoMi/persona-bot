@@ -110,6 +110,15 @@ function hashSlug(slug: string): number {
   return Math.abs(h);
 }
 
+/** 内置角色的吉祥物形状与颜色（启动动画的色点也用这里的颜色） */
+export const BUILTIN_MASCOT_PRESETS: Record<string, { shape: MascotShapeId; color: string }> = {
+  "master-bot": { shape: "circle", color: "#0A0A0C" },
+  "lu-xi": { shape: "cloud", color: "#12B59C" },
+  "xia-you": { shape: "clover", color: "#8B5CF6" },
+  "shen-zhi": { shape: "scallop", color: "#F43F9E" },
+  "chen-ye": { shape: "hexagon", color: "#F97316" },
+};
+
 export function getMascotConfigForPersona(
   slug: string,
   profile?: Partial<PersonaProfile>,
@@ -124,15 +133,7 @@ export function getMascotConfigForPersona(
     };
   }
 
-  const presetMap: Record<string, { shape: MascotShapeId; color: string }> = {
-    "master-bot": { shape: "circle", color: "#0A0A0C" },
-    "lu-xi": { shape: "cloud", color: "#12B59C" },
-    "xia-you": { shape: "clover", color: "#8B5CF6" },
-    "shen-zhi": { shape: "scallop", color: "#F43F9E" },
-    "chen-ye": { shape: "hexagon", color: "#F97316" },
-  };
-
-  const preset = presetMap[slug];
+  const preset = BUILTIN_MASCOT_PRESETS[slug];
   const h = hashSlug(slug || "bot");
   const fallbackShape = MASCOT_SHAPES[h % MASCOT_SHAPES.length].id;
   const fallbackColor =
