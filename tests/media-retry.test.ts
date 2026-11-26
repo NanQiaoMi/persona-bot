@@ -41,9 +41,12 @@ function mockGateway(opts: { online?: boolean; imageOk?: boolean; delayMs?: numb
 }
 
 let seq = 0;
+/** 每个用例用自己的临时角色：并行跑的其他测试文件也会改内置角色的聊天记录 */
 async function seedChat(card: Partial<MediaCard> = {}, timestamp = new Date().toISOString()) {
   await storageRepo.listPersonas();
-  const slug = 'xia-you';
+  const base = await storageRepo.getPersona('xia-you');
+  const slug = `media-retry-${process.pid}-${seq}`;
+  await storageRepo.savePersona({ ...base!, slug, name: '补图测试', isPreset: false });
   const id = `media_${Date.now()}_${seq++}`;
   const msg: ConversationMessage = {
     id,

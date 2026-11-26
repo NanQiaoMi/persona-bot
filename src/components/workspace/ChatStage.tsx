@@ -1118,6 +1118,7 @@ export default function ChatStage({
                                 key={cIdx}
                                 card={card}
                                 name={persona.name}
+                                accent={mascotCfg.color}
                                 onRetry={onRetryMedia ? () => onRetryMedia(msg.id, cIdx) : undefined}
                               />
                             );
@@ -1153,6 +1154,7 @@ export default function ChatStage({
                                 key={cIdx}
                                 card={card}
                                 name={persona.name}
+                                accent={mascotCfg.color}
                                 onRetry={onRetryMedia ? () => onRetryMedia(msg.id, cIdx) : undefined}
                               />
                             );
