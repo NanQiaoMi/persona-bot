@@ -20,6 +20,8 @@ export interface PersonaProfile {
   appearanceAnchorLocked?: boolean;
   /** 主人亲手写的一句话性格（创建时填，之后可在资料库改），每次聊天都会带进人设 */
   basicPersonality?: string;
+  /** false 表示你关掉了「允许 TA 主动找我」 */
+  allowProactive?: boolean;
   referenceImageUrl?: string;
   bio?: string;
 }
@@ -213,6 +215,8 @@ export interface ConversationMessage {
   systemTip?: boolean;
   /** 群聊：角色自己聊起来的消息；catchup 表示「你不在时」补上的 */
   ambient?: 'idle' | 'catchup';
+  /** 角色自己主动发来的消息（不是回复你）；catchup 表示「你不在时」发的 */
+  proactive?: 'tick' | 'catchup';
 }
 
 export interface MessageQuote {

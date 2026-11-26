@@ -770,6 +770,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role !== "assistant") return;
+    // 轻敲只用于「刚聊着突然不回」：TA 主动发来的消息你还没回、或者是好几分钟前的旧消息，都不追发
+    if (lastMsg.proactive) return;
+    const lastMsgAge = Date.now() - new Date(lastMsg.timestamp).getTime();
+    if (Number.isFinite(lastMsgAge) && lastMsgAge > 10 * 60_000) return;
     if (idleNudgeCountRef.current >= 2) return;
 
     const nextCount = idleNudgeCountRef.current + 1;
@@ -989,6 +993,94 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   }, [activeGroupId, messages, saveGroupSeen]);
 
+  // ---- 所有 Bot 主动找你：单聊未读 + 定时检查 ----
+  const [personaUnread, setPersonaUnread] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("personabot-persona-unread") || "{}");
+      // 读本地存储只能在挂载后做（服务端渲染没有 window），放到微任务里避免同步 setState
+      if (saved && typeof saved === "object") {
+        // 刚打开时正开着的那个单聊不算未读
+        if (!activeGroupIdRef.current) delete saved[activeSlugRef.current];
+        queueMicrotask(() => setPersonaUnread(saved));
+      }
+    } catch {
+      // 忽略损坏的本地记录
+    }
+  }, []);
+  const updatePersonaUnread = useCallback(
+    (fn: (prev: Record<string, number>) => Record<string, number>) => {
+      setPersonaUnread((prev) => {
+        const next = fn(prev);
+        if (next === prev) return prev;
+        try {
+          window.localStorage.setItem("personabot-persona-unread", JSON.stringify(next));
+        } catch {
+          // 存不了就只在内存里
+        }
+        return next;
+      });
+    },
+    []
+  );
+  // 打开某个单聊：TA 的未读清零（在切换的那一下做，不放进 effect）
+  const clearPersonaUnread = useCallback(
+    (slug: string) =>
+      updatePersonaUnread((prev) => {
+        if (!prev[slug]) return prev;
+        const next = { ...prev };
+        delete next[slug];
+        return next;
+      }),
+    [updatePersonaUnread]
+  );
+
+  useEffect(() => {
+    let stopped = false;
+    const ask = async (mode: "tick" | "catchup") => {
+      if (stopped || document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/proactive/tick", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode,
+            activeSlug: activeGroupIdRef.current ? undefined : activeSlugRef.current,
+          }),
+        });
+        const data = await res.json();
+        const sent: Array<{ slug: string }> = Array.isArray(data?.sent) ? data.sent : [];
+        if (stopped || sent.length === 0) return;
+        updatePersonaUnread((prev) => {
+          const next = { ...prev };
+          for (const s of sent) {
+            // 你此刻正开着 TA 的单聊就不算未读
+            if (!activeGroupIdRef.current && s.slug === activeSlugRef.current) continue;
+            next[s.slug] = Math.min(99, (next[s.slug] || 0) + 1);
+          }
+          return next;
+        });
+        void loadPersonaList();
+      } catch {
+        // 主动消息失败不影响使用
+      }
+    };
+    // 刚打开：补上你不在时的；之后大约每 10 分钟例行看一次（服务端决定要不要、谁来）
+    const first = setTimeout(() => void ask("catchup"), 12_000);
+    const timer = setInterval(() => void ask("tick"), 10 * 60_000);
+    // 从别的窗口切回来：离开够久的话服务端会补发
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void ask("catchup");
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      clearTimeout(first);
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [loadPersonaList, updatePersonaUnread]);
+
   // 新 Bot 卡片上点了「撤销」：刷新角色列表和群列表
   useEffect(() => {
     const onChanged = () => {
@@ -1101,6 +1193,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   }, [activeGroupId]);
 
   const handleSelectPersona = (slug: string) => {
+    clearPersonaUnread(slug);
     const wasInGroup = Boolean(activeGroupIdRef.current);
     if (!wasInGroup && slug === activeSlugRef.current) return;
     flushPendingBurst({ background: true });
@@ -1946,6 +2039,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           activeSlug={activeSlug}
           isStreaming={Boolean(streaming)}
           draftsBySlug={sidebarDrafts}
+          unreadBySlug={personaUnread}
           onSelectPersona={sidebarSelectPersona}
           groups={groups}
           activeGroupId={activeGroupId}

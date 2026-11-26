@@ -1567,6 +1567,44 @@ function RightInspector({
                     </div>
                   )}
 
+                  {/* 这个角色会不会像真人一样主动来找你（有频率上限、避开睡觉时间） */}
+                  {!persona.isMaster && persona.slug !== "master-bot" && (
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
+                      <div className="min-w-0">
+                        <div className="text-[11.5px] font-medium text-[var(--text-primary)]">
+                          允许 TA 主动找我
+                        </div>
+                        <div className="text-[10px] text-[var(--text-muted)]">
+                          按时间、亲密度和聊过的事自然来找你，每天有上限
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={persona.profile.allowProactive !== false}
+                        onClick={() =>
+                          void onSavePersonaPatch({
+                            profile: {
+                              ...persona.profile,
+                              allowProactive: persona.profile.allowProactive === false ? undefined : false,
+                            },
+                          })
+                        }
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                          persona.profile.allowProactive !== false
+                            ? "bg-[#18a999]"
+                            : "bg-black/15 dark:bg-white/20"
+                        }`}
+                      >
+                        <span
+                          className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            persona.profile.allowProactive !== false ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
                   {onToggleAutoNudge && (
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
                       <div className="min-w-0">
