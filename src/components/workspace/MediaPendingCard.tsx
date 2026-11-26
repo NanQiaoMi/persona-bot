@@ -39,7 +39,13 @@ export default function MediaPendingCard({
       aria-live="polite"
     >
       {/* 波点：生成中从中心一圈圈呼吸着荡开；其余状态静止淡显 */}
-      <DotField cols={isSticker ? 8 : 13} rows={isSticker ? 8 : 10} animated={busy} />
+      <DotField cols={isSticker ? 8 : 13} rows={isSticker ? 8 : 10} animated={busy} clearCenter={!busy} />
+      {busy ? (
+        // 生成中只留波点，文字给读屏软件
+        <span className="sr-only">
+          {isSticker ? `${name} 正在找表情包` : `${name} 正在拍照`}
+        </span>
+      ) : (
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
       <span
         className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-primary)] text-[var(--text-secondary)] shadow-sm"
@@ -75,12 +81,24 @@ export default function MediaPendingCard({
         </button>
       )}
       </div>
+      )}
     </div>
   );
 }
 
 /** 波点阵：每个点的呼吸按离中心的距离错开，连起来就是一圈圈向外荡开的波纹 */
-function DotField({ cols, rows, animated }: { cols: number; rows: number; animated: boolean }) {
+function DotField({
+  cols,
+  rows,
+  animated,
+  clearCenter,
+}: {
+  cols: number;
+  rows: number;
+  animated: boolean;
+  /** 中间留白给文字（等网络 / 失败时）；生成中铺满 */
+  clearCenter: boolean;
+}) {
   const cx = (cols - 1) / 2;
   const cy = (rows - 1) / 2;
   const maxDist = Math.hypot(cx, cy);
@@ -106,9 +124,12 @@ function DotField({ cols, rows, animated }: { cols: number; rows: number; animat
       style={{
         gridTemplateColumns: `repeat(${cols}, 1fr)`,
         gridTemplateRows: `repeat(${rows}, 1fr)`,
-        // 中间留白给文字，波纹绕着文字向外荡开
-        maskImage: "radial-gradient(ellipse at center, transparent 0, transparent 26%, #000 58%)",
-        WebkitMaskImage: "radial-gradient(ellipse at center, transparent 0, transparent 26%, #000 58%)",
+        ...(clearCenter
+          ? {
+              maskImage: "radial-gradient(ellipse at center, transparent 0, transparent 26%, #000 58%)",
+              WebkitMaskImage: "radial-gradient(ellipse at center, transparent 0, transparent 26%, #000 58%)",
+            }
+          : {}),
       }}
     >
       {dots}
