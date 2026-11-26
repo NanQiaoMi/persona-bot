@@ -263,14 +263,42 @@ describe('WeChat-style Moments Backend & API', () => {
       },
     ]);
 
+    // 模型不可用时自动发布这次不发（不再塞千篇一律的离线文案）
+    expect(await maybeAutoPublishMoment(slug, 'chat')).toBe(false);
+
+    // 只在本测试进程里模拟「配置了模型」：对话接口返回一条新动态，生图接口返回图片
+    const realSettings = await storageRepo.getSettings();
+    vi.spyOn(storageRepo, 'getSettings').mockResolvedValue({
+      ...realSettings,
+      llmApiKey: 'sk-test-moments',
+      llmBaseUrl: 'http://127.0.0.1:9/v1',
+    });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(JSON.stringify({ data: [{ b64_json: TINY_PNG_B64 }] }), {
+      vi.fn(async (url: unknown) => {
+        const body = String(url).includes('/chat/completions')
+          ? {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      content: '打完游戏去吃了碗馄饨，凌晨的小摊最有烟火气',
+                      location: '巷口小摊',
+                      mood: '满足',
+                      topic: 'food',
+                      includePersonaFace: false,
+                      imagePrompt: '深夜街边小摊上的一碗热馄饨',
+                    }),
+                  },
+                },
+              ],
+            }
+          : { data: [{ b64_json: TINY_PNG_B64 }] };
+        return new Response(JSON.stringify(body), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
-        })
-      )
+        });
+      })
     );
 
     try {

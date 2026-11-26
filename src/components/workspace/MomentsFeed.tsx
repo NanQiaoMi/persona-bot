@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MomentPost, PersonaRecord } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import SaveSceneAssetButton from "./SaveSceneAssetButton";
+import { prepareMomentsForDisplay } from "@/lib/persona/moment-dedupe";
 
 interface MomentsFeedProps {
   persona: PersonaRecord;
@@ -272,7 +273,7 @@ export default function MomentsFeed({
         </div>
       ) : (
         <div className="space-y-3">
-          {posts.map((post) => {
+          {prepareMomentsForDisplay(posts).map((post) => {
             const isCommenting = commentingId === post.id;
             const hasInteractions =
               post.likes.length > 0 || post.comments.length > 0;
@@ -280,17 +281,15 @@ export default function MomentsFeed({
             return (
               <article
                 key={post.id}
-                className="p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5"
+                className="group/post p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] transition-colors hover:border-[var(--border-strong)]"
               >
-                {/* Header & Content */}
-                <div className="flex items-start gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center overflow-hidden shrink-0">
+                {/* 头部：头像 / 名字 / 心情 */}
+                <header className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center overflow-hidden shrink-0">
                     {persona.profile.referenceImageUrl || mascotCfg.image ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={
-                          persona.profile.referenceImageUrl || mascotCfg.image
-                        }
+                        src={persona.profile.referenceImageUrl || mascotCfg.image}
                         alt={post.authorName}
                         className="w-full h-full object-cover"
                       />
@@ -298,183 +297,180 @@ export default function MomentsFeed({
                       <BlobMascot
                         shape={mascotCfg.shape}
                         color={mascotCfg.color}
-                        size={22}
+                        size={24}
                         trackPointer={false}
                         animated={false}
                       />
                     )}
                   </div>
-
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[12.5px] font-semibold text-[#576b95] dark:text-[#7fa3e0] truncate">
-                        {post.authorName}
-                      </span>
-                      {post.mood && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-secondary)] text-[9.5px] text-[var(--text-muted)] shrink-0">
-                          {post.mood}
-                        </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                      {post.authorName}
+                    </div>
+                    <div className="flex items-center gap-1 text-[10.5px] text-[var(--text-muted)] min-w-0">
+                      <span className="shrink-0">{formatRelativeTime(post.createdAt, nowMs)}</span>
+                      {post.location && (
+                        <>
+                          <span className="opacity-50">·</span>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+                            <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+                            <circle cx="12" cy="10" r="2.2" />
+                          </svg>
+                          <span className="truncate">{post.location}</span>
+                        </>
                       )}
                     </div>
+                  </div>
+                  {post.mood && (
+                    <span className="px-2 h-5 inline-flex items-center rounded-full bg-[var(--bg-secondary)] text-[10px] text-[var(--text-muted)] shrink-0 max-w-[7em] truncate">
+                      {post.mood}
+                    </span>
+                  )}
+                </header>
 
-                    <p className="text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap break-words">
-                      {post.content}
-                    </p>
+                <p className="mt-2.5 text-[12.5px] leading-[1.7] text-[var(--text-primary)] whitespace-pre-wrap break-words">
+                  {post.content}
+                </p>
 
-                    {/* Images */}
-                    {post.images.length > 0 && (
-                      <div
-                        className={
-                          post.images.length === 1
-                            ? "pt-0.5"
-                            : "grid grid-cols-2 gap-1.5 pt-0.5"
+                {/* 配图：单张 4:3，多张两列方图 */}
+                {post.images.length > 0 && (
+                  <div
+                    className={
+                      post.images.length === 1 ? "mt-2.5" : "mt-2.5 grid grid-cols-2 gap-1.5"
+                    }
+                  >
+                    {post.images.map((imgUrl, i) => (
+                      <button
+                        key={`${post.id}-img-${i}`}
+                        type="button"
+                        onClick={() =>
+                          setLightboxImage({
+                            url: imgUrl,
+                            caption: post.imageCaptions?.[i] || post.content.slice(0, 30),
+                          })
                         }
+                        className={`block w-full overflow-hidden rounded-xl bg-[var(--bg-secondary)] cursor-zoom-in ${
+                          post.images.length === 1 ? "aspect-[4/3]" : "aspect-square"
+                        }`}
                       >
-                        {post.images.map((imgUrl, i) => (
-                          <button
-                            key={`${post.id}-img-${i}`}
-                            type="button"
-                            onClick={() =>
-                              setLightboxImage({
-                                url: imgUrl,
-                                caption:
-                                  post.imageCaptions?.[i] ||
-                                  post.content.slice(0, 30),
-                              })
-                            }
-                            className="block w-full rounded-xl overflow-hidden border border-[var(--border-subtle)] cursor-zoom-in text-left"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={imgUrl}
-                              alt={post.imageCaptions?.[i] || "朋友圈配图"}
-                              className={
-                                post.images.length === 1
-                                  ? "w-full max-h-44 object-cover"
-                                  : "w-full h-24 object-cover"
-                              }
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Location & Time + Like/Comment Toolbar */}
-                    <div className="flex items-center justify-between gap-2 pt-0.5 text-[10.5px] text-[var(--text-muted)]">
-                      <div className="flex items-center gap-1.5 min-w-0 truncate">
-                        <span className="shrink-0">
-                          {formatRelativeTime(post.createdAt, nowMs)}
-                        </span>
-                        {post.location && (
-                          <span className="truncate text-[#576b95]/85 dark:text-[#7fa3e0]/85">
-                            · {post.location}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => void handleToggleLike(post.id)}
-                          className={`px-2 py-0.5 rounded-md border text-[10.5px] transition-colors cursor-pointer ${
-                            post.likedByUser
-                              ? "border-rose-400/50 bg-rose-500/10 text-rose-500 font-medium"
-                              : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
-                          }`}
-                        >
-                          {post.likedByUser ? "❤️ 已赞" : "🤍 赞"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isCommenting) {
-                              setCommentingId(null);
-                            } else {
-                              setCommentingId(post.id);
-                              setCommentDraft("");
-                            }
-                          }}
-                          className="px-2 py-0.5 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-[10.5px] text-[var(--text-secondary)] transition-colors cursor-pointer"
-                        >
-                          💬 评论
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* WeChat Gray Likes & Comments Box */}
-                    {hasInteractions && (
-                      <div className="rounded-xl bg-[var(--bg-secondary)]/85 px-2.5 py-2 space-y-1.5 text-[11px]">
-                        {post.likes.length > 0 && (
-                          <div className="flex items-start gap-1.5 text-[#576b95] dark:text-[#7fa3e0] leading-relaxed">
-                            <span className="text-[10px] shrink-0 mt-0.5">
-                              ♡
-                            </span>
-                            <span className="font-medium break-words">
-                              {post.likes.join("，")}
-                            </span>
-                          </div>
-                        )}
-
-                        {post.likes.length > 0 && post.comments.length > 0 && (
-                          <div className="border-t border-[var(--border-subtle)]" />
-                        )}
-
-                        {post.comments.length > 0 && (
-                          <div className="space-y-1">
-                            {post.comments.map((c) => (
-                              <div
-                                key={c.id}
-                                className="leading-relaxed text-[var(--text-primary)] break-words"
-                              >
-                                <span className="font-medium text-[#576b95] dark:text-[#7fa3e0]">
-                                  {c.authorName}
-                                </span>
-                                {c.replyToName && (
-                                  <span className="text-[var(--text-muted)]">
-                                    {" "}
-                                    回复{" "}
-                                    <span className="font-medium text-[#576b95] dark:text-[#7fa3e0]">
-                                      {c.replyToName}
-                                    </span>
-                                  </span>
-                                )}
-                                <span>：{c.content}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Inline Comment Composer */}
-                    {isCommenting && (
-                      <div className="flex items-center gap-1.5 pt-1 animate-fade-in">
-                        <input
-                          type="text"
-                          value={commentDraft}
-                          disabled={submittingComment}
-                          onChange={(e) => setCommentDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              void handleSubmitComment(post.id);
-                            }
-                          }}
-                          placeholder={`评论 ${post.authorName}...`}
-                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[#18a999]"
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imgUrl}
+                          alt={post.imageCaptions?.[i] || "朋友圈配图"}
+                          loading="lazy"
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover/post:scale-[1.015]"
                         />
-                        <button
-                          type="button"
-                          disabled={!commentDraft.trim() || submittingComment}
-                          onClick={() => void handleSubmitComment(post.id)}
-                          className="px-2.5 py-1.5 rounded-lg bg-[#18a999] hover:bg-[#149688] disabled:opacity-45 text-white text-[11px] font-medium shrink-0 cursor-pointer"
-                        >
-                          {submittingComment ? "回复中" : "发送"}
-                        </button>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 点赞 / 评论 */}
+                <div className="mt-2 flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleLike(post.id)}
+                    aria-pressed={post.likedByUser}
+                    className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] transition-colors cursor-pointer ${
+                      post.likedByUser
+                        ? "text-rose-500 bg-rose-500/10"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill={post.likedByUser ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 19.5s-7.5-4.4-7.5-9.6A4.1 4.1 0 0 1 12 7.6a4.1 4.1 0 0 1 7.5 2.3c0 5.2-7.5 9.6-7.5 9.6z" />
+                    </svg>
+                    {post.likedByUser ? "已赞" : "赞"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isCommenting) {
+                        setCommentingId(null);
+                      } else {
+                        setCommentingId(post.id);
+                        setCommentDraft("");
+                      }
+                    }}
+                    aria-expanded={isCommenting}
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 11.5c0 3.6-3.6 6.5-8 6.5-1 0-2-.15-2.9-.43L5 19l1.1-3.1C4.8 14.7 4 13.2 4 11.5 4 7.9 7.6 5 12 5s8 2.9 8 6.5z" />
+                    </svg>
+                    评论
+                  </button>
+                </div>
+
+                {/* 点赞名单与评论 */}
+                {hasInteractions && (
+                  <div className="mt-1.5 rounded-xl bg-[var(--bg-secondary)] px-3 py-2 space-y-1.5 text-[11.5px]">
+                    {post.likes.length > 0 && (
+                      <div className="flex items-start gap-1.5 leading-relaxed">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="mt-[3px] shrink-0 text-rose-400">
+                          <path d="M12 19.5s-7.5-4.4-7.5-9.6A4.1 4.1 0 0 1 12 7.6a4.1 4.1 0 0 1 7.5 2.3c0 5.2-7.5 9.6-7.5 9.6z" />
+                        </svg>
+                        <span className="font-medium text-[#576b95] dark:text-[#8fb0e6] break-words">
+                          {post.likes.join("、")}
+                        </span>
                       </div>
+                    )}
+
+                    {post.likes.length > 0 && post.comments.length > 0 && (
+                      <div className="border-t border-[var(--border-subtle)]" />
+                    )}
+
+                    {post.comments.length > 0 && (
+                      <ul className="space-y-1">
+                        {post.comments.map((c) => (
+                          <li key={c.id} className="leading-relaxed text-[var(--text-secondary)] break-words">
+                            <span className="font-medium text-[#576b95] dark:text-[#8fb0e6]">
+                              {c.authorName}
+                            </span>
+                            {c.replyToName && (
+                              <>
+                                <span className="text-[var(--text-muted)]"> 回复 </span>
+                                <span className="font-medium text-[#576b95] dark:text-[#8fb0e6]">
+                                  {c.replyToName}
+                                </span>
+                              </>
+                            )}
+                            <span className="text-[var(--text-muted)]">：</span>
+                            <span className="text-[var(--text-primary)]">{c.content}</span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
-                </div>
+                )}
+
+                {/* 评论输入 */}
+                {isCommenting && (
+                  <div className="mt-2 flex items-center gap-1.5 animate-fade-in">
+                    <input
+                      type="text"
+                      value={commentDraft}
+                      disabled={submittingComment}
+                      onChange={(e) => setCommentDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSubmitComment(post.id);
+                        }
+                      }}
+                      placeholder={`评论 ${post.authorName}...`}
+                      className="flex-1 min-w-0 h-8 px-3 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)]"
+                    />
+                    <button
+                      type="button"
+                      disabled={!commentDraft.trim() || submittingComment}
+                      onClick={() => void handleSubmitComment(post.id)}
+                      className="h-8 px-3 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-45 text-white text-[11.5px] font-medium shrink-0 cursor-pointer"
+                    >
+                      {submittingComment ? "回复中" : "发送"}
+                    </button>
+                  </div>
+                )}
               </article>
             );
           })}

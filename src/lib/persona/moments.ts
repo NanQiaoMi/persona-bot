@@ -9,6 +9,7 @@ import {
 } from '@/lib/llm/client';
 import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
 import { storageRepo } from '@/lib/storage/repository';
+import { isNearDuplicateMoment } from '@/lib/persona/moment-dedupe';
 import {
   MomentComment,
   MomentPost,
@@ -402,16 +403,45 @@ const OFFLINE_MOMENT_TEMPLATES: Array<{
   },
 ];
 
+/** 这次不发：想不出和最近不重复的内容（或自动发布时模型不可用） */
+export class MomentSkippedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MomentSkippedError';
+  }
+}
+
+/** 离线文案里挑一条最近没发过的；都发过就返回 null */
+export function pickFreshOfflineTemplate<T extends { content: string; topic: string }>(
+  templates: T[],
+  recentContents: string[],
+  topic?: string,
+  random: () => number = Math.random
+): T | null {
+  const pool = topic ? templates.filter((t) => t.topic === topic) : templates;
+  const fresh = (pool.length > 0 ? pool : templates).filter(
+    (t) => !isNearDuplicateMoment(t.content, recentContents)
+  );
+  if (fresh.length === 0) return null;
+  return fresh[Math.floor(random() * fresh.length) % fresh.length];
+}
+
 export async function generateNewMomentPost(
   slug: string,
-  options?: { topic?: MomentTopic; hint?: string }
+  options?: {
+    topic?: MomentTopic;
+    hint?: string;
+    /** 模型不可用时是否允许用离线文案（自动发布时为 false：宁可不发，也不发千篇一律的内容） */
+    allowOfflineTemplate?: boolean;
+  }
 ): Promise<{ post: MomentPost; posts: MomentPost[] }> {
-  const [persona, allPersonas, settings, recentMsgs, sceneAssets] = await Promise.all([
+  const [persona, allPersonas, settings, recentMsgs, sceneAssets, existingPosts] = await Promise.all([
     storageRepo.getPersona(slug),
     storageRepo.listPersonas(),
     storageRepo.getSettings(),
     storageRepo.getConversation(slug, 8),
     storageRepo.getSceneAssets(slug),
+    storageRepo.getMoments(slug).catch(() => [] as MomentPost[]),
   ]);
 
   if (!persona) {
@@ -420,12 +450,11 @@ export async function generateNewMomentPost(
 
   const llm = resolveLlmConfig(settings);
   const topicFilter = options?.topic;
-  const fallbackPool = topicFilter
-    ? OFFLINE_MOMENT_TEMPLATES.filter((t) => t.topic === topicFilter)
-    : OFFLINE_MOMENT_TEMPLATES;
-  const fallbackPick =
-    fallbackPool[Math.floor(Date.now() / 1000) % fallbackPool.length] ||
+  // 最近发过的内容：新动态不能和它们太像
+  const recentContents = existingPosts.slice(0, 12).map((p) => p.content);
+  const fallbackPick = pickFreshOfflineTemplate(OFFLINE_MOMENT_TEMPLATES, recentContents, topicFilter) ||
     OFFLINE_MOMENT_TEMPLATES[0];
+  let usedModel = false;
 
   let draft = {
     content: fallbackPick.content,
@@ -452,6 +481,7 @@ export async function generateNewMomentPost(
 ${topicFilter ? `希望的主题类型：${topicFilter}（travel旅行/scenery风景/food美食/selfie个人生活照/daily日常/night夜色）` : '主题类型：从旅行风景、日常随手拍、美食、城市夜景或生活照中自然挑一个'}
 ${options?.hint ? `额外提示：${options.hint}` : ''}
 近期记忆参考：${persona.memoriesMd.slice(-300)}
+${recentContents.length ? `你最近已经发过（这次换个内容，别重复这些的意思和句子）：\n${recentContents.slice(0, 5).map((c) => `- ${c.slice(0, 40)}`).join('\n')}` : ''}
 最近聊天语境：${recentChat || '暂无'}
 
 只输出严格 JSON：
@@ -476,7 +506,13 @@ ${options?.hint ? `额外提示：${options.hint}` : ''}
         { temperature: 0.85, timeoutMs: 25000 }
       );
       const parsed = parseJsonFromLlmOutput<Partial<typeof draft>>(raw);
-      if (parsed && typeof parsed.content === 'string' && parsed.content.trim()) {
+      if (
+        parsed &&
+        typeof parsed.content === 'string' &&
+        parsed.content.trim() &&
+        !isNearDuplicateMoment(parsed.content, recentContents)
+      ) {
+        usedModel = true;
         draft = {
           content: parsed.content.trim().slice(0, 220),
           location: typeof parsed.location === 'string' ? parsed.location.trim().slice(0, 30) : '',
@@ -497,6 +533,16 @@ ${options?.hint ? `额外提示：${options.hint}` : ''}
       }
     } catch {
       // Fallback cleanly to deterministic template
+    }
+  }
+
+  // 模型没写出新内容：自动发布时这次就不发；手动发布时用一条最近没发过的离线文案，都发过就不发
+  if (!usedModel) {
+    if (options?.allowOfflineTemplate === false) {
+      throw new MomentSkippedError('模型暂时不可用，这次先不发动态');
+    }
+    if (isNearDuplicateMoment(draft.content, recentContents)) {
+      throw new MomentSkippedError('最近想说的都发过了，过会儿再来看看');
     }
   }
 
@@ -569,18 +615,9 @@ ${options?.hint ? `额外提示：${options.hint}` : ''}
     authorSlug: persona.slug,
     authorName: persona.name,
     content: draft.content,
-    images: imageUrl
-      ? [imageUrl]
-      : [
-          createScenicCardDataUrl({
-            title: draft.location || draft.mood || `${persona.name} 的日常`,
-            subtitle: draft.content.slice(0, 22),
-            gradientFrom: '#1e293b',
-            gradientTo: '#0f766e',
-            accent: '#5eead4',
-          }),
-        ],
-    imageCaptions: [draft.imagePrompt],
+    // 没生成出真实照片就发纯文字动态，不再塞「渐变 + 文字」的占位图
+    images: imageUrl ? [imageUrl] : [],
+    imageCaptions: imageUrl ? [draft.imagePrompt] : [],
     location: draft.location || undefined,
     mood: draft.mood || undefined,
     topic: draft.topic,
@@ -816,7 +853,7 @@ export async function maybeAutoPublishMoment(
     });
     if (!decision.due) return false;
 
-    await generateNewMomentPost(slug, { hint: decision.hint });
+    await generateNewMomentPost(slug, { hint: decision.hint, allowOfflineTemplate: false });
     return true;
   } catch {
     return false;
