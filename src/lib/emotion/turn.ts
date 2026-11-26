@@ -1,6 +1,11 @@
 import { EmotionEngine } from './engine';
+import {
+  advanceSulkingState,
+  detectBoundaryHit,
+  detectCoaxingSignal,
+} from './sulking';
 import { resolvePersonalityTraits } from '@/lib/persona/traits';
-import { EmotionVector } from './types';
+import { EmotionVector, PersonalityTraits } from './types';
 import { createDefaultEmotionVector } from './vector';
 import {
   PersonaEmotionSnapshot,
@@ -122,10 +127,15 @@ export interface TurnEmotionResult {
   pleasantness: number;
   hoursSinceLast: number;
   intimacy: IntimacyUpdate;
+  traits: PersonalityTraits;
+  sulkingTransition: {
+    justResolved: boolean;
+    boundaryHitReason: string | null;
+  };
 }
 
 /**
- * 跨轮情绪演进：从上一轮持久化的情绪出发 → 按间隔时间自然衰减 → 处理本轮用户消息 → 有界更新好感度
+ * 跨轮情绪演进：从上一轮持久化的情绪出发 → 按间隔时间自然衰减 → 处理本轮用户消息 → 更新别扭态与好感度
  */
 export function evolveTurnEmotion(
   persona: Pick<PersonaRecord, 'personaMd' | 'emotionState' | 'intimacy' | 'relationship'> &
@@ -147,14 +157,32 @@ export function evolveTurnEmotion(
     engine.evolveByTime(hoursSinceLast);
   }
 
+  const boundaryHitReason = detectBoundaryHit(userText, persona.personaMd);
+  const coaxSignal = detectCoaxingSignal(userText, traits, persona.personaMd);
+
   const vector = engine.processEvent({
     type: 'message',
     content: userText,
     sender: 'user',
     timestamp: now,
+    metadata: boundaryHitReason ? { boundaryHit: true } : undefined,
   });
 
   const pleasantness = vector.appraisal?.pleasantness ?? 0;
+  const sulkingRes = advanceSulkingState({
+    prevSulking: persona.emotionState?.sulking,
+    pleasantness,
+    boundaryHitReason,
+    coaxSignal,
+    traits,
+    now,
+  });
+
+  const adjustedPleasure = Math.max(
+    -1,
+    Math.min(1, vector.pleasure + sulkingRes.pleasureRebound)
+  );
+
   const intimacy = computeIntimacyUpdate({
     current: persona.intimacy,
     pleasantness,
@@ -164,23 +192,43 @@ export function evolveTurnEmotion(
     now,
   });
 
+  const resolvedMoodLabel = sulkingRes.sulking
+    ? sulkingRes.sulking.level >= 3
+      ? '有点火大'
+      : sulkingRes.sulking.level === 2
+        ? '赌气别扭中'
+        : '微微介意'
+    : sulkingRes.justResolved
+      ? '姑且消气了'
+      : persona.emotionState?.sulking
+        ? vector.primary
+        : persona.emotionState?.moodLabel || vector.primary;
+
   const snapshot: PersonaEmotionSnapshot = {
     primary: vector.primary,
-    pleasure: Number(vector.pleasure.toFixed(2)),
+    pleasure: Number(adjustedPleasure.toFixed(2)),
     arousal: Number(vector.arousal.toFixed(2)),
     dominance: Number(vector.dominance.toFixed(2)),
     intensity: Number(vector.intensity.toFixed(2)),
-    moodLabel: persona.emotionState?.moodLabel || vector.primary,
+    moodLabel: resolvedMoodLabel,
     lastUpdated: now.toISOString(),
     decayRate: vector.decayRate,
+    ...(sulkingRes.sulking ? { sulking: sulkingRes.sulking } : {}),
   };
 
   return {
     vector,
     snapshot,
-    description: engine.getEmotionDescription(),
+    description: sulkingRes.sulking
+      ? `${engine.getEmotionDescription()}（当前别扭等级 ${sulkingRes.sulking.level}：${sulkingRes.sulking.reason}）`
+      : engine.getEmotionDescription(),
     pleasantness,
     hoursSinceLast,
     intimacy,
+    traits,
+    sulkingTransition: {
+      justResolved: sulkingRes.justResolved,
+      boundaryHitReason,
+    },
   };
 }

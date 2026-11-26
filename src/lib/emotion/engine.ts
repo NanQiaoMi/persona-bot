@@ -35,9 +35,9 @@ export class EmotionEngine {
       ...this.state.current,
       ...newEmotion,
       primary: mapPADToEmotion(
-        newEmotion.pleasure || this.state.current.pleasure,
-        newEmotion.arousal || this.state.current.arousal,
-        newEmotion.dominance || this.state.current.dominance
+        newEmotion.pleasure ?? this.state.current.pleasure,
+        newEmotion.arousal ?? this.state.current.arousal,
+        newEmotion.dominance ?? this.state.current.dominance
       ),
       lastUpdated: new Date()
     };

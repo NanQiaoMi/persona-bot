@@ -62,10 +62,21 @@ export async function PUT(
         ...current.profile,
         ...(body.profile || {}),
       },
-      emotionState: {
-        ...current.emotionState,
-        ...(body.emotionState || {}),
-      },
+      emotionState: (() => {
+        const mergedEmotion = {
+          ...current.emotionState,
+          ...(body.emotionState || {}),
+        };
+        if (
+          body.emotionState &&
+          typeof body.emotionState === 'object' &&
+          'sulking' in body.emotionState &&
+          !body.emotionState.sulking
+        ) {
+          delete mergedEmotion.sulking;
+        }
+        return mergedEmotion;
+      })(),
     }));
 
     return NextResponse.json({ success: true, persona: updated });
