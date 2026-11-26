@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { GroupChat, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 
@@ -54,7 +54,7 @@ function formatSidebarTime(iso?: string): string {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-export default function LeftSidebar({
+function LeftSidebar({
   personas,
   activeSlug,
   isStreaming = false,
@@ -521,3 +521,5 @@ export default function LeftSidebar({
     </aside>
   );
 }
+
+export default memo(LeftSidebar);

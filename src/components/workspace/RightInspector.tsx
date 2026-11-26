@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import LineIcon from "@/components/workspace/LineIcon";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
@@ -48,7 +48,7 @@ interface RightInspectorProps {
   onClose: () => void;
 }
 
-export default function RightInspector({
+function RightInspector({
   persona,
   isStreaming = false,
   autoNudgeEnabled = true,
@@ -1610,3 +1610,5 @@ export default function RightInspector({
     </aside>
   );
 }
+
+export default memo(RightInspector);
