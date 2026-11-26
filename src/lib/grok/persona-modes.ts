@@ -4,7 +4,8 @@ export interface PersonaModeSpec {
   id: PersonaMode;
   label: string;
   shortLabel: string;
-  badge: string;
+  /** 模式的线条图标（见 LineIcon），界面里不再用 emoji */
+  icon: 'mask' | 'bolt' | 'heart' | 'compass';
   accentColor: string;
   description: string;
   systemDirective: string;
@@ -15,7 +16,7 @@ export const PERSONA_MODES: Record<PersonaMode, PersonaModeSpec> = {
     id: 'authentic',
     label: '原味复刻 · Authentic',
     shortLabel: '原味复刻',
-    badge: '🎭',
+    icon: 'mask',
     accentColor: '#A855F7',
     description: '100% 忠于人物五层设定与真实聊天记录习惯，还原最真实的潜台词与情绪起伏。',
     systemDirective: `【当前人格尺度：原味复刻 (Authentic Mode)】
@@ -26,7 +27,7 @@ export const PERSONA_MODES: Record<PersonaMode, PersonaModeSpec> = {
     id: 'fun',
     label: 'Grok 毒舌 · Fun Mode',
     shortLabel: 'Grok 毒舌',
-    badge: '⚡',
+    icon: 'bolt',
     accentColor: '#10B981',
     description: 'Grok 标志性的犀利吐槽、反讽幽默与网感脑洞，彻底粉碎无聊的官方套话。',
     systemDirective: `【当前人格尺度：Grok 毒舌犀利 (Fun / Unhinged Wit Mode)】
@@ -38,7 +39,7 @@ export const PERSONA_MODES: Record<PersonaMode, PersonaModeSpec> = {
     id: 'companion',
     label: '高共情伴侣 · Companion',
     shortLabel: '高共情伴侣',
-    badge: '🌸',
+    icon: 'heart',
     accentColor: '#F43F5E',
     description: '拉满情绪价值与温柔眷恋，敏锐捕捉你的疲惫与心事，给予最有温度的偏爱。',
     systemDirective: `【当前人格尺度：高共情伴侣 (Companion Mode)】
@@ -49,7 +50,7 @@ export const PERSONA_MODES: Record<PersonaMode, PersonaModeSpec> = {
     id: 'analytical',
     label: '极客智囊 · Analytical',
     shortLabel: '极客智囊',
-    badge: '🛸',
+    icon: 'compass',
     accentColor: '#38BDF8',
     description: '调用第一性原理与深度推理，用角色自己的口吻一针见血拆解复杂问题与事实。',
     systemDirective: `【当前人格尺度：极客智囊 (Analytical Mode)】

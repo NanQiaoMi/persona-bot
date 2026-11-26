@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import LineIcon from "@/components/workspace/LineIcon";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import {
   PersonaMode,
@@ -1396,7 +1397,7 @@ export default function RightInspector({
                                   : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                               }`}
                             >
-                              <span>{spec.badge}</span>
+                              <LineIcon name={spec.icon} size={13} />
                               <span>{spec.shortLabel}</span>
                             </button>
                           );

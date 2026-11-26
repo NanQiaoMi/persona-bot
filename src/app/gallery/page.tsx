@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LineIcon from "@/components/workspace/LineIcon";
 import { useEffect, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
@@ -173,7 +174,7 @@ export default function GalleryPage() {
                             {p.profile?.mbti && <span>{p.profile.mbti}</span>}
                             <span>·</span>
                             <span>
-                              {modeSpec.badge} {modeSpec.shortLabel}
+                              <LineIcon name={modeSpec.icon} size={12} className="inline -mt-0.5 mr-1" />{modeSpec.shortLabel}
                             </span>
                           </div>
                         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LineIcon from "@/components/workspace/LineIcon";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
@@ -295,8 +296,8 @@ export default function PersonaStudio() {
                           : "border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
                       }`}
                     >
-                      <div className="text-xs font-bold">
-                        {spec.badge} {spec.shortLabel}
+                      <div className="text-xs font-bold inline-flex items-center gap-1.5">
+                        <LineIcon name={spec.icon} size={13} /> {spec.shortLabel}
                       </div>
                       <div className="text-[10px] opacity-75 line-clamp-1 mt-0.5">
                         {spec.description}
