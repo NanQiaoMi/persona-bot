@@ -12,10 +12,13 @@ export default function MediaPendingCard({
   card,
   name,
   onRetry,
+  accent,
 }: {
   card: MediaCard;
   name: string;
   onRetry?: () => Promise<void> | void;
+  /** 角色的颜色：波点用它的颜色（太深时改用主题文字色） */
+  accent?: string;
 }) {
   const [retrying, setRetrying] = useState(false);
   const state = getMediaVisualState(card);
@@ -27,22 +30,27 @@ export default function MediaPendingCard({
 
   return (
     <div
-      className={`mt-1.5 flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-secondary)] px-3 text-center ${
+      className={`relative mt-1.5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] ${
         isSticker ? "w-[132px] h-[132px]" : "w-[220px] h-[164px]"
       }`}
+      style={{ ["--media-dot" as string]: dotColor(accent) }}
       title={card.caption}
       role="status"
       aria-live="polite"
     >
+      {/* 波点：生成中从中心一圈圈呼吸着荡开；其余状态静止淡显 */}
+      <DotField cols={isSticker ? 8 : 13} rows={isSticker ? 8 : 10} animated={busy} />
+      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
       <span
-        className={`flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-primary)] text-[var(--text-muted)] ${
-          busy ? "animate-pulse" : ""
-        }`}
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-primary)] text-[var(--text-secondary)] shadow-sm"
       >
         <StateIcon state={retrying ? "generating" : state} />
       </span>
       <span
-        className={`text-[11.5px] leading-snug text-[var(--text-muted)] ${busy ? "animate-text-shimmer" : ""}`}
+        className={`max-w-full rounded-full px-2.5 py-0.5 leading-snug text-[var(--text-secondary)] ${
+          isSticker && busy ? "whitespace-nowrap text-[10.5px]" : "text-[11.5px]"
+        }`}
+        style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 82%, transparent)" }}
       >
         {retrying ? (isSticker ? `${name} 正在找表情包…` : `${name} 正在拍照…`) : describeMediaState(card, name)}
       </span>
@@ -66,8 +74,55 @@ export default function MediaPendingCard({
           重试
         </button>
       )}
+      </div>
     </div>
   );
+}
+
+/** 波点阵：每个点的呼吸按离中心的距离错开，连起来就是一圈圈向外荡开的波纹 */
+function DotField({ cols, rows, animated }: { cols: number; rows: number; animated: boolean }) {
+  const cx = (cols - 1) / 2;
+  const cy = (rows - 1) / 2;
+  const maxDist = Math.hypot(cx, cy);
+  const dots = [];
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
+      const dist = Math.hypot(x - cx, y - cy);
+      // 负的延迟：一出现就已经在动，且越外圈越晚，波纹向外走
+      const delay = Math.round((dist - maxDist) * 120);
+      dots.push(
+        <span
+          key={`${x}-${y}`}
+          className={animated ? "media-dot media-dot--wave" : "media-dot"}
+          style={animated ? { animationDelay: `${delay}ms` } : undefined}
+        />
+      );
+    }
+  }
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 grid place-items-center p-2.5"
+      style={{
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+        // 中间留白给文字，波纹绕着文字向外荡开
+        maskImage: "radial-gradient(ellipse at center, transparent 0, transparent 26%, #000 58%)",
+        WebkitMaskImage: "radial-gradient(ellipse at center, transparent 0, transparent 26%, #000 58%)",
+      }}
+    >
+      {dots}
+    </div>
+  );
+}
+
+/** 波点颜色：角色颜色；接近黑色（如主 bot）时改用主题的次要文字色，暗色主题下也看得见 */
+function dotColor(hex?: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return "var(--text-muted)";
+  const n = parseInt(m[1], 16);
+  const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return lum < 0.18 ? "var(--text-muted)" : `#${m[1]}`;
 }
 
 function StateIcon({ state }: { state: ReturnType<typeof getMediaVisualState> }) {

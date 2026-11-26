@@ -1133,3 +1133,38 @@ body {
     transition: none;
   }
 }
+
+/* ── 照片 / 表情包等待中的波点呼吸波纹（只动 transform / opacity） ── */
+.media-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--media-dot, var(--text-muted));
+  opacity: 0.14;
+  transform: scale(0.5);
+}
+.media-dot--wave {
+  animation: media-dot-breathe 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes media-dot-breathe {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(0.4);
+  }
+  40% {
+    opacity: 0.85;
+    transform: scale(1.15);
+  }
+  55% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-dot--wave {
+    animation: none;
+    opacity: 0.32;
+    transform: scale(0.7);
+  }
+}

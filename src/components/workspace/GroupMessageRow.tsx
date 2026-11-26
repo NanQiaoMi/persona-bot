@@ -165,6 +165,7 @@ export function GroupMessageRow({
                 key={idx}
                 card={card}
                 name={bot?.name || ""}
+                accent={bot?.color}
                 onRetry={onRetryMedia ? () => onRetryMedia(msg.id, idx) : undefined}
               />
             ) : null
@@ -178,10 +179,12 @@ function GroupMediaCard({
   card,
   name,
   onRetry,
+  accent,
 }: {
   card: MediaCard;
   name: string;
   onRetry?: () => Promise<void>;
+  accent?: string;
 }) {
   const isSticker = card.type === "sticker";
   if (card.imageUrl && card.status !== "error") {
@@ -197,7 +200,7 @@ function GroupMediaCard({
       />
     );
   }
-  return <MediaPendingCard card={card} name={name} onRetry={onRetry} />;
+  return <MediaPendingCard card={card} name={name} onRetry={onRetry} accent={accent} />;
 }
 
 /** 群聊中的居中灰色系统提示（如「A 拍了拍 B」） */
