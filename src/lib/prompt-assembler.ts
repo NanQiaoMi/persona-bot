@@ -56,6 +56,7 @@ export class PromptAssembler {
         defaultMode: record.defaultMode,
         profile: record.profile,
         intimacy: record.intimacy,
+        basicPersonality: record.profile.basicPersonality,
       },
     };
   }
@@ -77,6 +78,7 @@ export class PromptAssembler {
           name: persona.name,
           defaultMode: persona.defaultMode,
           intimacy: persona.intimacy,
+          basicPersonality: persona.profile.basicPersonality,
         },
       },
       options.emotionSummary || {
@@ -121,6 +123,15 @@ export class PromptAssembler {
         : '',
       '',
     ];
+
+    const basicPersonality =
+      typeof data.meta?.basicPersonality === 'string' ? data.meta.basicPersonality.trim() : '';
+    if (basicPersonality) {
+      // 主人亲手定的一句话性格：优先级最高，下面的画像和人设都在它的基础上展开
+      sections.push('## 主人给你定的基础性格（最核心，始终遵守）');
+      sections.push(`- ${basicPersonality.slice(0, 120)}`);
+      sections.push('');
+    }
 
     if (options.traitsDirective) {
       sections.push('## 性格行为底色');

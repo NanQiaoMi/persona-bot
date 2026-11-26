@@ -18,6 +18,8 @@ export interface PersonaProfile {
   accentColor?: string;
   appearanceAnchor?: string;
   appearanceAnchorLocked?: boolean;
+  /** 主人亲手写的一句话性格（创建时填，之后可在资料库改），每次聊天都会带进人设 */
+  basicPersonality?: string;
   referenceImageUrl?: string;
   bio?: string;
 }

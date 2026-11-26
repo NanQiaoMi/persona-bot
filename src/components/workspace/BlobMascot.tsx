@@ -181,36 +181,39 @@ export default function BlobMascot({
           <path d={shapeDef.path} fill={color} />
 
           {/* Pointer-Tracking White Pill Eyes (asymmetric pulsing when working/thinking) */}
-          <g
-            ref={eyesRef}
-            style={{
-              transform: "translate(0px, 0px)",
-              transition: "transform 90ms cubic-bezier(0.22, 1, 0.36, 1)",
-            }}
-          >
+          {/* 眼睛放在各形状自己的「脸」中心（默认眼睛中心是 32, 29.75） */}
+          <g transform={`translate(${shapeDef.eye[0] - 32} ${shapeDef.eye[1] - 29.75})`}>
             <g
-              className={animated && !isWorking ? "animate-blob-blink" : ""}
-              style={{ animationDelay: `${blinkDelayMs}ms` }}
+              ref={eyesRef}
+              style={{
+                transform: "translate(0px, 0px)",
+                transition: "transform 90ms cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
             >
-              <g className={isWorking ? "animate-eye-left" : ""}>
-                <rect
-                  x="23.5"
-                  y="24"
-                  width="5.2"
-                  height="11.5"
-                  rx="2.6"
-                  fill="#FFFFFF"
-                />
-              </g>
-              <g className={isWorking ? "animate-eye-right" : ""}>
-                <rect
-                  x="35.3"
-                  y="24"
-                  width="5.2"
-                  height="11.5"
-                  rx="2.6"
-                  fill="#FFFFFF"
-                />
+              <g
+                className={animated && !isWorking ? "animate-blob-blink" : ""}
+                style={{ animationDelay: `${blinkDelayMs}ms` }}
+              >
+                <g className={isWorking ? "animate-eye-left" : ""}>
+                  <rect
+                    x="23.5"
+                    y="24"
+                    width="5.2"
+                    height="11.5"
+                    rx="2.6"
+                    fill="#FFFFFF"
+                  />
+                </g>
+                <g className={isWorking ? "animate-eye-right" : ""}>
+                  <rect
+                    x="35.3"
+                    y="24"
+                    width="5.2"
+                    height="11.5"
+                    rx="2.6"
+                    fill="#FFFFFF"
+                  />
+                </g>
               </g>
             </g>
           </g>

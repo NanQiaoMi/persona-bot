@@ -83,6 +83,7 @@ function RightInspector({
   const [editingMemoriesMd, setEditingMemoriesMd] = useState<string | null>(
     null
   );
+  const [editingBasic, setEditingBasic] = useState<string | null>(null);
   const [editingAppearance, setEditingAppearance] = useState<string | null>(
     null
   );
@@ -516,6 +517,68 @@ function RightInspector({
                     </div>
                   );
                 })()}
+
+                {/* 基础性格：创建时写的一句话，之后可以在这里慢慢改，每次聊天都会带上 */}
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[var(--text-primary)] truncate">
+                      基础性格
+                    </span>
+                    {editingBasic === null ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditingBasic(persona.profile.basicPersonality || "")}
+                        className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium hover:underline cursor-pointer"
+                      >
+                        {persona.profile.basicPersonality ? "修改" : "设定"}
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 text-[11px] shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setEditingBasic(null)}
+                          className="text-[var(--text-muted)] cursor-pointer"
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={async () => {
+                            setSaving(true);
+                            const trimmed = editingBasic.trim();
+                            await onSavePersonaPatch({
+                              profile: {
+                                ...persona.profile,
+                                basicPersonality: trimmed || undefined,
+                              },
+                            });
+                            setEditingBasic(null);
+                            setSaving(false);
+                          }}
+                          className="text-[#18a999] font-semibold cursor-pointer"
+                        >
+                          保存
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {editingBasic !== null ? (
+                    <textarea
+                      value={editingBasic}
+                      onChange={(e) => setEditingBasic(e.target.value)}
+                      rows={2}
+                      maxLength={120}
+                      placeholder="一句话说清 TA 是什么样的人，例如：嘴硬爱撒娇的深夜搭子，吵架从不先低头"
+                      className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] focus:outline-none"
+                    />
+                  ) : (
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                      {persona.profile.basicPersonality ||
+                        "还没写基础性格；写一句话，TA 每次聊天都会按这个性格来，更细的可以在「编辑设定」里慢慢补。"}
+                    </p>
+                  )}
+                </div>
 
                 {/* Consistent Photo Appearance Anchor Editor */}
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">

@@ -47,6 +47,8 @@ export default function CreateBotModal({
           avatarShape: shape,
           avatarColor: color,
           defaultMode: "fun",
+          ensureUniqueSlug: true,
+          basicPersonality: personalityHint.trim() || undefined,
           appearanceAnchor: appearanceAnchor.trim() || undefined,
           basicInfo: personalityHint.trim()
             ? `${trimmed} · ${personalityHint.trim()}`
