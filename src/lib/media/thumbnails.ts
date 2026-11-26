@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import sharp from 'sharp';
 import { THUMB_WIDTH } from './thumb-url';
 
 export const SAFE_MEDIA_FILENAME_RE = /^[a-zA-Z0-9_-]+\.(png|jpg|jpeg|webp)$/i;
@@ -12,6 +11,21 @@ function thumbsDir(mediaDir: string): string {
 export function thumbnailPathFor(mediaDir: string, filename: string): string {
   const base = filename.replace(/\.[a-z0-9]+$/i, '');
   return path.join(thumbsDir(mediaDir), `${base}.w${THUMB_WIDTH}.webp`);
+}
+
+/**
+ * 按需加载 sharp：它是原生模块，某些环境（如精简镜像）可能加载失败。
+ * 放在这里动态加载，失败时只是没有缩略图（退回原图），不会拖垮整个图片接口。
+ */
+type SharpFn = typeof import('sharp');
+let sharpLoader: Promise<SharpFn | null> | null = null;
+function loadSharp() {
+  if (!sharpLoader) {
+    sharpLoader = import('sharp')
+      .then((m) => ((m as unknown as { default?: SharpFn }).default ?? (m as unknown as SharpFn)))
+      .catch(() => null);
+  }
+  return sharpLoader;
 }
 
 /** 同一张图同时被请求多次时只压缩一次 */
@@ -40,6 +54,8 @@ export async function ensureThumbnail(
   const job = (async () => {
     const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
     try {
+      const sharp = await loadSharp();
+      if (!sharp) return null;
       const source = path.join(mediaDir, filename);
       await fs.mkdir(thumbsDir(mediaDir), { recursive: true });
       await sharp(source)
