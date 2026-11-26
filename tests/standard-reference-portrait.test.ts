@@ -243,6 +243,17 @@ describe('Standard Reference Portrait Generator & API', () => {
       )
     );
 
+    // 生成结果写回到一条已存在的消息上（与真实流程一致）
+    await storageRepo.saveConversation(slug, [
+      {
+        id: 'msg_1',
+        role: 'assistant',
+        content: '给你看看',
+        timestamp: new Date().toISOString(),
+        mediaCards: [{ type: 'photo', caption: '咖啡厅随手拍', status: 'generating' }],
+      },
+    ]);
+
     try {
       const req = new Request('http://localhost:3000/api/media/generate', {
         method: 'POST',

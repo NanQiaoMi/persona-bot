@@ -15,6 +15,7 @@ import {
 } from "@/lib/storage/types";
 import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
+import { hasPendingMedia } from "@/lib/media/media-state";
 import CommandPalette from "./CommandPalette";
 import CreateBotModal from "./CreateBotModal";
 import CreateGroupModal from "./CreateGroupModal";
@@ -428,6 +429,102 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       }
     },
     []
+  );
+
+  // ── 照片 / 表情包的补生成与重试 ──────────────────────────────
+  // 打开单聊 / 群聊时，请服务端把卡住或到点重试的图片重新排队（连不上生图服务时会标记「网络恢复后自动补发」）
+  const requestMediaRecover = useCallback(async (target: { slug?: string; groupId?: string }) => {
+    try {
+      await fetch("/api/media/recover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(target),
+      });
+    } catch {
+      // 补生成失败不影响聊天
+    }
+  }, []);
+
+  useEffect(() => {
+    void requestMediaRecover(activeGroupId ? { groupId: activeGroupId } : { slug: activeSlug });
+  }, [activeSlug, activeGroupId, requestMediaRecover]);
+
+  // 还有图片在等结果时，每 4 秒只刷新图片卡片的状态；每 20 秒再请服务端检查一次要不要补发
+  const mediaPending = messages.some((m) => hasPendingMedia(m.mediaCards));
+  const mediaStreaming = Boolean(streaming);
+  useEffect(() => {
+    if (!mediaPending || mediaStreaming) return;
+    const target = activeGroupId ? { groupId: activeGroupId } : { slug: activeSlug };
+    let ticks = 0;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      ticks += 1;
+      if (ticks % 5 === 0) void requestMediaRecover(target);
+      try {
+        const res = await fetch(
+          target.groupId
+            ? `/api/groups/${encodeURIComponent(target.groupId)}`
+            : `/api/conversations?slug=${encodeURIComponent(target.slug || "")}&limit=100`
+        );
+        const data = await res.json();
+        if (cancelled || !data?.success || !Array.isArray(data.messages)) return;
+        const fresh = new Map<string, ConversationMessage>(
+          (data.messages as ConversationMessage[]).map((m) => [m.id, m])
+        );
+        setMessages((prev) => {
+          let changed = false;
+          const next = prev.map((m) => {
+            const f = fresh.get(m.id);
+            if (!f || !m.mediaCards || JSON.stringify(f.mediaCards) === JSON.stringify(m.mediaCards)) return m;
+            changed = true;
+            return { ...m, mediaCards: f.mediaCards };
+          });
+          return changed ? next : prev;
+        });
+      } catch {
+        // 下次再刷
+      }
+    }, 4000);
+    // 最多盯 15 分钟，避免一直刷新
+    const stop = setTimeout(() => clearInterval(timer), 15 * 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      clearTimeout(stop);
+    };
+  }, [mediaPending, mediaStreaming, activeSlug, activeGroupId, requestMediaRecover]);
+
+  // 你点了「重试」：立刻重新生成这一张（不受自动重试次数限制）
+  const handleRetryMedia = useCallback(
+    async (messageId: string, cardIndex: number) => {
+      const groupId = activeGroupIdRef.current;
+      const target = messages.find((m) => m.id === messageId);
+      const slug = groupId ? target?.fromBot?.slug : activeSlugRef.current;
+      if (!target || !slug) return;
+      const patchCard = (patch: Partial<MediaCard>) =>
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId || !m.mediaCards?.[cardIndex]) return m;
+            const cards = [...m.mediaCards];
+            cards[cardIndex] = { ...cards[cardIndex], ...patch };
+            return { ...m, mediaCards: cards };
+          })
+        );
+      patchCard({ status: "generating", waitingForNetwork: undefined, errorHint: undefined });
+      try {
+        const res = await fetch("/api/media/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, messageId, cardIndex, groupId: groupId || undefined, manual: true }),
+        });
+        const data = await res.json();
+        if (data?.card) patchCard(data.card);
+        else patchCard({ status: "error", errorHint: data?.error || "还是没发出来" });
+      } catch {
+        patchCard({ status: "error", errorHint: "网络不太好，还是没发出来" });
+      }
+    },
+    [messages]
   );
 
   useEffect(() => {
@@ -1513,6 +1610,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       )}
 
       <ChatStage
+        onRetryMedia={handleRetryMedia}
         persona={activePersona}
         personas={personas}
         messages={messages}

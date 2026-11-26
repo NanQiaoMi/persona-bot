@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import MediaPendingCard from "./MediaPendingCard";
 import type { ConversationMessage, MediaCard } from "@/lib/storage/types";
 import BlobMascot from "./BlobMascot";
 import type { MascotShapeId } from "./mascot-palette";
@@ -67,6 +68,7 @@ interface GroupMessageRowProps {
   avatarImageOf?: (slug: string) => string | undefined;
   onSelectPersona?: (slug: string) => void;
   renderBody?: (text: string) => ReactNode;
+  onRetryMedia?: (messageId: string, cardIndex: number) => Promise<void>;
 }
 
 const BUBBLE_CLASS =
@@ -79,6 +81,7 @@ export function GroupMessageRow({
   avatarImageOf,
   onSelectPersona,
   renderBody,
+  onRetryMedia,
 }: GroupMessageRowProps) {
   const bot = msg.fromBot;
   const text = msg.content || "";
@@ -156,16 +159,30 @@ export function GroupMessageRow({
 
         {/* 照片 / 表情包：生成中显示占位，完成后显示图片 */}
         {(msg.mediaCards || [])
-          .filter((card) => card.type === "photo" || card.type === "sticker")
-          .map((card, idx) => (
-            <GroupMediaCard key={idx} card={card} name={bot?.name || ""} />
-          ))}
+          .map((card, idx) =>
+            card.type === "photo" || card.type === "sticker" ? (
+              <GroupMediaCard
+                key={idx}
+                card={card}
+                name={bot?.name || ""}
+                onRetry={onRetryMedia ? () => onRetryMedia(msg.id, idx) : undefined}
+              />
+            ) : null
+          )}
       </div>
     </div>
   );
 }
 
-function GroupMediaCard({ card, name }: { card: MediaCard; name: string }) {
+function GroupMediaCard({
+  card,
+  name,
+  onRetry,
+}: {
+  card: MediaCard;
+  name: string;
+  onRetry?: () => Promise<void>;
+}) {
   const isSticker = card.type === "sticker";
   if (card.imageUrl && card.status !== "error") {
     return (
@@ -180,25 +197,7 @@ function GroupMediaCard({ card, name }: { card: MediaCard; name: string }) {
       />
     );
   }
-  if (card.status === "error") {
-    return (
-      <div className="mt-1.5 text-[12px] text-[var(--text-muted)]">
-        {card.errorHint || (isSticker ? "表情包没发出去" : "照片没发出去")}
-      </div>
-    );
-  }
-  return (
-    <div
-      className={`mt-1.5 flex items-center justify-center rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-secondary)] text-[12px] text-[var(--text-muted)] ${
-        isSticker ? "w-[120px] h-[120px]" : "w-[200px] h-[150px]"
-      }`}
-      title={card.caption}
-    >
-      {card.status === "generating"
-        ? `${name} 正在${isSticker ? "找表情包" : "拍照"}…`
-        : card.caption.slice(0, 24)}
-    </div>
-  );
+  return <MediaPendingCard card={card} name={name} onRetry={onRetry} />;
 }
 
 /** 群聊中的居中灰色系统提示（如「A 拍了拍 B」） */

@@ -25,6 +25,7 @@ import {
 import PageArtifactCard from "./PageArtifactCard";
 import SaveSceneAssetButton from "./SaveSceneAssetButton";
 import ThoughtSearchTrace from "./ThoughtSearchTrace";
+import MediaPendingCard from "./MediaPendingCard";
 
 interface StreamingState {
   isSearching: boolean;
@@ -53,6 +54,8 @@ interface ChatStageProps {
     mentionedSlug?: string;
   }) => void;
   onQuickSend: (text: string, options?: { deepSearch?: boolean }) => void;
+  /** 照片 / 表情包没发出来时手动重试（群聊消息传 groupMsg 以便用发图成员的形象） */
+  onRetryMedia?: (messageId: string, cardIndex: number) => Promise<void>;
   onTriggerProactive: (hoursIdle?: number) => void;
   onClearHistory: () => void;
   onStopStreaming?: () => void;
@@ -181,6 +184,7 @@ export default function ChatStage({
   onChangeInput,
   onSend,
   onQuickSend,
+  onRetryMedia,
   onTriggerProactive,
   onClearHistory,
   onStopStreaming,
@@ -780,6 +784,7 @@ export default function ChatStage({
                           avatarImageOf={groupAvatarImageOf}
                           onSelectPersona={onSelectPersona}
                           renderBody={(text) => <GrokMessageBody content={text} />}
+                          onRetryMedia={onRetryMedia}
                         />
                       </div>
                     </Fragment>
@@ -1108,42 +1113,13 @@ export default function ChatStage({
                               );
                             }
 
-                            if (card.status === "generating") {
-                              return (
-                                <div
-                                  key={cIdx}
-                                  className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-[18px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in"
-                                >
-                                  <BlobMascot
-                                    shape={mascotCfg.shape}
-                                    color={mascotCfg.color}
-                                    image={mascotCfg.image}
-                                    size={20}
-                                    trackPointer={false}
-                                    state="working"
-                                  />
-                                  <span className="text-[12px] font-medium animate-text-shimmer">
-                                    正在翻找表情包...
-                                  </span>
-                                </div>
-                              );
-                            }
-
                             return (
-                              <div
+                              <MediaPendingCard
                                 key={cIdx}
-                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-bubble-ai)] text-xs"
-                              >
-                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                                  <span>🎭</span>
-                                  <span>[{card.caption}]</span>
-                                </div>
-                                {card.errorHint && (
-                                  <span className="text-[11px] text-[var(--text-muted)]">
-                                    {card.errorHint}
-                                  </span>
-                                )}
-                              </div>
+                                card={card}
+                                name={persona.name}
+                                onRetry={onRetryMedia ? () => onRetryMedia(msg.id, cIdx) : undefined}
+                              />
                             );
                           }
 
@@ -1172,36 +1148,13 @@ export default function ChatStage({
                               );
                             }
 
-                            if (card.status === "generating") {
-                              return (
-                                <div
-                                  key={cIdx}
-                                  className="inline-flex items-center gap-2.5 px-4 py-3 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in"
-                                >
-                                  <BlobMascot
-                                    shape={mascotCfg.shape}
-                                    color={mascotCfg.color}
-                                    image={mascotCfg.image}
-                                    size={22}
-                                    trackPointer={false}
-                                    state="working"
-                                  />
-                                  <span className="text-[12px] font-medium animate-text-shimmer">
-                                    {persona.name} 正在拍照...
-                                  </span>
-                                </div>
-                              );
-                            }
-
                             return (
-                              <div
+                              <MediaPendingCard
                                 key={cIdx}
-                                className="inline-flex flex-col gap-1 px-3.5 py-2.5 rounded-2xl bg-[var(--bg-bubble-ai)] text-xs text-[var(--text-muted)]"
-                              >
-                                <span>
-                                  📸 {card.errorHint || "照片没发过来，稍后再拍给你"}
-                                </span>
-                              </div>
+                                card={card}
+                                name={persona.name}
+                                onRetry={onRetryMedia ? () => onRetryMedia(msg.id, cIdx) : undefined}
+                              />
                             );
                           }
 

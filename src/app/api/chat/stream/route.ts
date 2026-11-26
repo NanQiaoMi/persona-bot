@@ -2,6 +2,8 @@ import { beginInflight, endInflight, inflightKey } from '@/lib/chat/inflight';
 import { executeGroupTurn } from '@/lib/group/group-orchestrator';
 import { executeMasterBotTurn } from '@/lib/grok/master-orchestrator';
 import { executeGrokChatTurn, StreamEvent } from '@/lib/grok/stream-orchestrator';
+import { enqueueNewMediaCards } from '@/lib/media/media-jobs';
+import type { ConversationMessage } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +43,12 @@ export async function POST(request: Request) {
       async start(controller) {
         // 你中途切走时连接会断开：之后的推送直接丢弃，但生成与存档照常进行到底，消息不会丢
         let clientGone = false;
+        // 这一轮存下的消息（用来在服务端直接开始生成照片 / 表情包）
+        let turnMessages: ConversationMessage[] = [];
         const sendEvent = (event: StreamEvent) => {
+          if (event.type === 'done') {
+            turnMessages = event.messages && event.messages.length > 0 ? event.messages : [event.message];
+          }
           if (clientGone) return;
           try {
             const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
@@ -99,6 +106,12 @@ export async function POST(request: Request) {
           }
         } finally {
           if (key) endInflight(key, token);
+          // 照片 / 表情包由服务端开始生成：你中途切走或刷新也不会卡在「正在拍照」
+          void enqueueNewMediaCards({
+            slug: body.slug,
+            groupId: isGroupTurn ? body.groupId : undefined,
+            messages: turnMessages,
+          }).catch(() => {});
           try {
             controller.close();
           } catch {
