@@ -1,3 +1,4 @@
+import { extractPersonalityTags, uniqueSlug } from '@/lib/persona/basic-tags';
 import { WeChatParser } from '@/lib/parsers/wechat';
 import {
   MEMORIES_ANALYZER_PROMPT,
@@ -23,6 +24,10 @@ export interface DistillInput {
   avatarShape?: string;
   avatarColor?: string;
   appearanceAnchor?: string;
+  /** 快速创建：名字已被占用时自动换一个 slug，而不是覆盖老角色 */
+  ensureUniqueSlug?: boolean;
+  /** 快速创建时用户写的一句话性格，原样存进 profile.basicPersonality */
+  basicPersonality?: string;
 }
 
 export interface DistillResult {
@@ -140,11 +145,14 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
  */
 export async function distillPersona(input: DistillInput): Promise<DistillResult> {
   const name = input.name.trim();
-  const slug =
+  const baseSlug =
     name
       .toLowerCase()
       .replace(/[^a-z0-9\u4e00-\u9fa5_-]+/g, '-')
       .replace(/^-+|-+$/g, '') || `persona-${Date.now()}`;
+  const slug = input.ensureUniqueSlug
+    ? await uniqueSlug(baseSlug, async (s) => Boolean(await storageRepo.getPersona(s)))
+    : baseSlug;
 
   const corpus = analyzeChatLogCorpus(input.chatLogText || '', input.targetSpeaker || name);
   const settings = await storageRepo.getSettings();
@@ -157,7 +165,7 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
     '水瓶座';
   const attachment =
     input.personalityInfo?.match(/(安全型|焦虑型|回避型|高共情|毒舌|傲娇)/)?.[1] || '鲜活真实型';
-  const rawTags = input.personalityInfo?.match(/[\u4e00-\u9fa5A-Za-z]{2,6}/g) || [];
+  const rawTags = extractPersonalityTags(input.personalityInfo);
   const personalityTags = Array.from(new Set([...rawTags, ...corpus.topCatchphrases.slice(0, 2)])).slice(0, 6);
   if (personalityTags.length === 0) {
     personalityTags.push('有主见', '口语自然', '真实感');
@@ -338,6 +346,9 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
       avatarShape: input.avatarShape || undefined,
       avatarColor: input.avatarColor || undefined,
       appearanceAnchor: input.appearanceAnchor?.trim() || undefined,
+      // 用户亲手写的外貌锚点：锁定，不会被「看图反推」覆盖
+      appearanceAnchorLocked: input.appearanceAnchor?.trim() ? true : undefined,
+      basicPersonality: input.basicPersonality?.trim() || undefined,
       bio: (input.basicInfo || input.personalityInfo || `${mbti} 专属蒸馏角色`).slice(0, 100),
     },
     personaMd,

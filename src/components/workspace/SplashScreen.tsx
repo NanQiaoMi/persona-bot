@@ -35,6 +35,7 @@ const CREW = (["lu-xi", "xia-you", "shen-zhi", "chen-ye"] as const).map((slug, i
     slug,
     color: preset.color,
     path: MASCOT_SHAPES.find((s) => s.id === preset.shape)!.path,
+    eye: MASCOT_SHAPES.find((s) => s.id === preset.shape)!.eye,
     startDeg: -135 + i * 90,
     slot: SLOT_CENTERS[i],
   };
@@ -79,15 +80,25 @@ function setHtmlPhase(phase: SplashPhase, exitMs?: number) {
   }
 }
 
-function CharacterSvg({ path, color, eyes }: { path: string; color: string; eyes?: boolean }) {
+function CharacterSvg({
+  path,
+  color,
+  eyes,
+  eye = [32, 29.75],
+}: {
+  path: string;
+  color: string;
+  eyes?: boolean;
+  eye?: [number, number];
+}) {
   return (
     <svg viewBox="0 0 64 64" className="splash-char-svg">
       <path d={path} fill={color} />
       {eyes && (
-        <>
+        <g transform={`translate(${eye[0] - 32} ${eye[1] - 29.75})`}>
           <rect x="23.5" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
           <rect x="35.3" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
-        </>
+        </g>
       )}
     </svg>
   );
@@ -183,7 +194,7 @@ export default function SplashScreen({ ready, steps }: SplashScreenProps) {
                     style={{ transform: `rotate(${-c.startDeg}deg)` }}
                   >
                     <div className="splash-fly-pop">
-                      <CharacterSvg path={c.path} color={c.color} eyes />
+                      <CharacterSvg path={c.path} color={c.color} eye={c.eye} eyes />
                     </div>
                   </div>
                 </div>

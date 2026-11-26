@@ -354,6 +354,7 @@ export class UnifiedStorageRepository {
         appearanceAnchorLocked: Boolean(legacyProfile.appearanceAnchorLocked) || undefined,
         referenceImageUrl: (legacyProfile.referenceImageUrl as string) || undefined,
         bio: (legacyProfile.bio as string) || undefined,
+        basicPersonality: (legacyProfile.basicPersonality as string) || undefined,
       },
       personaMd,
       memoriesMd,
