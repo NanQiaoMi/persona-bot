@@ -376,6 +376,9 @@ body {
   animation: blob-breathe 4.2s ease-in-out infinite;
 }
 
+/* 侧栏列表里的小吉祥物不做常驻呼吸（SVG 动画每帧都要在主线程重绘）；眨眼和悬停摇摆保留 */
+.mascot-calm .animate-blob-breathe { animation: none; }
+
 .animate-blob-think {
   transform-box: fill-box;
   transform-origin: center bottom;
@@ -511,6 +514,9 @@ body {
   transform-origin: center;
   animation: wave-bar-4 1s ease-in-out infinite 0.1s;
 }
+/* 发送按钮空闲时的波形只在悬停时跳动 */
+.group\/send .animate-wave-1, .group\/send .animate-wave-2, .group\/send .animate-wave-3, .group\/send .animate-wave-4 { animation-play-state: paused; }
+.group\/send:hover .animate-wave-1, .group\/send:hover .animate-wave-2, .group\/send:hover .animate-wave-3, .group\/send:hover .animate-wave-4 { animation-play-state: running; }
 
 .grok-floating-card {
   box-shadow: var(--card-shadow);
@@ -563,6 +569,13 @@ body {
   .animate-aura-pulse,
   .animate-pulse-dot,
   .animate-text-shimmer,
+  .animate-wave-1,
+  .animate-wave-2,
+  .animate-wave-3,
+  .animate-wave-4,
+  .animate-eye-left,
+  .animate-eye-right,
+  .media-dot--wave,
   .typing-dot {
     animation: none !important;
   }

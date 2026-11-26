@@ -309,11 +309,14 @@ export default function ChatStage({
       {/* Subtle Ambient Mascot Glow behind Floating Header */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[520px] h-44 rounded-full blur-3xl opacity-[0.07] dark:opacity-[0.12] transition-colors duration-700"
-        style={{ backgroundColor: mascotCfg.color }}
+        // 用径向渐变画柔光，不再用 64px 高斯模糊滤镜（效果相近，省掉整块离屏模糊）
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[620px] h-60 opacity-[0.09] dark:opacity-[0.14]"
+        style={{
+          background: `radial-gradient(closest-side, ${mascotCfg.color}, transparent)`,
+        }}
       />
       {/* Frosted Floating Header */}
-      <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header backdrop-blur-xl pointer-events-none">
+      <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
           {!sidebarOpen && (
             <button

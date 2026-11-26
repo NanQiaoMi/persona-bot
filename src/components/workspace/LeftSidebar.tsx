@@ -385,6 +385,7 @@ function LeftSidebar({
                 trackPointer
                 blinkDelayMs={index * 750}
                 state={isBotTyping ? "working" : "idle"}
+                className="mascot-calm"
               />
 
               <div className="flex-1 min-w-0">
