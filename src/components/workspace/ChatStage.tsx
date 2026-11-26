@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { stripEmoji } from "@/lib/text/emoji";
+import LineIcon from "./LineIcon";
 import {
   ConversationMessage,
   MediaCard,
@@ -383,6 +385,13 @@ export default function ChatStage({
   }
 
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
+  // 首页快捷卡片的图标底色：角色颜色的浅色版；颜色太深（如主 bot 的黑色）时改用主题文字色，暗色主题下也看得清
+  const heroAccentStyle = isVeryDark(mascotCfg.color)
+    ? { backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" }
+    : {
+        backgroundColor: `color-mix(in srgb, ${mascotCfg.color} 14%, transparent)`,
+        color: mascotCfg.color,
+      };
   // 群聊：成员名（用于 @ 高亮）、头像图片、按名字找人（「X 正在输入」）
   const groupMembers = activeGroup
     ? (personas || []).filter((p) => activeGroup.memberSlugs.includes(p.slug))
@@ -564,102 +573,99 @@ export default function ChatStage({
                 </span>
               </button>
 
-              <div className="space-y-2 max-w-md">
+              <div className="flex flex-col items-center gap-3 max-w-lg">
                 <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
                   {persona.name}
                 </h2>
-                <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                <p className="max-w-md text-[13.5px] leading-7 text-[var(--text-secondary)]">
                   {persona.profile.bio ||
                     "支持 DeepSearch 实时联网生成结构化页面、Think 内心潜台词与多档人格模式。"}
                 </p>
-                <div className="pt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)]">
-                  <span>
-                    {modeSpec.badge} {modeSpec.shortLabel}
-                  </span>
-                  <span className="opacity-40">·</span>
-                  <span>♥ 亲密度 {persona.intimacy}%</span>
-                  <span className="opacity-40">·</span>
-                  <span>{persona.emotionState.moodLabel || "在线"}</span>
+                {/* 模式 / 亲密度 / 此刻心情：三个独立的小标签 */}
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                  {[
+                    { icon: modeSpec.icon, label: modeSpec.shortLabel },
+                    { icon: "heart" as const, label: `亲密度 ${persona.intimacy}%` },
+                    {
+                      icon: "pulse" as const,
+                      label:
+                        stripEmoji(persona.emotionState.moodLabel || "") || "在线",
+                    },
+                  ].map((stat) => (
+                    <span
+                      key={stat.label}
+                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)]"
+                    >
+                      <LineIcon name={stat.icon} size={13} className="text-[var(--text-muted)]" />
+                      <span className="max-w-[12em] truncate">{stat.label}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
 
-              {/* 4 One-Click Interactive Starter Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-1">
+              {/* 一键开聊：图标底色跟随角色的颜色 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-2">
                 {(persona.isMaster || persona.slug === "master-bot"
-                  ? [
+                  ? ([
                       {
-                        icon: "🧩",
-                        badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
+                        icon: "team",
                         title: "全军协同调研今日科技动态",
                         sub: "同时调度 3 个子 Bot 分头查证并汇总报告",
                         text: "请帮我调度大家分头梳理今天最值得关注的 AI 工具与开源动态，分别汇报关键亮点和待核查项",
                         enableSearch: true,
                       },
                       {
-                        icon: "📋",
-                        badgeBg:
-                          "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+                        icon: "split",
                         title: "让 鹿汐 和 陈野 联合分析",
                         sub: "跨 Bot 观点碰撞 + 汇总执行明细",
                         text: "让 鹿汐 和 陈野 帮我分析一下现在做个人 AI 助手最容易踩的 3 个坑，并给出可执行建议",
                         enableSearch: false,
                       },
                       {
-                        icon: "🔍",
-                        badgeBg:
-                          "bg-purple-500/12 text-purple-600 dark:text-purple-300",
+                        icon: "search",
                         title: "开启联网核查追踪清单",
                         sub: "触发 DeepSearch 并记录覆盖来源",
                         text: "帮我联网核查 GitHub 上最近热门的开源 Agent 项目，保留来源并标注未覆盖项",
                         enableSearch: true,
                       },
                       {
-                        icon: "⚡",
-                        badgeBg:
-                          "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+                        icon: "pulse",
                         title: "检查全部子 Bot 当前状态",
                         sub: "拉取团队成员最新工作记忆摘要",
                         text: "向所有助手确认目前各自的专长与工作状态，给我一份简洁的总控状态简报",
                         enableSearch: false,
                       },
-                    ]
-                  : [
+                    ] as const)
+                  : ([
                       {
-                        icon: "📊",
-                        badgeBg: "bg-sky-500/12 text-sky-600 dark:text-sky-300",
+                        icon: "trend",
                         title: "聊聊今天的热门新鲜事",
                         sub: "实时翻一翻网上的最新动态给你锐评",
                         text: "帮我联网整理一下今天全网最值得聊的科技圈热搜清单，用你的性格锐评一下",
                         enableSearch: true,
                       },
                       {
-                        icon: "💭",
-                        badgeBg:
-                          "bg-purple-500/12 text-purple-600 dark:text-purple-300",
+                        icon: "thought",
                         title: "说说你现在心里在想啥",
                         sub: "听听 TA 没直说出口的真实小想法",
                         text: "说实话，你现在看到我打开这个窗口，心里第一反应是什么？",
                         enableSearch: false,
                       },
                       {
-                        icon: "📸",
-                        badgeBg:
-                          "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300",
+                        icon: "camera",
                         title: "发张你那边的随手拍",
                         sub: "看看 TA 此刻身边的日常画面",
                         text: "发张你现在手边的随手拍给我看看呗",
                         enableSearch: false,
                       },
                       {
-                        icon: "🌙",
-                        badgeBg:
-                          "bg-rose-500/12 text-rose-600 dark:text-rose-300",
+                        icon: "moon",
                         title: "忙完了一天，求安慰",
                         sub: "听几句贴合 TA 脾气的连环宽慰",
                         text: "今天工作累麻了，快按你的脾气哄我两句",
                         enableSearch: false,
                       },
-                    ]
+                    ] as const)
                 ).map((chip) => (
                   <button
                     key={chip.title}
@@ -667,24 +673,36 @@ export default function ChatStage({
                     onClick={() =>
                       onQuickSend(chip.text, { deepSearch: chip.enableSearch })
                     }
-                    className="group/chip p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-all duration-200 flex items-start gap-3"
+                    className="group/chip p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-all duration-200 flex items-start gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
                   >
-                    <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 ${chip.badgeBg}`}
+                    <span
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover/chip:scale-105"
+                      style={heroAccentStyle}
                     >
-                      {chip.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12.5px] font-semibold text-[var(--text-primary)] flex items-center justify-between gap-1">
+                      <LineIcon name={chip.icon} size={17} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
                         <span className="truncate">{chip.title}</span>
-                        <span className="text-[var(--text-muted)] opacity-0 group-hover/chip:opacity-100 group-hover/chip:translate-x-0.5 transition-all">
-                          →
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-[var(--text-secondary)] mt-0.5 line-clamp-1">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                          className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
+                        >
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
+                      </span>
+                      <span className="block mt-1 text-[11.5px] leading-5 text-[var(--text-secondary)] line-clamp-2">
                         {chip.sub}
-                      </div>
-                    </div>
+                      </span>
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1443,4 +1461,16 @@ export default function ChatStage({
       />
     </div>
   );
+}
+
+/** 颜色是否接近黑色（相对亮度低于 0.08） */
+function isVeryDark(hex: string): boolean {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.08;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import LineIcon from "@/components/workspace/LineIcon";
 import { useEffect, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { PersonaMode, PersonaSummary } from "@/lib/storage/types";
@@ -270,7 +271,7 @@ export default function CommandPalette({
                     }}
                     className="px-3 py-2 rounded-[12px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2 text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
                   >
-                    <span>{spec.badge}</span>
+                    <LineIcon name={spec.icon} size={14} />
                     <span>{spec.shortLabel}</span>
                   </button>
                 );

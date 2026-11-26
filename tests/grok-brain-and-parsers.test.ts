@@ -44,7 +44,7 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     ]);
     const funSpec = getPersonaModeSpec('fun');
     expect(funSpec.systemDirective).toContain('Grok');
-    expect(funSpec.badge).toBe('⚡');
+    expect(funSpec.icon).toBe('bolt');
   });
 
   it('extracts search queries and runs DeepSearch with structured results', async () => {
