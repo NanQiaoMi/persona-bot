@@ -1,4 +1,5 @@
 "use client";
+import { thumbUrl } from "@/lib/media/thumb-url";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -109,8 +110,10 @@ export default function BlobMascot({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={image}
+          src={thumbUrl(image)}
           alt="avatar"
+          loading="lazy"
+          decoding="async"
           className={`w-full h-full rounded-full object-cover border border-black/10 ${
             state === "working" ? "animate-blob-work" : ""
           }`}

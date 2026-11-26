@@ -1,4 +1,5 @@
 "use client";
+import { thumbUrl } from "@/lib/media/thumb-url";
 
 import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import {
@@ -210,8 +211,10 @@ function ChatMessageList({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={msg.imageUrl}
+                              src={thumbUrl(msg.imageUrl)}
                               alt="用户上传图片"
+                              loading="lazy"
+                              decoding="async"
                               className="w-full max-h-56 object-cover"
                             />
                           </button>
@@ -505,8 +508,10 @@ function ChatMessageList({
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
-                                    src={card.imageUrl}
+                                    src={thumbUrl(card.imageUrl)}
                                     alt={card.caption}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-36 h-36 rounded-2xl object-contain"
                                   />
                                 </button>
@@ -541,8 +546,10 @@ function ChatMessageList({
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
-                                    src={card.imageUrl}
+                                    src={thumbUrl(card.imageUrl)}
                                     alt={card.caption}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full max-h-72 object-cover"
                                   />
                                 </button>

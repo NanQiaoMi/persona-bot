@@ -40,7 +40,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           {showAvatar && (
             <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
               {personaAvatar && !isUser ? (
-                <img src={personaAvatar} alt="avatar" className="w-full h-full object-cover" />
+                <img src={personaAvatar} alt="avatar" loading="lazy" decoding="async" className="w-full h-full object-cover" />
               ) : (
                 <div className={`w-full h-full flex items-center justify-center text-white text-sm font-medium ${isUser ? 'bg-[#07C160]' : 'bg-[#576B95]'}`}>
                   {isUser ? '我' : '她'}

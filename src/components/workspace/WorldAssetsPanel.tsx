@@ -1,4 +1,5 @@
 "use client";
+import { thumbUrl } from "@/lib/media/thumb-url";
 
 import { useEffect, useState } from "react";
 import type { WorldEntry, WorldEntryKind } from "@/lib/storage/types";
@@ -38,8 +39,10 @@ function KindThumb({ entry }: { entry: WorldEntry }) {
       <div className="w-10 h-10 rounded-lg overflow-hidden border border-[var(--border-strong)] shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={entry.imageUrl}
+          src={thumbUrl(entry.imageUrl)}
           alt={entry.name}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover"
         />
       </div>
