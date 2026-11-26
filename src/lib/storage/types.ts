@@ -22,6 +22,13 @@ export interface PersonaProfile {
   bio?: string;
 }
 
+export interface SulkingState {
+  level: 1 | 2 | 3;
+  reason: string;
+  remainingTurns: number;
+  since: string;
+}
+
 export interface PersonaEmotionSnapshot {
   primary: string;
   pleasure: number;
@@ -31,6 +38,7 @@ export interface PersonaEmotionSnapshot {
   moodLabel?: string;
   lastUpdated: string;
   decayRate: number;
+  sulking?: SulkingState;
 }
 
 export interface CorrectionItem {

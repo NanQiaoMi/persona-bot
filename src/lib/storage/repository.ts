@@ -358,10 +358,29 @@ export class UnifiedStorageRepository {
       personaMd,
       memoriesMd,
       aiProfileMd,
-      emotionState: {
-        ...defaultEmotionSnapshot(),
-        ...emotionRaw,
-      },
+      emotionState: (() => {
+        const merged = {
+          ...defaultEmotionSnapshot(),
+          ...emotionRaw,
+        };
+        const rawSulk = emotionRaw.sulking;
+        const validSulk =
+          isRecord(rawSulk) &&
+          (rawSulk.level === 1 || rawSulk.level === 2 || rawSulk.level === 3) &&
+          typeof rawSulk.reason === 'string' &&
+          typeof rawSulk.since === 'string' &&
+          typeof rawSulk.remainingTurns === 'number' &&
+          Number.isFinite(rawSulk.remainingTurns) &&
+          rawSulk.remainingTurns > 0
+            ? {
+                level: rawSulk.level,
+                reason: rawSulk.reason,
+                remainingTurns: Math.floor(rawSulk.remainingTurns),
+                since: rawSulk.since,
+              }
+            : undefined;
+        return validSulk ? { ...merged, sulking: validSulk } : { ...merged, sulking: undefined };
+      })(),
       intimacy: typeof meta.intimacy === 'number' ? meta.intimacy : 60,
       corrections,
       spec: ensurePersonaSpec(personaMd, specRaw),
