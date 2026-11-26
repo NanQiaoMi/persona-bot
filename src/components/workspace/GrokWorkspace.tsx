@@ -20,7 +20,7 @@ import CreateBotModal from "./CreateBotModal";
 import CreateGroupModal from "./CreateGroupModal";
 import LeftSidebar from "./LeftSidebar";
 import RightInspector from "./RightInspector";
-import SplashScreen, { hasSplashPlayed } from "./SplashScreen";
+import SplashScreen, { shouldShowSplash } from "./SplashScreen";
 
 interface GrokWorkspaceProps {
   initialSlug?: string;
@@ -30,7 +30,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   // 启动动画：整个页面只播一次；客户端路由切换回来时直接跳过
   // 只决定要不要挂载；退场与工作台浮现由 SplashScreen 自己驱动，不回传状态，避免整个工作台重渲染
-  const [showSplash] = useState(() => !hasSplashPlayed());
+  const [showSplash] = useState(() => shouldShowSplash());
   const [splashSteps, setSplashSteps] = useState({ personas: false, groups: false, detail: false });
   const markSplashStep = useCallback((step: "personas" | "groups" | "detail") => {
     setSplashSteps((prev) => (prev[step] ? prev : { ...prev, [step]: true }));

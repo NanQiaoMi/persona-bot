@@ -1,9 +1,12 @@
 /**
- * 启动动画（「小团子醒来」）的时机规则。
+ * 启动动画（「角色风车」）的时机规则。
  * 全是纯函数，方便单测；组件只负责把结果接到定时器和 CSS 上。
+ *
+ * 规则（2026-11-26 用户要求）：每次刷新都完整播放；数据提前到了也要等整段动画播完再进入；
+ * 应用内切换路由不重播（由 SplashScreen 的模块级标记控制）。
  */
 
-export type SplashVariant = "full" | "short" | "reduced";
+export type SplashVariant = "full" | "reduced";
 
 export interface SplashSteps {
   personas: boolean;
@@ -17,34 +20,35 @@ export interface SplashSteps {
  */
 export const SPLASH_TEMPO = 1.5;
 
+/**
+ * 整段动画在基准节奏下的结束时刻（ms）：
+ * 字标最后一个字浮现完 = 1300 + 9×28 + 500 = 2052，再留一小拍定格 → 2200。
+ * 与 globals.css 的时间轴注释保持一致。
+ */
+export const SPLASH_SEQUENCE_BASE_MS = 2200;
+
 export const SPLASH_TIMING = {
-  /** 完整版至少播到风车锁定、主 bot 睁眼眨眼、字标浮现（基准 1800ms × 节奏倍数） */
-  fullMinMs: Math.round(1800 * SPLASH_TEMPO),
+  /** 完整版：整段动画（四角出场 → 旋入 → 风车锁定 → 睁眼 → 字标）播完才退场 */
+  fullMinMs: Math.round(SPLASH_SEQUENCE_BASE_MS * SPLASH_TEMPO),
   fullExitMs: 450,
-  shortExitMs: 220,
   reducedExitMs: 150,
   skipExitMs: 220,
   /** 数据一直没到时强制退场 */
   timeoutMs: 8000,
   /** 超过这个时间换成「第一次启动会慢一点」 */
-  slowHintMs: 3000,
+  slowHintMs: 5000,
 } as const;
 
-export const SPLASH_SEEN_KEY = "personabot-splash-seen";
 export const THEME_STORAGE_KEY = "personabot-theme";
 
-export function getSplashVariant(input: {
-  seenThisSession: boolean;
-  reducedMotion: boolean;
-}): SplashVariant {
-  if (input.reducedMotion) return "reduced";
-  return input.seenThisSession ? "short" : "full";
+export function getSplashVariant(input: { reducedMotion: boolean }): SplashVariant {
+  return input.reducedMotion ? "reduced" : "full";
 }
 
 /**
  * 还要再等多少毫秒才开始退场。
- * - 数据没到：等到超时
- * - 数据到了：完整版补足最短时长，其它版本立即退场
+ * - 数据没到：等到超时（数据比动画慢时，动画播完后进入等待态）
+ * - 数据到了：完整版等整段动画播完；减少动态效果版立即退场
  */
 export function getExitDelay(input: {
   variant: SplashVariant;
@@ -59,8 +63,7 @@ export function getExitDelay(input: {
 
 export function getExitDuration(variant: SplashVariant, skipped = false): number {
   if (variant === "reduced") return SPLASH_TIMING.reducedExitMs;
-  if (skipped) return SPLASH_TIMING.skipExitMs;
-  return variant === "full" ? SPLASH_TIMING.fullExitMs : SPLASH_TIMING.shortExitMs;
+  return skipped ? SPLASH_TIMING.skipExitMs : SPLASH_TIMING.fullExitMs;
 }
 
 export function countDoneSteps(steps: SplashSteps): number {
@@ -75,11 +78,9 @@ export function getSplashStatusText(steps: SplashSteps, slow: boolean): string {
 }
 
 /**
- * 放在 <head> 里同步执行：首帧就用对主题（不闪白），并决定启动动画版本。
- * 任何异常都静默，退回默认的亮色 + 完整版。
+ * 放在 <head> 里同步执行：首帧就用对主题（不闪白），并标记启动阶段（工作台先处于待浮现状态）。
+ * 任何异常都静默，退回默认的亮色。
  */
 export const BOOT_SCRIPT = `(function(){var d=document.documentElement;try{var t=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY
-)});if(t==="dark"||t==="light")d.setAttribute("data-theme",t);}catch(e){}try{d.setAttribute("data-splash",sessionStorage.getItem(${JSON.stringify(
-  SPLASH_SEEN_KEY
-)})?"short":"full");}catch(e){d.setAttribute("data-splash","full");}d.setAttribute("data-splash-phase","playing");})();`;
+)});if(t==="dark"||t==="light")d.setAttribute("data-theme",t);}catch(e){}d.setAttribute("data-splash-phase","playing");})();`;

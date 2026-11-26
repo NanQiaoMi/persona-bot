@@ -8,7 +8,6 @@ import {
   getExitDuration,
   getSplashStatusText,
   getSplashVariant,
-  SPLASH_SEEN_KEY,
   SPLASH_TIMING,
   type SplashSteps,
   type SplashVariant,
@@ -43,11 +42,17 @@ const CREW = (["lu-xi", "xia-you", "shen-zhi", "chen-ye"] as const).map((slug, i
 
 export type SplashPhase = "playing" | "exiting" | "done";
 
-// 整个页面生命周期只播一次：客户端路由切换（如 / → /chat/x）不会再出现
+// 每次刷新页面都完整播放一次；应用内切换路由（如 / → /chat/x）不重播
 let playedThisPageLoad = false;
 
-export function hasSplashPlayed(): boolean {
-  return playedThisPageLoad;
+/**
+ * 是否挂载启动画面。只在「整页加载」时播放：服务端 HTML 里带着启动画面，水合时能在 DOM 里找到它。
+ * 应用内切换路由过来时 DOM 里没有这段 HTML → 不播；本次页面已经播过 → 不播。
+ */
+export function shouldShowSplash(): boolean {
+  if (playedThisPageLoad) return false;
+  if (typeof document === "undefined") return true; // 服务端渲染
+  return document.querySelector(".splash-root") !== null;
 }
 
 interface SplashScreenProps {
@@ -56,9 +61,7 @@ interface SplashScreenProps {
 }
 
 function readVariant(reducedMotion: boolean): SplashVariant {
-  const attr =
-    typeof document !== "undefined" ? document.documentElement.getAttribute("data-splash") : null;
-  return getSplashVariant({ seenThisSession: attr === "short", reducedMotion });
+  return getSplashVariant({ reducedMotion });
 }
 
 /**
@@ -102,12 +105,8 @@ export default function SplashScreen({ ready, steps }: SplashScreenProps) {
       if (phaseRef.current !== "playing") return;
       const duration = getExitDuration(readVariant(reducedMotion), skipped);
       phaseRef.current = "exiting";
+      // 只在本次页面生命周期内记住：应用内切换路由不重播，刷新页面会重新完整播放
       playedThisPageLoad = true;
-      try {
-        window.sessionStorage.setItem(SPLASH_SEEN_KEY, "1");
-      } catch {
-        // 隐私模式等存储不可用时忽略，下次仍放完整版
-      }
       setHtmlPhase("exiting", duration);
       setExitMs(duration);
       setPhase("exiting");

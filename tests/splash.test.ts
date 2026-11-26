@@ -8,26 +8,28 @@ import {
   getExitDuration,
   getSplashStatusText,
   getSplashVariant,
+  SPLASH_SEQUENCE_BASE_MS,
   SPLASH_TEMPO,
   SPLASH_TIMING,
 } from '@/lib/motion/splash';
 
 describe('启动动画版本', () => {
-  it('会话内第一次是完整版，之后是简短版', () => {
-    expect(getSplashVariant({ seenThisSession: false, reducedMotion: false })).toBe('full');
-    expect(getSplashVariant({ seenThisSession: true, reducedMotion: false })).toBe('short');
-  });
-
-  it('开启减少动态效果时一律用静态版', () => {
-    expect(getSplashVariant({ seenThisSession: false, reducedMotion: true })).toBe('reduced');
-    expect(getSplashVariant({ seenThisSession: true, reducedMotion: true })).toBe('reduced');
+  it('默认完整版；开启减少动态效果时用静态版', () => {
+    expect(getSplashVariant({ reducedMotion: false })).toBe('full');
+    expect(getSplashVariant({ reducedMotion: true })).toBe('reduced');
   });
 });
 
 describe('退场时机', () => {
-  it('完整版数据早到时补足到最短时长（基准 1800ms × 节奏倍数）', () => {
-    expect(SPLASH_TIMING.fullMinMs).toBe(2700);
-    expect(getExitDelay({ variant: 'full', elapsedMs: 300, ready: true })).toBe(2400);
+  it('数据早到也要等整段动画播完（基准 2200ms × 节奏倍数）', () => {
+    expect(SPLASH_TIMING.fullMinMs).toBe(3300);
+    expect(getExitDelay({ variant: 'full', elapsedMs: 300, ready: true })).toBe(3000);
+    expect(getExitDelay({ variant: 'full', elapsedMs: 3299, ready: true })).toBe(1);
+  });
+
+  it('整段时长覆盖字标最后一个字浮现完', () => {
+    // 字标：基准延迟 1300ms + 第 10 个字 9×28ms + 时长 500ms
+    expect(SPLASH_SEQUENCE_BASE_MS).toBeGreaterThanOrEqual(1300 + 9 * 28 + 500);
   });
 
   it('CSS 里的节奏倍数与 TS 常量一致', () => {
@@ -36,9 +38,11 @@ describe('退场时机', () => {
     expect(m && Number(m[1])).toBe(SPLASH_TEMPO);
   });
 
-  it('数据晚到时立刻退场，不额外拖延', () => {
-    expect(getExitDelay({ variant: 'full', elapsedMs: 3000, ready: true })).toBe(0);
-    expect(getExitDelay({ variant: 'short', elapsedMs: 50, ready: true })).toBe(0);
+  it('动画播完后数据才到：数据一到就退场', () => {
+    expect(getExitDelay({ variant: 'full', elapsedMs: 4000, ready: true })).toBe(0);
+  });
+
+  it('减少动态效果版数据到了立即退场', () => {
     expect(getExitDelay({ variant: 'reduced', elapsedMs: 50, ready: true })).toBe(0);
   });
 
@@ -46,12 +50,11 @@ describe('退场时机', () => {
     expect(getExitDelay({ variant: 'full', elapsedMs: 2000, ready: false })).toBe(
       SPLASH_TIMING.timeoutMs - 2000
     );
-    expect(getExitDelay({ variant: 'short', elapsedMs: 9000, ready: false })).toBe(0);
+    expect(getExitDelay({ variant: 'full', elapsedMs: 9000, ready: false })).toBe(0);
   });
 
   it('退场时长按版本区分，跳过时更快', () => {
     expect(getExitDuration('full')).toBe(450);
-    expect(getExitDuration('short')).toBe(220);
     expect(getExitDuration('reduced')).toBe(150);
     expect(getExitDuration('full', true)).toBe(220);
     expect(getExitDuration('reduced', true)).toBe(150);
@@ -110,9 +113,28 @@ describe('<head> 启动脚本', () => {
     expect(run({ theme: 'purple' })['data-theme']).toBeUndefined();
   });
 
-  it('按会话记录决定版本，存储不可用时退回完整版', () => {
-    expect(run({})['data-splash']).toBe('full');
-    expect(run({ seen: '1' })['data-splash']).toBe('short');
-    expect(run({ throwSession: true })['data-splash']).toBe('full');
+  it('不再读写会话记录：每次刷新都完整重播', () => {
+    const attrs = run({ seen: '1' });
+    expect(attrs['data-splash']).toBeUndefined();
+    expect(attrs['data-splash-phase']).toBe('playing');
+    expect(BOOT_SCRIPT).not.toContain('sessionStorage');
+  });
+});
+
+describe('什么时候挂载启动画面', () => {
+  it('整页加载（服务端 HTML 带着启动画面）时播放；应用内切换路由过来时不播', async () => {
+    const { shouldShowSplash } = await import('@/components/workspace/SplashScreen');
+    const g = globalThis as { document?: unknown };
+    const original = g.document;
+    try {
+      g.document = { querySelector: (sel: string) => (sel === '.splash-root' ? {} : null) };
+      expect(shouldShowSplash()).toBe(true);
+      g.document = { querySelector: () => null };
+      expect(shouldShowSplash()).toBe(false);
+      delete g.document;
+      expect(shouldShowSplash()).toBe(true); // 服务端渲染时输出启动画面
+    } finally {
+      g.document = original;
+    }
   });
 });

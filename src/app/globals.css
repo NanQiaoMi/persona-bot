@@ -580,7 +580,7 @@ body {
 
 /* ───────────── 启动动画「角色风车」 ─────────────
  * 时间轴见 docs/superpowers/plans/2026-11-26-splash-animation-plan.md 第 11 节
- * 完整版为默认；html[data-splash="short"] 为会话内再次打开的简短版；
+ * 每次刷新页面都完整播放，播完整段才进入工作台（第 14 节）；
  * prefers-reduced-motion 为静态版。
  *
  * 性能约定（第 12 节）：会动的一律是 HTML 包裹层，只动 transform / opacity，
@@ -591,7 +591,8 @@ body {
  *   600–1650   风车标志带惯性从 -300° 转进来，过冲后回正
  *   680–1400   四个角色依次弹入槽位；1120 主 bot 弹出；1240 锁定波纹
  *   1400–1820  主 bot 睁眼、眨眼；1300 起字标逐字浮现
- *   3000+      等数据时：风车缓慢自转（角色保持正立）、眨眼循环 */
+ *   2200       整段播完（×节奏倍数 = 3300ms），数据已到则开始退场
+ *   2300+      数据还没到：出现状态文字；3000 起风车缓慢自转（角色保持正立）、眨眼循环 */
 
 .splash-root {
   /* 节奏倍数：所有出场关键帧的时长和延迟都乘以它；与 src/lib/motion/splash.ts 的 SPLASH_TEMPO 保持一致 */
@@ -849,7 +850,7 @@ body {
   min-height: 18px;
   font-size: 12px;
   color: var(--text-muted);
-  animation: splash-rise calc(300ms * var(--splash-tempo)) var(--ease-standard) calc(1900ms * var(--splash-tempo)) both;
+  animation: splash-rise calc(300ms * var(--splash-tempo)) var(--ease-standard) calc(2300ms * var(--splash-tempo)) both;
 }
 
 .splash-status-text {
@@ -1078,51 +1079,13 @@ body {
   }
 }
 
-/* —— 简短版：直接拼好的风车快速弹出，没有出场与旋转 —— */
-[data-splash="short"] .splash-fly,
-[data-splash="short"] .splash-ripple {
-  display: none;
-}
-[data-splash="short"] .splash-spin,
-[data-splash="short"] .splash-mark {
-  animation: none;
-}
-[data-splash="short"] .splash-piece {
-  animation-duration: 260ms;
-  animation-delay: calc(var(--i) * 30ms);
-}
-[data-splash="short"] .splash-hub {
-  animation-duration: 260ms;
-  animation-delay: 60ms;
-}
-[data-splash="short"] .splash-eyes {
-  animation-delay: 160ms;
-}
-[data-splash="short"] .splash-eyes-blink {
-  animation: blob-blink 4.4s ease-in-out 1500ms infinite;
-}
-[data-splash="short"] .splash-eyes-look {
-  animation: none;
-}
-[data-splash="short"] .splash-wordmark > span {
-  animation: splash-rise 200ms var(--ease-standard) 400ms both;
-}
-[data-splash="short"] .splash-wordmark > span::before {
-  display: none;
-}
-[data-splash="short"] .splash-wordmark > span::after {
-  animation: none;
-}
-[data-splash="short"] .splash-status {
-  animation-delay: 500ms;
-}
-
 /* —— 工作台浮现：由 <html data-splash-phase> 驱动，不经过 React —— */
-[data-splash-phase] .splash-reveal {
+/* :has(.splash-root)：只有启动画面真的在场时才压暗工作台，避免没挂载启动画面的页面被一直压暗 */
+[data-splash-phase]:has(.splash-root) .splash-reveal {
   transition: opacity var(--splash-exit, 360ms) var(--ease-standard),
     transform var(--splash-exit, 360ms) var(--ease-standard);
 }
-[data-splash-phase="playing"] .splash-reveal {
+[data-splash-phase="playing"]:has(.splash-root) .splash-reveal {
   opacity: 0.6;
   transform: scale(0.985);
   /* 兜底：脚本完全没跑起来时 10 秒后恢复正常 */
@@ -1162,7 +1125,7 @@ body {
   .splash-root[data-state="exiting"] .splash-mascot {
     transform: none;
   }
-  [data-splash-phase="playing"] .splash-reveal {
+  [data-splash-phase="playing"]:has(.splash-root) .splash-reveal {
     opacity: 1;
     transform: none;
   }
