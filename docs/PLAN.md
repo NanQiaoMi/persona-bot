@@ -22,3 +22,9 @@
 ## 暂缓清单（二期规划）
 - 真实个人微信号挂机自动代聊（规避账号风控）。
 - 本地重型生图（ComfyUI / Stable Diffusion）部署耦合。
+
+## 活人感性格系统 4 阶段升级计划
+1. **阶段 1 (`feat/emotion-traits-and-sulking`)**：升级语义情绪评估与消除正向偏置、接入搭便车 `[AFFECT]` 判定、将大五性格参数转译为 Prompt 行为准则、实现 1~3 轮「闹别扭 / 冷处理 → 哄好解除」状态机，并在右侧情绪雷达提供状态展示与一键翻篇。
+2. **阶段 2 (`feat/persona-fewshot-and-autonomy`)**：动态 Few-Shot 示范对话注入、系统提示词瘦身与真实熟人分歧权/小脾气护栏、拍照态度分层。
+3. **阶段 3 (`feat/unified-daily-life-state`)**：统一「今日生活与心境板」，串联单聊、朋友圈、群聊与主动破冰。
+4. **阶段 4 (`feat/user-impression-and-relation-stage`)**：按角色完全隔离的「TA 眼中的你」认知档案 + 4 档关系阶段分层 + 记忆同义词召回增强。
