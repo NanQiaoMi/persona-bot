@@ -20,7 +20,11 @@ export function extractLiveThought(raw: string): LiveThought | null {
   const text = raw || '';
   const open = text.search(/<thought>/i);
   if (open === -1) return null;
-  const before = text.slice(0, open).replace(/\[MOOD:[^\]]*\]/i, '').trim();
+  const before = text
+    .slice(0, open)
+    .replace(/\[MOOD:[^\]]*\]/gi, '')
+    .replace(/[\[【]\s*AFFECT\s*[:：][^\]】]*[\]】]/gi, '')
+    .trim();
   if (before.length > 0) return null;
   const start = open + '<thought>'.length;
   const closeIdx = text.slice(start).search(/<\/thought>/i);
@@ -48,6 +52,7 @@ export function cleanInnerThought(raw: string): string {
   let t = (raw || '')
     .replace(/<\/?thought>/gi, '')
     .replace(/\[MOOD:[^\]]*\]/gi, '')
+    .replace(/[\[【]\s*AFFECT\s*[:：][^\]】]*[\]】]/gi, '')
     .replace(/^\s*(内心(戏|活动|独白)?|心声)\s*[:：]\s*/u, '')
     .trim();
   t = t.replace(/^[「“"'（(]+|[」”"'）)]+$/g, '').trim();

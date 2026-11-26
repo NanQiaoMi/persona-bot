@@ -30,6 +30,8 @@ export interface AssembleOptions {
     attitude?: string;
     intimacy?: number;
   };
+  traitsDirective?: string;
+  sulkingDirective?: string;
 }
 
 export class PromptAssembler {
@@ -120,6 +122,17 @@ export class PromptAssembler {
       '',
     ];
 
+    if (options.traitsDirective) {
+      sections.push('## 性格行为底色');
+      sections.push(options.traitsDirective);
+      sections.push('');
+    }
+
+    if (options.sulkingDirective) {
+      sections.push(options.sulkingDirective);
+      sections.push('');
+    }
+
     if (data.ai_profile) {
       sections.push('## 完整人物全息画像');
       sections.push(fitProfileToBudget(data.ai_profile));
@@ -183,7 +196,7 @@ export class PromptAssembler {
       sections.push(`1. **直接口语回复**：本次无需输出 \`<thought>\` 标签，直接用角色口吻自然对话。`);
     }
     sections.push(
-      `2. **情绪标签**：可在正文前附上 \`[MOOD: 四到六个字的心情标签]\`（如 \`[MOOD: 嘴硬暗爽中]\`）。`
+      `2. **情绪与隐藏情感判定**：可在正文前附上 \`[MOOD: 四到六个字的心情标签]\`（如 \`[MOOD: 嘴硬暗爽中]\`）。若你明显感受到对方冷淡敷衍、踩到雷区，或刚把你哄好，还可在开头紧接附上系统会自动剥离、不展示给对方的隐藏判定：\`[AFFECT: mood=心情 | delta=-0.35~0.35 | trigger=none/boundary/cold/coaxed | reason=简短原因]\`（普通闲聊可省略或写 \`trigger=none\`）。`
     );
     sections.push(
       `3. **真人分条短气泡**：回复尽量像真实微信/IM 连发聊天一样自然简练，可在语义停顿处插入 1~2 次 \`[BURST]\` 拆分成多个独立气泡；\`[BURST]\` 前后不要留空行，少用舞台剧式的括号动作描写。`

@@ -1,5 +1,13 @@
 import { evolveTurnEmotion } from '@/lib/emotion/turn';
 import {
+  applyLlmAffectSignal,
+  buildSulkingDirective,
+  parseAffectTag,
+  stripAffectTags,
+  type ParsedAffectSignal,
+} from '@/lib/emotion/sulking';
+import { buildTraitsBehaviorDirective } from '@/lib/persona/traits';
+import {
   DeepSearchResponse,
   performDeepSearch,
   shouldAutoTriggerSearch,
@@ -127,12 +135,14 @@ export type StreamEvent =
 export function parseStructuredModelOutput(rawText: string, fallbackThought = ''): {
   thought: string;
   mood: string;
+  affect?: ParsedAffectSignal;
   cleanReply: string;
   bursts: string[];
   mediaCards: MediaCard[];
   followup?: { delaySec: number; content: string };
 } {
-  let working = rawText.trim();
+  const affectParsed = parseAffectTag(rawText);
+  let working = affectParsed.cleaned;
   let thought = fallbackThought;
 
   const thoughtMatch = working.match(/<thought>([\s\S]*?)<\/thought>/i);
@@ -225,6 +235,7 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
   return {
     thought,
     mood,
+    affect: affectParsed.affect,
     cleanReply: mediaOnly ? '' : cleanReply || '（轻轻挑了下眉，等你继续往下说）',
     bursts: mediaOnly ? [] : bursts.length > 0 ? bursts : [cleanReply || '我在听呢，继续说～'],
     mediaCards,
@@ -276,14 +287,14 @@ export function mediaOnlyBursts(cards: MediaCard[], seed = ''): string[] {
  * 将流式或完整文本按 [BURST] / [EARLY] 拆分为干净的多气泡数组，清理内部多余空行
  */
 export function splitLiveBursts(rawText: string): string[] {
-  const withoutTags = rawText
+  const withoutTags = stripAffectTags(rawText)
     .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
     .replace(/<thought>[\s\S]*/gi, '')
     .replace(/\[EARLY:\s*([^\]]+)\]/gi, '$1[BURST]')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
-    .replace(/\[(?:MOOD|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '')
+    .replace(/\[(?:MOOD|AFFECT|PHOTO|STICKER|VOICE|FOLLOWUP):[^\]]*\]?/gi, '')
+    .replace(/\[(?:MOOD|AFFECT|PHOTO|STICKER|VOICE|BURST|EARLY|FOLLOWUP)[^\]]*$/i, '')
     // 模型偶尔用全角括号写标签（【STICKER: …】）或在结尾留下孤立的「】【」
-    .replace(/【\s*(?:MOOD|PHOTO|STICKER|VOICE|FOLLOWUP|EARLY)\s*[:：][^】]*】/gi, '')
+    .replace(/【\s*(?:MOOD|AFFECT|PHOTO|STICKER|VOICE|FOLLOWUP|EARLY)\s*[:：][^】]*】/gi, '')
     .replace(/】\s*【(?!\s*BURST)/g, '')
     .replace(/[【】]+(?=[。！？!?~～\s]*$)/g, '');
 
@@ -1054,10 +1065,10 @@ export async function executeGrokChatTurn(
 
   // Stage 2: Emotion Evolution（从上一轮持久化情绪出发，按间隔时间衰减后处理本轮消息）
   const turnEmotion = evolveTurnEmotion(persona, lastUserText, activeMode);
-  const updatedEmotion: PersonaEmotionSnapshot = turnEmotion.snapshot;
-  const intimacyDelta = turnEmotion.intimacy.delta;
-  const newIntimacy = turnEmotion.intimacy.intimacy;
-  const relationshipState = turnEmotion.intimacy.relationship;
+  let updatedEmotion: PersonaEmotionSnapshot = turnEmotion.snapshot;
+  let intimacyDelta = turnEmotion.intimacy.delta;
+  let newIntimacy = turnEmotion.intimacy.intimacy;
+  let relationshipState = turnEmotion.intimacy.relationship;
 
   // Stage 3: Prompt Assembly & Streaming LLM Call
   const userStyleProfile = analyzeUserChatStyle(req.messages);
@@ -1083,6 +1094,18 @@ export async function executeGrokChatTurn(
       .filter((m) => m.role === 'assistant' && typeof m.content === 'string')
       .map((m) => m.content)
   ).directive;
+  const isMasterBot = Boolean(persona.isMaster || persona.slug === 'master-bot');
+  const traitsDirective = isMasterBot
+    ? ''
+    : buildTraitsBehaviorDirective(turnEmotion.traits);
+  const sulkingDirective = isMasterBot
+    ? ''
+    : buildSulkingDirective(
+        turnEmotion.snapshot.sulking,
+        turnEmotion.traits,
+        turnEmotion.sulkingTransition.justResolved,
+        persona.personaMd
+      );
   const assembler = new PromptAssembler();
   const baseSystemPrompt = assembler.assembleFromRecord(persona, {
     mode: activeMode,
@@ -1092,6 +1115,8 @@ export async function executeGrokChatTurn(
     hasImageAttachment: hasImage,
     userStyleProfile,
     blendedStyle,
+    traitsDirective,
+    sulkingDirective,
     emotionSummary: {
       emotion: updatedEmotion.primary,
       intensity: updatedEmotion.intensity,
@@ -1231,7 +1256,26 @@ export async function executeGrokChatTurn(
     scoreReply(segments, blendedStyle.self)
   );
 
-  if (parsed.mood) {
+  if (parsed.affect) {
+    const mergedAffect = applyLlmAffectSignal({
+      affect: parsed.affect,
+      prevSnapshot: persona.emotionState,
+      currentSnapshot: updatedEmotion,
+      prevIntimacy: persona.intimacy,
+      prevRelationship: persona.relationship,
+      currentIntimacy: newIntimacy,
+      currentIntimacyDelta: intimacyDelta,
+      currentRelationship: relationshipState,
+      basePleasantness: turnEmotion.pleasantness,
+      mode: activeMode,
+      traits: turnEmotion.traits,
+    });
+    updatedEmotion = mergedAffect.snapshot;
+    newIntimacy = mergedAffect.intimacy;
+    intimacyDelta = mergedAffect.intimacyDelta;
+    relationshipState = mergedAffect.relationship ?? relationshipState;
+  }
+  if (parsed.mood && !parsed.affect?.mood) {
     updatedEmotion.moodLabel = parsed.mood;
   }
 
@@ -1258,7 +1302,8 @@ export async function executeGrokChatTurn(
     });
   } else if (
     hasExplicitPhoto &&
-    !parsed.mediaCards.some((c) => c.type === 'photo')
+    !parsed.mediaCards.some((c) => c.type === 'photo') &&
+    !(updatedEmotion.sulking && updatedEmotion.sulking.level >= 3)
   ) {
     parsed.mediaCards.unshift({
       type: 'photo',

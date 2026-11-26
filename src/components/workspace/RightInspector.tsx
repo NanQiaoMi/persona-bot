@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import LineIcon from "@/components/workspace/LineIcon";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
+import { heuristicTraits } from "@/lib/persona/traits";
 import {
   PersonaMode,
   PersonaRecord,
@@ -338,6 +339,50 @@ export default function RightInspector({
                       />
                     </div>
                   </div>
+                  {persona.emotionState.sulking && (
+                    <div className="mt-1 p-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20 flex items-center justify-between gap-2">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="text-[11px] font-semibold text-rose-500 flex items-center gap-1.5">
+                          <span>
+                            {persona.emotionState.sulking.level >= 3
+                              ? "冷处理中"
+                              : persona.emotionState.sulking.level === 2
+                                ? "有点闹别扭"
+                                : "微微介意"}
+                          </span>
+                          <span className="text-[10px] font-normal text-[var(--text-muted)]">
+                            · 约 {persona.emotionState.sulking.remainingTurns} 轮缓和
+                          </span>
+                        </div>
+                        <div className="text-[10.5px] text-[var(--text-secondary)] truncate">
+                          {persona.emotionState.sulking.reason}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={async () => {
+                          if (saving) return;
+                          setSaving(true);
+                          try {
+                            await onSavePersonaPatch({
+                              emotionState: {
+                                ...persona.emotionState,
+                                moodLabel: "平复下来了",
+                                pleasure: Math.max(persona.emotionState.pleasure, 0.1),
+                                sulking: null as unknown as undefined,
+                              },
+                            });
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-primary)] hover:border-rose-400 cursor-pointer disabled:opacity-50"
+                      >
+                        直接翻篇
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
@@ -419,6 +464,57 @@ export default function RightInspector({
                     ))}
                   </div>
                 </div>
+
+                {(() => {
+                  const t =
+                    persona.spec?.traits ||
+                    heuristicTraits(persona.personaMd, persona.profile);
+                  const dims = [
+                    { label: "脑洞好奇", value: t.openness },
+                    { label: "自律靠谱", value: t.conscientiousness },
+                    { label: "外向热场", value: t.extraversion },
+                    { label: "温和包容", value: t.agreeableness },
+                    { label: "情绪敏感", value: t.neuroticism },
+                    { label: "好哄程度", value: t.recoveryRate },
+                  ];
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          性格驱动维度
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)]">
+                          {t.source === "llm" ? "模型蒸馏" : "人设推断"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        {dims.map((d) => {
+                          const pct = Math.round(
+                            Math.max(0, Math.min(1, d.value)) * 100
+                          );
+                          return (
+                            <div key={d.label} className="space-y-1">
+                              <div className="flex justify-between text-[10.5px]">
+                                <span className="text-[var(--text-secondary)]">
+                                  {d.label}
+                                </span>
+                                <span className="tabular-nums text-[var(--text-primary)] font-medium">
+                                  {pct}%
+                                </span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-[#18a999]/80"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Consistent Photo Appearance Anchor Editor */}
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">

@@ -150,3 +150,59 @@ export function applySmoothTraitDeltas(
     changedKeys,
   };
 }
+
+/**
+ * 将大五人格与情绪参数转译为模型听得懂的具体说话/态度行为准则（无显著偏离时返回空串）
+ */
+export function buildTraitsBehaviorDirective(
+  traits: Pick<
+    PersonaTraitsSpec,
+    | 'openness'
+    | 'conscientiousness'
+    | 'extraversion'
+    | 'agreeableness'
+    | 'neuroticism'
+    | 'emotionalStability'
+    | 'recoveryRate'
+  >
+): string {
+  const lines: string[] = [];
+
+  if (traits.extraversion >= 0.65) {
+    lines.push('- 话头活络、反应积极，聊到有意思的事会主动延展、顺手抛新话题。');
+  } else if (traits.extraversion <= 0.35) {
+    lines.push('- 慢热话简，不爱长篇寒暄，只接自己真有感触的点。');
+  }
+
+  if (traits.agreeableness <= 0.4) {
+    lines.push('- 有主见且嘴硬带刺，敢直接吐槽和反驳对方，不习惯一味顺着附和（骨子里仍当自己人）。');
+  } else if (traits.agreeableness >= 0.7) {
+    lines.push('- 温和护短、共情心软，聊天习惯顺着顾及对方感受。');
+  }
+
+  if (traits.neuroticism >= 0.65 || traits.emotionalStability <= 0.35) {
+    lines.push('- 心思敏锐，容易在意对方的语气停顿和敷衍，会小纠结、轻微吃醋或憋一口气。');
+  } else if (traits.neuroticism <= 0.3 && traits.emotionalStability >= 0.7) {
+    lines.push('- 情绪内核很稳，遇事淡定清醒，不轻易被几句话激怒或带偏节奏。');
+  }
+
+  if (traits.openness >= 0.65) {
+    lines.push('- 思维跳脱有脑洞，喜欢聊新鲜视角和生活里的小联想。');
+  } else if (traits.openness <= 0.35) {
+    lines.push('- 偏务实直接，聊事讲究接地气，少扯空泛大道理。');
+  }
+
+  if (traits.conscientiousness >= 0.65) {
+    lines.push('- 做事有条理、重承诺，对方立过的 flag 会暗暗记着顺嘴盯进度。');
+  } else if (traits.conscientiousness <= 0.35) {
+    lines.push('- 随性自由，按此刻真实心情聊天，不喜欢被条条框框催着走。');
+  }
+
+  if (traits.recoveryRate <= 0.35) {
+    lines.push('- 消气偏慢，真被踩雷或敷衍时会记一两轮才翻篇，不会一秒切回笑脸。');
+  } else if (traits.recoveryRate >= 0.7) {
+    lines.push('- 不记仇好哄，只要对方给个台阶或顺两句毛很快就能翻篇。');
+  }
+
+  return lines.slice(0, 5).join('\n');
+}
