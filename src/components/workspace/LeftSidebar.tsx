@@ -16,6 +16,8 @@ interface LeftSidebarProps {
   activeSlug: string;
   isStreaming?: boolean;
   draftsBySlug?: Record<string, string>;
+  /** 单聊未读（角色主动发来、你还没看的条数） */
+  unreadBySlug?: Record<string, number>;
   onSelectPersona: (slug: string) => void;
   onOpenSettings: () => void;
   onOpenCommandPalette: () => void;
@@ -60,11 +62,14 @@ function formatSidebarTime(iso?: string): string {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+const EMPTY_UNREAD: Record<string, number> = {};
+
 function LeftSidebar({
   personas,
   activeSlug,
   isStreaming = false,
   draftsBySlug = {},
+  unreadBySlug = EMPTY_UNREAD,
   onSelectPersona,
   onOpenSettings,
   onOpenCommandPalette,
@@ -387,6 +392,7 @@ function LeftSidebar({
               p.emotionState?.moodLabel ||
               "点击开启实时对话...";
           const timeLabel = formatSidebarTime(p.lastActive);
+          const unread = !isActive ? unreadBySlug[p.slug] || 0 : 0;
 
           return (
             <button
@@ -447,9 +453,21 @@ function LeftSidebar({
                       [草稿]
                     </span>
                   )}
+                  {!draftText && unread > 1 && (
+                    <span className="text-[var(--text-muted)]">[{unread}条] </span>
+                  )}
                   {snippet}
                 </p>
               </div>
+              {/* 单聊未读：TA 主动发来、你还没看 */}
+              {unread > 0 && (
+                <span
+                  className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FA5151] text-white text-[10.5px] font-semibold leading-[18px] text-center"
+                  aria-label={`${unread} 条未读`}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </button>
           );
         })}

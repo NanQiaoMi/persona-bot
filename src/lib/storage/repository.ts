@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import { messagePreviewText } from '@/lib/chat/preview';
+import type { OutreachState } from '@/lib/proactive/scheduler';
 import path from 'path';
 import {
   BUILTIN_PRESET_SCENE_ASSETS,
@@ -355,6 +356,7 @@ export class UnifiedStorageRepository {
         referenceImageUrl: (legacyProfile.referenceImageUrl as string) || undefined,
         bio: (legacyProfile.bio as string) || undefined,
         basicPersonality: (legacyProfile.basicPersonality as string) || undefined,
+        allowProactive: legacyProfile.allowProactive === false ? false : undefined,
       },
       personaMd,
       memoriesMd,
@@ -845,6 +847,21 @@ export class UnifiedStorageRepository {
     const targetPath = path.join(this.dataDir, 'settings.json');
     await writeFileAtomic(targetPath, JSON.stringify(updated, null, 2), 'utf-8');
     return updated;
+  }
+
+  /** 所有 Bot 主动消息的发送记录与上次在线时间（.data/proactive-outreach.json） */
+  async getOutreachState(): Promise<OutreachState> {
+    const parsed = await readJsonSafe<Partial<OutreachState>>(path.join(this.dataDir, 'proactive-outreach.json'), {});
+    return { log: Array.isArray(parsed.log) ? parsed.log : [], lastSeenAt: parsed.lastSeenAt };
+  }
+
+  async updateOutreachState(fn: (current: OutreachState) => OutreachState): Promise<OutreachState> {
+    return this.withLock('outreach', async () => {
+      const next = fn(await this.getOutreachState());
+      await fs.mkdir(this.dataDir, { recursive: true });
+      await writeFileAtomic(path.join(this.dataDir, 'proactive-outreach.json'), JSON.stringify(next, null, 2), 'utf-8');
+      return next;
+    });
   }
 
   async getMoments(slug: string): Promise<MomentPost[]> {
