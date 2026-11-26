@@ -1,3 +1,4 @@
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   collectRecoverableCards,
@@ -9,7 +10,7 @@ import {
   runMediaJob,
 } from '@/lib/media/media-jobs';
 import { describeMediaState, getMediaVisualState, hasPendingMedia } from '@/lib/media/media-state';
-import { storageRepo } from '@/lib/storage/repository';
+import { resolveDataRoot, storageRepo, UnifiedStorageRepository } from '@/lib/storage/repository';
 import type { ConversationMessage, MediaCard } from '@/lib/storage/types';
 
 const TINY_PNG_B64 =
@@ -188,5 +189,119 @@ describe('打开会话时补生成', () => {
     await recoverMedia({ groupId: group.id, wait: true });
     const saved = (await storageRepo.getGroupConversation(group.id, 0)).find((m) => m.id === 'g-stuck');
     expect(saved?.mediaCards?.[0]).toMatchObject({ status: 'ready' });
+  });
+
+  it('单聊 @提及 其它角色发图时，用被提及角色的形象生成并写回当前频道', async () => {
+    await storageRepo.listPersonas();
+    const base = await storageRepo.getPersona('xia-you');
+    const channelSlug = `channel-${process.pid}-${seq++}`;
+    const mentionedSlug = `mentioned-${process.pid}-${seq++}`;
+    await storageRepo.savePersona({
+      ...base!,
+      slug: channelSlug,
+      name: '频道角色',
+      isPreset: false,
+      profile: { ...base!.profile, appearanceAnchor: 'CHANNEL_ONLY_ANCHOR' },
+    });
+    await storageRepo.savePersona({
+      ...base!,
+      slug: mentionedSlug,
+      name: '被点名角色',
+      isPreset: false,
+      profile: { ...base!.profile, appearanceAnchor: 'MENTIONED_TARGET_ANCHOR' },
+    });
+
+    const msgId = `mention_msg_${seq++}`;
+    await storageRepo.saveConversation(channelSlug, [
+      {
+        id: msgId,
+        role: 'assistant',
+        content: '给你看',
+        timestamp: new Date(Date.now() - 10 * 60_000).toISOString(),
+        fromBot: { slug: mentionedSlug, name: '被点名角色' },
+        mediaCards: [{ type: 'photo', caption: '咖啡馆自拍', status: 'generating' }],
+      },
+    ]);
+
+    const prompts: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith('/models')) return new Response('{"data":[]}', { status: 200 });
+      if (u.includes('/images/')) {
+        const body = init?.body;
+        const promptText =
+          body instanceof FormData ? String(body.get('prompt') || '') : String(body || '');
+        prompts.push(promptText);
+        return new Response(JSON.stringify({ data: [{ b64_json: TINY_PNG_B64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected ${u}`);
+    });
+
+    await recoverMedia({ slug: channelSlug, wait: true });
+    const saved = (await storageRepo.getConversation(channelSlug, 0)).find((m) => m.id === msgId);
+    expect(saved?.mediaCards?.[0]).toMatchObject({ status: 'ready' });
+    expect(prompts.length).toBe(1);
+    expect(prompts[0]).toContain('MENTIONED_TARGET_ANCHOR');
+    expect(prompts[0]).not.toContain('CHANNEL_ONLY_ANCHOR');
+  });
+
+  it('一轮消息包含多张待生成视觉卡片时全部完成入队生成', async () => {
+    await storageRepo.listPersonas();
+    const base = await storageRepo.getPersona('xia-you');
+    const slug = `multi-media-${process.pid}-${seq++}`;
+    await storageRepo.savePersona({ ...base!, slug, name: '多图测试', isPreset: false });
+    const id = `multi_${Date.now()}_${seq++}`;
+    const msg: ConversationMessage = {
+      id,
+      role: 'assistant',
+      content: '发两张给你',
+      timestamp: new Date().toISOString(),
+      mediaCards: [
+        { type: 'photo', caption: '窗边咖啡', status: 'generating' },
+        { type: 'sticker', caption: '开心比耶', status: 'generating' },
+      ],
+    };
+    await storageRepo.saveConversation(slug, [msg]);
+    const calls = mockGateway();
+    await enqueueNewMediaCards({ slug, messages: [msg] });
+    expect(calls.images).toBe(2);
+    const saved = (await storageRepo.getConversation(slug, 0)).find((m) => m.id === id);
+    expect(saved?.mediaCards?.[0].status).toBe('ready');
+    expect(saved?.mediaCards?.[1].status).toBe('ready');
+    expect(saved?.mediaCards?.[0].imageUrl).toBeTruthy();
+    expect(saved?.mediaCards?.[1].imageUrl).toBeTruthy();
+  });
+
+  it('不同 UnifiedStorageRepository 实例并发写同一会话不会互相覆盖生图结果', async () => {
+    const { slug, id } = await seedChat();
+    const root = resolveDataRoot();
+    const repoA = new UnifiedStorageRepository(path.join(root, 'exes'), path.join(root, '.data'));
+    const repoB = new UnifiedStorageRepository(path.join(root, 'exes'), path.join(root, '.data'));
+
+    await Promise.all([
+      repoA.updateConversationMessage(slug, id, (m) => ({
+        ...m,
+        mediaCards: [{ ...m.mediaCards![0], status: 'ready', imageUrl: '/api/media/locked.png' }],
+      })),
+      repoB.appendMessages(slug, [
+        {
+          id: `concurrent_proactive_${seq++}`,
+          role: 'assistant',
+          content: '我刚发完照片啦',
+          timestamp: new Date().toISOString(),
+        },
+      ]),
+    ]);
+
+    const finalList = await storageRepo.getConversation(slug, 0);
+    const mediaMsg = finalList.find((m) => m.id === id);
+    expect(mediaMsg?.mediaCards?.[0]).toMatchObject({
+      status: 'ready',
+      imageUrl: '/api/media/locked.png',
+    });
+    expect(finalList.some((m) => m.content === '我刚发完照片啦')).toBe(true);
   });
 });

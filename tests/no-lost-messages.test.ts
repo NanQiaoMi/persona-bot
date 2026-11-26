@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '@/app/api/chat/stream/route';
 import { GET as getInflightRoute } from '@/app/api/chat/inflight/route';
 import { beginInflight, endInflight, getInflight, inflightKey } from '@/lib/chat/inflight';
+import { buildStreamRequestBody, mergePolledMessages } from '@/lib/chat/switch-sync';
 import { storageRepo } from '@/lib/storage/repository';
+import type { ConversationMessage } from '@/lib/storage/types';
+
+afterEach(() => vi.restoreAllMocks());
 
 async function waitUntilIdle(key: string, timeoutMs = 10_000) {
   const start = Date.now();
@@ -93,5 +97,138 @@ describe('单聊回复清理', () => {
     expect(splitLiveBursts('明天估计还得继续抓鬼】【。')).toEqual(['明天估计还得继续抓鬼。']);
     expect(splitLiveBursts('好耶【STICKER: 转圈】')).toEqual(['好耶']);
     expect(splitLiveBursts('这是【重点】内容【BURST】第二条')).toEqual(['这是【重点】内容', '第二条']);
+  });
+});
+
+describe('切走不断流自动生图与切回消息合并', () => {
+  it('带拍照请求中途断开连接后，服务端仍完成落盘并自动生图写回', async () => {
+    await storageRepo.listPersonas();
+    const base = await storageRepo.getPersona('chen-ye');
+    const slug = `disconnect-photo-${process.pid}`;
+    await storageRepo.savePersona({
+      ...base!,
+      slug,
+      name: '断流生图测试',
+      isPreset: false,
+      profile: { ...base!.profile, referenceImageUrl: undefined },
+    });
+    await storageRepo.saveConversation(slug, []);
+
+    const realSettings = await storageRepo.getSettings();
+    vi.spyOn(storageRepo, 'getSettings').mockResolvedValue({
+      ...realSettings,
+      llmApiKey: 'sk-test-disconnect-photo',
+      llmBaseUrl: 'http://127.0.0.1:9/v1',
+    });
+
+    const tinyPng =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: unknown) => {
+      const u = String(url);
+      if (u.includes('/chat/completions')) {
+        return new Response(
+          `data: ${JSON.stringify({
+            choices: [{ delta: { content: '给你拍了一张[PHOTO: 桌边的咖啡杯]' } }],
+          })}\n\ndata: [DONE]\n\n`,
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        );
+      }
+      if (u.includes('/images/')) {
+        return new Response(JSON.stringify({ data: [{ b64_json: tinyPng }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected ${u}`);
+    });
+
+    const res = await POST(
+      streamRequest({
+        slug,
+        messages: [{ role: 'user', content: '发张照片看看', timestamp: new Date().toISOString() }],
+        requestPhoto: true,
+        thinkMode: false,
+        deepSearch: false,
+      })
+    );
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+
+    await waitUntilIdle(`chat:${slug}`);
+    // enqueueNewMediaCards 在 finally 中异步启动，等待它完成写回
+    let readyCard: unknown;
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const saved = await storageRepo.getConversation(slug, 0);
+      const aiWithMedia = saved.find((m) => m.role === 'assistant' && m.mediaCards?.length);
+      if (aiWithMedia?.mediaCards?.[0]?.status === 'ready') {
+        readyCard = aiWithMedia.mediaCards[0];
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(readyCard).toMatchObject({ type: 'photo', status: 'ready' });
+  });
+
+  it('buildStreamRequestBody 与 mergePolledMessages 正确处理防抖载荷和切回合并', () => {
+    const u1: ConversationMessage = {
+      id: 'u1',
+      role: 'user',
+      content: '来张自拍',
+      timestamp: '2026-11-26T00:00:00.000Z',
+    };
+    const body = buildStreamRequestBody({
+      slug: 'mi-mi',
+      groupId: null,
+      mode: 'fun',
+      thinkMode: true,
+      deepSearch: false,
+      messages: [u1],
+    });
+    expect(body).toEqual({
+      slug: 'mi-mi',
+      groupId: undefined,
+      messages: [{ role: 'user', content: '来张自拍', imageUrl: undefined, timestamp: '2026-11-26T00:00:00.000Z' }],
+      mode: 'fun',
+      thinkMode: true,
+      deepSearch: false,
+    });
+
+    const a1Pending: ConversationMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: '给你看',
+      timestamp: '2026-11-26T00:00:02.000Z',
+      mediaCards: [{ type: 'photo', caption: '自拍', status: 'generating' }],
+    };
+    const a1Ready: ConversationMessage = {
+      ...a1Pending,
+      mediaCards: [{ type: 'photo', caption: '自拍', status: 'ready', imageUrl: '/api/media/ok.png' }],
+    };
+    const a2New: ConversationMessage = {
+      id: 'a2',
+      role: 'assistant',
+      content: '拍好啦',
+      timestamp: '2026-11-26T00:00:05.000Z',
+    };
+    const localUnsaved: ConversationMessage = {
+      id: 'u2_local',
+      role: 'user',
+      content: '刚发出还没落盘的话',
+      timestamp: '2026-11-26T00:00:06.000Z',
+    };
+
+    // 1. 合入图片 ready 与服务端新增消息，同时保留本地末尾未落盘用户消息
+    const merged = mergePolledMessages([u1, a1Pending, localUnsaved], [u1, a1Ready, a2New]);
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'a1', 'a2', 'u2_local']);
+    expect(merged[1].mediaCards?.[0].status).toBe('ready');
+
+    // 2. 服务端无变化时返回原引用，避免无意义重渲染
+    const sameRef = mergePolledMessages(merged, [u1, a1Ready, a2New]);
+    expect(sameRef).toBe(merged);
+
+    // 3. 服务端返回空列表时不丢弃本地消息
+    expect(mergePolledMessages([u1], [])).toEqual([u1]);
   });
 });
