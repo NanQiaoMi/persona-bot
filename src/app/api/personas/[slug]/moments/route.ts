@@ -5,6 +5,7 @@ import {
   generateNewMomentPost,
   isAutoMomentInFlight,
   maybeAutoPublishMoment,
+  MomentSkippedError,
   toggleMomentLike,
 } from '@/lib/persona/moments';
 import { storageRepo } from '@/lib/storage/repository';
@@ -64,10 +65,19 @@ export async function POST(
         topic && ['travel', 'scenery', 'food', 'selfie', 'daily', 'night'].includes(topic)
           ? (topic as MomentTopic)
           : undefined;
-      const res = await generateNewMomentPost(decodedSlug, {
-        topic: validTopic,
-        hint: typeof hint === 'string' ? hint : undefined,
-      });
+      let res: Awaited<ReturnType<typeof generateNewMomentPost>>;
+      try {
+        res = await generateNewMomentPost(decodedSlug, {
+          topic: validTopic,
+          hint: typeof hint === 'string' ? hint : undefined,
+        });
+      } catch (err) {
+        // 想不出和最近不重复的内容：不算出错，告诉页面这次没发
+        if (err instanceof MomentSkippedError) {
+          return NextResponse.json({ success: false, skipped: true, message: err.message });
+        }
+        throw err;
+      }
       return NextResponse.json({
         success: true,
         post: res.post,
