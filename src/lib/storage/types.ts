@@ -125,6 +125,14 @@ export interface MediaCard {
   errorHint?: string;
   durationSec?: number;
   mood?: string;
+  /** 照片 / 表情包：已经尝试生成的次数（自动最多 3 次，手动重试从头算） */
+  attempts?: number;
+  /** 最近一次开始生成的时间 */
+  lastAttemptAt?: string;
+  /** 失败后下一次自动重试的时间；次数用完时为空 */
+  nextRetryAt?: string;
+  /** 生图服务暂时连不上，等恢复后自动补发 */
+  waitingForNetwork?: boolean;
 }
 
 export interface PageCardMetric {
