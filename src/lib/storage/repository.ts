@@ -145,25 +145,36 @@ async function readTextSafe(targetPath: string, fallback = ''): Promise<string> 
   }
 }
 
+type StorageLockRegistry = Map<string, Promise<unknown>>;
+const STORAGE_LOCKS_GLOBAL_KEY = '__personabotStorageLocks';
+
+function sharedLocks(): StorageLockRegistry {
+  const g = globalThis as unknown as Record<string, StorageLockRegistry | undefined>;
+  if (!g[STORAGE_LOCKS_GLOBAL_KEY]) g[STORAGE_LOCKS_GLOBAL_KEY] = new Map();
+  return g[STORAGE_LOCKS_GLOBAL_KEY]!;
+}
+
 export class UnifiedStorageRepository {
   private baseDir: string;
   private dataDir: string;
   private seeded = false;
-  private locks = new Map<string, Promise<unknown>>();
 
   /**
    * 按 key 串行执行异步任务，避免同一角色/会话文件被并发「读-改-写」时互相覆盖。
+   * 锁表挂载在 globalThis 并按数据目录隔离，确保开发模式下跨 API 路由副本也能互斥，同时测试临时目录互不干扰。
    * 注意：不可重入，回调内不要再对同一 key 调用 withLock。
    */
   async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    const prev = this.locks.get(key) || Promise.resolve();
+    const locks = sharedLocks();
+    const scopedKey = `${this.baseDir}|${this.dataDir}::${key}`;
+    const prev = locks.get(scopedKey) || Promise.resolve();
     const run = prev.catch(() => undefined).then(fn);
     const tail = run.catch(() => undefined);
-    this.locks.set(key, tail);
+    locks.set(scopedKey, tail);
     try {
       return await run;
     } finally {
-      if (this.locks.get(key) === tail) this.locks.delete(key);
+      if (locks.get(scopedKey) === tail) locks.delete(scopedKey);
     }
   }
 
@@ -511,7 +522,7 @@ export class UnifiedStorageRepository {
     return limit > 0 ? messages.slice(-limit) : messages;
   }
 
-  async saveConversation(slug: string, messages: ConversationMessage[]): Promise<void> {
+  private async writeConversationFile(slug: string, messages: ConversationMessage[]): Promise<void> {
     const dir = this.getPersonaDir(slug);
     await fs.mkdir(dir, { recursive: true });
     const trimmed = messages.slice(-200);
@@ -522,11 +533,17 @@ export class UnifiedStorageRepository {
     );
   }
 
+  async saveConversation(slug: string, messages: ConversationMessage[]): Promise<void> {
+    return this.withLock(`conv:${sanitizeSlug(slug)}`, () =>
+      this.writeConversationFile(slug, messages)
+    );
+  }
+
   async appendMessages(slug: string, newMessages: ConversationMessage[]): Promise<ConversationMessage[]> {
     return this.withLock(`conv:${sanitizeSlug(slug)}`, async () => {
       const existing = await this.getConversation(slug, 0);
       const merged = [...existing, ...newMessages].slice(-200);
-      await this.saveConversation(slug, merged);
+      await this.writeConversationFile(slug, merged);
       return merged;
     });
   }
@@ -542,7 +559,7 @@ export class UnifiedStorageRepository {
       const idx = list.findIndex((m) => m.id === messageId);
       if (idx === -1) return null;
       list[idx] = mutator(list[idx]);
-      await this.saveConversation(slug, list);
+      await this.writeConversationFile(slug, list);
       return list[idx];
     });
   }
@@ -1021,13 +1038,19 @@ export class UnifiedStorageRepository {
     return limit > 0 ? list.slice(-limit) : list;
   }
 
-  async saveGroupConversation(id: string, messages: ConversationMessage[]): Promise<void> {
+  private async writeGroupConversationFile(id: string, messages: ConversationMessage[]): Promise<void> {
     const dir = this.getGroupDir(id);
     await fs.mkdir(dir, { recursive: true });
     await writeFileAtomic(
       path.join(dir, 'conversations.json'),
       JSON.stringify(messages.slice(-300), null, 2),
       'utf-8'
+    );
+  }
+
+  async saveGroupConversation(id: string, messages: ConversationMessage[]): Promise<void> {
+    return this.withLock(`group-conv:${sanitizeSlug(id)}`, () =>
+      this.writeGroupConversationFile(id, messages)
     );
   }
 
@@ -1042,7 +1065,7 @@ export class UnifiedStorageRepository {
       const idx = list.findIndex((m) => m.id === messageId);
       if (idx === -1) return null;
       list[idx] = mutator(list[idx]);
-      await this.saveGroupConversation(id, list);
+      await this.writeGroupConversationFile(id, list);
       return list[idx];
     });
   }
@@ -1054,7 +1077,7 @@ export class UnifiedStorageRepository {
     return this.withLock(`group-conv:${sanitizeSlug(id)}`, async () => {
       const existing = await this.getGroupConversation(id, 0);
       const merged = [...existing, ...newMessages].slice(-300);
-      await this.saveGroupConversation(id, merged);
+      await this.writeGroupConversationFile(id, merged);
       return merged;
     });
   }
