@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImportModal from "@/components/ImportModal";
 import SettingsModal from "@/components/settings/SettingsModal";
 import {
@@ -15,6 +15,8 @@ import {
 } from "@/lib/storage/types";
 import AvatarPickerModal from "./AvatarPickerModal";
 import ChatStage from "./ChatStage";
+import { createFrameBatcher } from "@/lib/chat/frame-batcher";
+import { useStableCallback } from "@/lib/hooks/use-stable-callback";
 import { hasPendingMedia } from "@/lib/media/media-state";
 import {
   buildStreamRequestBody,
@@ -52,6 +54,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draftsBySlug, setDraftsBySlug] = useState<Record<string, string>>({});
   const input = draftsBySlug[activeSlug] || "";
+  // 侧栏只显示「其它会话」的草稿：当前会话打字时这份数据不变，侧栏就不用跟着重画
+  const otherDraftsKey = JSON.stringify(
+    Object.entries(draftsBySlug).filter(([slug, text]) => slug !== activeSlug && text.trim())
+  );
+  const sidebarDrafts = useMemo<Record<string, string>>(
+    () => Object.fromEntries(JSON.parse(otherDraftsKey) as [string, string][]),
+    [otherDraftsKey]
+  );
   const setInput = useCallback(
     (val: string) => {
       setDraftsBySlug((prev) => ({ ...prev, [activeSlug]: val }));
@@ -1237,6 +1247,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         void reader.cancel().catch(() => {});
       }
       const decoder = new TextDecoder();
+      // 流式更新按帧合并：每帧最多重画一次
+      // 切到别的会话后，还没提交的更新直接丢掉，不会串到新会话
+      const streamBatch = createFrameBatcher<typeof streaming>((update) => {
+        if (isCurrentSession()) setStreaming(update);
+      });
       let buffer = "";
       let finalMessage: ConversationMessage | null = null;
       // 本轮所有消息（群聊里照片 / 表情包可能挂在任意一位成员的消息上）
@@ -1266,7 +1281,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
             const payload = JSON.parse(dataLine.slice(6));
             if (!isCurrentSession()) continue;
             if (payload.type === "status") {
-              setStreaming((prev) =>
+              streamBatch.push((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -1275,7 +1290,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                   : prev
               );
             } else if (payload.type === "search") {
-              setStreaming((prev) =>
+              streamBatch.push((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -1286,7 +1301,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                   : prev
               );
             } else if (payload.type === "thought") {
-              setStreaming((prev) =>
+              streamBatch.push((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -1308,7 +1323,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                   : prev
               );
             } else if (payload.type === "media" && Array.isArray(payload.mediaCards)) {
-              setStreaming((prev) =>
+              streamBatch.push((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -1318,7 +1333,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                   : prev
               );
             } else if (payload.type === "reply") {
-              setStreaming((prev) =>
+              streamBatch.push((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -1340,7 +1355,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
               );
               const responderName =
                 partMsg.fromBot?.name || activePersona?.name || "对方";
-              setStreaming((prev) =>
+              streamBatch.push((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -1358,6 +1373,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
                     }
                   : prev
               );
+              // 这一段已落成正式消息：和 setMessages 同一拍提交，避免一帧里正文出现两次
+              streamBatch.flush();
             } else if (payload.type === "done" && payload.message) {
               finalMessage = payload.message as ConversationMessage;
               turnMessages = Array.isArray(payload.messages)
@@ -1372,6 +1389,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           }
         }
       }
+
+      if (isCurrentSession()) streamBatch.flush();
+      else streamBatch.cancel();
 
       if (finalMessage && isCurrentSession()) {
         if (!committedIds.has(finalMessage.id)) {
@@ -1802,6 +1822,54 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   };
 
+  // 稳定回调：传给 memo 子组件（LeftSidebar / RightInspector），身份永不变，调用时总是最新逻辑
+  // 注意：本组件没有提前 return，以下 hooks 都在无条件路径上
+  const sidebarSelectPersona = useStableCallback(handleSelectPersona);
+  const sidebarSelectGroup = useStableCallback(handleSelectGroup);
+  const sidebarCreateGroup = useStableCallback(() => setShowCreateGroup(true));
+  const sidebarDeleteGroup = useStableCallback(handleDeleteGroup);
+  const sidebarOpenSettings = useStableCallback(() => setShowSettings(true));
+  const sidebarOpenCommandPalette = useStableCallback(() => setShowCommandPalette(true));
+  const sidebarOpenCreateBot = useStableCallback(() => setShowCreateBot(true));
+  const sidebarToggleTheme = useStableCallback(handleToggleTheme);
+  const sidebarCollapse = useStableCallback(() => setSidebarOpen(false));
+
+  const inspectorToggleAutoNudge = useStableCallback(() => setAutoNudgeEnabled((v) => !v));
+  const inspectorToggleThink = useStableCallback(() => setThinkMode((v) => !v));
+  const inspectorToggleDeepSearch = useStableCallback(() => setDeepSearch((v) => !v));
+  const inspectorChangeMode = useStableCallback((m: PersonaMode) => setActiveMode(m));
+  const inspectorSavePersonaPatch = useStableCallback(handleSavePersonaPatch);
+  const inspectorAddCorrection = useStableCallback((reason: string, category: string) =>
+    handleAddCorrection(reason, category)
+  );
+  const inspectorTriggerProactive = useStableCallback(handleTriggerProactive);
+  const inspectorRefreshPersona = useStableCallback(async () => {
+    await Promise.all([loadActivePersonaDetail(activeSlug), loadPersonaList()]);
+  });
+  const inspectorDismissGrowthNotice = useStableCallback(() => {
+    if (!activePersona) return;
+    setGrowthNoticeBySlug((prev) => ({
+      ...prev,
+      [activePersona.slug]: null,
+    }));
+  });
+  const inspectorReportGrowth = useStableCallback((notice: string) => {
+    if (!activePersona) return;
+    setGrowthNoticeBySlug((prev) => ({
+      ...prev,
+      [activePersona.slug]: notice,
+    }));
+  });
+  const inspectorRefineReferencePortrait = useStableCallback(async (sourceUrl?: string) => {
+    if (!activePersona) return;
+    await handleRefineReferencePortrait(activePersona.slug, {
+      sourceImageUrl: sourceUrl,
+      mode: "manual",
+    });
+  });
+  const inspectorOpenAvatarPicker = useStableCallback(() => setShowAvatarPicker(true));
+  const inspectorClose = useStableCallback(() => setShowInspector(false));
+
   return (
     <>
     {showSplash && <SplashScreen ready={Boolean(activePersona)} steps={splashSteps} />}
@@ -1813,19 +1881,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           personas={personas}
           activeSlug={activeSlug}
           isStreaming={Boolean(streaming)}
-          draftsBySlug={draftsBySlug}
-          onSelectPersona={handleSelectPersona}
+          draftsBySlug={sidebarDrafts}
+          onSelectPersona={sidebarSelectPersona}
           groups={groups}
           activeGroupId={activeGroupId}
-          onSelectGroup={handleSelectGroup}
-          onCreateGroup={() => setShowCreateGroup(true)}
-          onDeleteGroup={handleDeleteGroup}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenCommandPalette={() => setShowCommandPalette(true)}
-          onOpenCreateBot={() => setShowCreateBot(true)}
+          onSelectGroup={sidebarSelectGroup}
+          onCreateGroup={sidebarCreateGroup}
+          onDeleteGroup={sidebarDeleteGroup}
+          onOpenSettings={sidebarOpenSettings}
+          onOpenCommandPalette={sidebarOpenCommandPalette}
+          onOpenCreateBot={sidebarOpenCreateBot}
           theme={theme}
-          onToggleTheme={handleToggleTheme}
-          onCollapse={() => setSidebarOpen(false)}
+          onToggleTheme={sidebarToggleTheme}
+          onCollapse={sidebarCollapse}
         />
       )}
 
@@ -1893,22 +1961,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           persona={activePersona}
           isStreaming={Boolean(streaming)}
           autoNudgeEnabled={autoNudgeEnabled}
-          onToggleAutoNudge={() => setAutoNudgeEnabled((v) => !v)}
+          onToggleAutoNudge={inspectorToggleAutoNudge}
           thinkMode={thinkMode}
-          onToggleThink={() => setThinkMode((v) => !v)}
+          onToggleThink={inspectorToggleThink}
           deepSearch={deepSearch}
-          onToggleDeepSearch={() => setDeepSearch((v) => !v)}
+          onToggleDeepSearch={inspectorToggleDeepSearch}
           activeMode={activeMode}
-          onChangeMode={(m) => setActiveMode(m)}
-          onSavePersonaPatch={handleSavePersonaPatch}
-          onAddCorrection={(reason, cat) => handleAddCorrection(reason, cat)}
-          onTriggerProactive={handleTriggerProactive}
-          onRefreshPersona={async () => {
-            await Promise.all([
-              loadActivePersonaDetail(activeSlug),
-              loadPersonaList(),
-            ]);
-          }}
+          onChangeMode={inspectorChangeMode}
+          onSavePersonaPatch={inspectorSavePersonaPatch}
+          onAddCorrection={inspectorAddCorrection}
+          onTriggerProactive={inspectorTriggerProactive}
+          onRefreshPersona={inspectorRefreshPersona}
           isRefiningReference={Boolean(
             activePersona && refiningRefSlugs[activePersona.slug]
           )}
@@ -1918,27 +1981,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           latestGrowthNotice={
             activePersona ? growthNoticeBySlug[activePersona.slug] : null
           }
-          onDismissGrowthNotice={() => {
-            if (!activePersona) return;
-            setGrowthNoticeBySlug((prev) => ({
-              ...prev,
-              [activePersona.slug]: null,
-            }));
-          }}
-          onReportGrowth={(notice) => {
-            if (!activePersona) return;
-            setGrowthNoticeBySlug((prev) => ({
-              ...prev,
-              [activePersona.slug]: notice,
-            }));
-          }}
-          onRefineReferencePortrait={async (sourceUrl) => {
-            if (!activePersona) return;
-            await handleRefineReferencePortrait(activePersona.slug, {
-              sourceImageUrl: sourceUrl,
-              mode: "manual",
-            });
-          }}
+          onDismissGrowthNotice={inspectorDismissGrowthNotice}
+          onReportGrowth={inspectorReportGrowth}
+          onRefineReferencePortrait={inspectorRefineReferencePortrait}
           hasUnreadMoments={Boolean(
             activePersona && unreadMomentsBySlug[activePersona.slug]
           )}
@@ -1947,8 +1992,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           }
           onClearUnreadMoments={handleClearUnreadMoments}
           onMomentsFeedLoaded={handleMomentsFeedLoaded}
-          onOpenAvatarPicker={() => setShowAvatarPicker(true)}
-          onClose={() => setShowInspector(false)}
+          onOpenAvatarPicker={inspectorOpenAvatarPicker}
+          onClose={inspectorClose}
         />
       )}
 
