@@ -1,9 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { GroupChat, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
+import PortConfigPopover, {
+  GatewayStatus,
+  StatusDot,
+  statusLabel,
+  testGateway,
+} from "./PortConfigPopover";
 
 interface LeftSidebarProps {
   personas: PersonaSummary[];
@@ -74,6 +80,29 @@ function LeftSidebar({
 }: LeftSidebarProps) {
   const router = useRouter();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [portOpen, setPortOpen] = useState(false);
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus>("unknown");
+  const closePort = useCallback(() => setPortOpen(false), []);
+
+  // 打开工作台时测一次网关，入口按钮上的小圆点显示连没连上
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/settings", { cache: "no-store" });
+        const data = await res.json();
+        const url = data?.settings?.llmBaseUrl;
+        if (!url || cancelled) return;
+        const r = await testGateway(url);
+        if (!cancelled) setGatewayStatus(r.status);
+      } catch {
+        // 测不了就保持「未检测」
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -426,7 +455,7 @@ function LeftSidebar({
         })}
       </div>
 
-      {/* Bottom Dock: User Popover Avatar + Floating "连接应用" Pill */}
+      {/* Bottom Dock: User Popover Avatar + 「配置端口」入口 */}
       <div className="relative p-3.5 flex items-center gap-2.5" ref={menuRef}>
         {accountMenuOpen && (
           <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
@@ -502,22 +531,29 @@ function LeftSidebar({
 
         <button
           type="button"
-          onClick={onOpenSettings}
+          data-port-trigger
+          aria-expanded={portOpen}
+          onClick={() => {
+            setAccountMenuOpen(false);
+            setPortOpen((prev) => !prev);
+          }}
+          title="配置模型网关等服务的地址与端口"
           className="flex-1 py-2 px-3.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
         >
-          <span>连接应用</span>
-          <span className="inline-flex items-center gap-0.5 text-[11px]">
-            <span className="w-3.5 h-3.5 rounded-sm bg-sky-500/15 text-sky-500 inline-flex items-center justify-center text-[9px]">
-              ⚡
-            </span>
-            <span className="w-3.5 h-3.5 rounded-sm bg-emerald-500/15 text-emerald-600 inline-flex items-center justify-center text-[9px]">
-              🌐
-            </span>
-            <span className="w-3.5 h-3.5 rounded-sm bg-rose-500/15 text-rose-500 inline-flex items-center justify-center text-[9px]">
-              ✦
-            </span>
+          <StatusDot status={gatewayStatus} />
+          <span>配置端口</span>
+          <span className="text-[10.5px] font-normal text-[var(--text-muted)]">
+            {statusLabel(gatewayStatus)}
           </span>
         </button>
+        {portOpen && (
+          <PortConfigPopover
+            onClose={closePort}
+            onOpenFullSettings={onOpenSettings}
+            onStatusChange={setGatewayStatus}
+            initialStatus={gatewayStatus}
+          />
+        )}
       </div>
     </aside>
   );

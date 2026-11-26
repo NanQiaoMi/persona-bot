@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { storageRepo } from '@/lib/storage/repository';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const rawBaseUrl = String(body?.baseUrl || 'http://127.0.0.1:18630/v1').trim();
     const baseUrl = rawBaseUrl.replace(/\/$/, '');
-    const apiKey = String(body?.apiKey || '').trim();
+    let apiKey = String(body?.apiKey || '').trim();
+    // 左下角「配置端口」只改地址，不经手密钥：用已保存的密钥（或环境变量）测试
+    if (!apiKey && body?.useStoredKey) {
+      const saved = await storageRepo.getSettings().catch(() => null);
+      const envKey = process.env.LLM_API_KEY && process.env.LLM_API_KEY !== 'your-api-key' ? process.env.LLM_API_KEY : '';
+      apiKey = (saved?.llmApiKey || envKey || '').trim();
+    }
     const chatModel = String(body?.chatModel || 'gpt-5.6').trim();
 
     const headers: Record<string, string> = {};
