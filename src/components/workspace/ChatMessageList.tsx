@@ -15,6 +15,7 @@ import {
   GroupSystemTip,
   NewMessagesDivider,
 } from "./GroupMessageRow";
+import BotCreatedCardView from "./BotCreatedCardView";
 import PageArtifactCard from "./PageArtifactCard";
 import ThoughtSearchTrace from "./ThoughtSearchTrace";
 import MediaPendingCard from "./MediaPendingCard";
@@ -186,6 +187,11 @@ function ChatMessageList({
                           onSelectPersona={onSelectPersona}
                           renderBody={renderGroupBody}
                           onRetryMedia={onRetryMedia}
+                          botCreatedExists={
+                            msg.botCreated
+                              ? personas.some((p) => p.slug === msg.botCreated!.slug)
+                              : undefined
+                          }
                         />
                       </div>
                     </Fragment>
@@ -467,6 +473,14 @@ function ChatMessageList({
 
                     {/* Elevated White Interactive "Page" Artifact Card */}
                     {msg.pageCard && <PageArtifactCard card={msg.pageCard} />}
+
+                    {msg.botCreated && (
+                      <BotCreatedCardView
+                        card={msg.botCreated}
+                        exists={personas.some((p) => p.slug === msg.botCreated!.slug)}
+                        onOpen={onSelectPersona}
+                      />
+                    )}
 
                     {msg.groupInvite && (
                       <button

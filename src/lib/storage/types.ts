@@ -205,6 +205,8 @@ export interface ConversationMessage {
   styleMetrics?: MessageStyleMetrics;
   /** 主 bot 发起群聊后在主频道留下的入群卡片 */
   groupInvite?: GroupInviteCard;
+  /** 主 bot 在对话里帮你建好的新 Bot */
+  botCreated?: BotCreatedCard;
   /** 群聊：引用回复的那条消息 */
   quote?: MessageQuote;
   /** 群聊：系统提示（如「夏柚 拍了拍 鹿汐」），居中显示，不算任何人的发言 */
@@ -217,6 +219,17 @@ export interface MessageQuote {
   id: string;
   name: string;
   text: string;
+}
+
+export interface BotCreatedCard {
+  slug: string;
+  name: string;
+  personality?: string;
+  appearance?: string;
+  shape?: string;
+  color?: string;
+  /** 在群里建的：已经拉进了这个群 */
+  joinedGroupId?: string;
 }
 
 export interface GroupInviteCard {

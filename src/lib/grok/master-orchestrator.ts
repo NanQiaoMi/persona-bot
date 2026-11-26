@@ -5,6 +5,8 @@ import {
 } from '@/lib/grok/stream-orchestrator';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import { detectGroupIntent } from '@/lib/group/director';
+import { createBotFromIntent, createdReplyText } from '@/lib/persona/chat-create';
+import { detectCreateBotIntent } from '@/lib/persona/create-intent';
 import { storageRepo } from '@/lib/storage/repository';
 import {
   ConversationMessage,
@@ -95,6 +97,34 @@ export async function executeMasterBotTurn(
         memberNames,
         topic: group.topic,
       },
+    };
+    await storageRepo.appendMessages('master-bot', [userRecord, reply]);
+    onEvent?.({ type: 'message_part', message: reply, index: 0, total: 1, hasMore: false });
+    onEvent?.({ type: 'done', message: reply, messages: [reply] });
+    return reply;
+  }
+
+  // 「帮我建一个 XX 的 bot，叫 X」：直接建好，并在主频道留一张新 Bot 卡片
+  const createIntent = detectCreateBotIntent(lastUserText);
+  if (createIntent) {
+    onEvent?.({ type: 'status', text: `正在给${createIntent.name || '新 Bot'}捏人设...` });
+    const { card } = await createBotFromIntent(createIntent);
+    const content = createdReplyText(card, { autoNamed: !createIntent.name });
+    const nowIso = new Date().toISOString();
+    const userRecord: ConversationMessage = {
+      id: `msg_${Date.now()}_user`,
+      role: 'user',
+      content: lastUserText,
+      timestamp: lastUserMsgObj.timestamp || nowIso,
+      imageUrl: lastUserMsgObj.imageUrl,
+    };
+    const reply: ConversationMessage = {
+      id: `msg_${Date.now()}_master_create`,
+      role: 'assistant',
+      content,
+      timestamp: nowIso,
+      bursts: [content],
+      botCreated: card,
     };
     await storageRepo.appendMessages('master-bot', [userRecord, reply]);
     onEvent?.({ type: 'message_part', message: reply, index: 0, total: 1, hasMore: false });

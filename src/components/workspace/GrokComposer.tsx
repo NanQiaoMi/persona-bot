@@ -419,7 +419,7 @@ export default function GrokComposer({
                       </span>
                     </div>
                     <span className="text-[11px] text-[var(--text-muted)] shrink-0">
-                      {isAll ? `全员 ${mentionAllCount}` : "Bot"}
+                      {isAll ? `全员 ${mentionAllCount}` : bot.slug === "master-bot" ? "主控 · 可建 Bot" : "Bot"}
                     </span>
                   </button>
                 );
