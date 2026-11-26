@@ -30,7 +30,10 @@ export default function MediaPendingCard({
 
   return (
     <div
-      className={`relative mt-1.5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] ${
+      // 生成中只剩波点本身：不画边框和底色；等网络 / 失败时才用浅色卡片承托文字和按钮
+      className={`relative mt-1.5 overflow-hidden rounded-2xl ${
+        busy ? "" : "border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
+      } ${
         isSticker ? "w-[132px] h-[132px]" : "w-[220px] h-[164px]"
       }`}
       style={{ ["--media-dot" as string]: dotColor(accent) }}
