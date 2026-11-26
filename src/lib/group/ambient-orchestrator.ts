@@ -147,7 +147,9 @@ export async function executeAmbientScene(params: {
   let scenes: AmbientScene[];
   if (params.mode === 'catchup') {
     const last = history[history.length - 1];
-    const gapStart = new Date(last ? last.timestamp : group.createdAt);
+    const lastAmbientMs = Math.max(0, ...(group.ambientLog || []).map((s) => new Date(s).getTime() || 0));
+    const lastMsgMs = new Date(last ? last.timestamp : group.createdAt).getTime() || 0;
+    const gapStart = new Date(Math.max(lastMsgMs, lastAmbientMs));
     scenes = planCatchupScenes({ members, gapStart, now, ctx, random });
   } else {
     const scene = planAmbientScene({
