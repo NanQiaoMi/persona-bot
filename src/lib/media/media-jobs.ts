@@ -11,7 +11,10 @@ import {
   LOCAL_GATEWAY_BASE_URL,
 } from '@/lib/grok/image-generator';
 import { buildGuaranteedAppearanceFallback } from '@/lib/persona/appearance-evolution';
-import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
+import {
+  autoCaptureSceneAssetFromPhoto,
+  matchSceneAssetForCaption,
+} from '@/lib/persona/scene-assets';
 import { linkPhotoToWorld, worldAnchorsForCaption } from '@/lib/persona/world-refresh';
 import { storageRepo } from '@/lib/storage/repository';
 import type { ConversationMessage, MediaCard, RuntimeSettings } from '@/lib/storage/types';
@@ -184,9 +187,15 @@ async function doRunMediaJob(t: MediaJobTarget, opts: { manual?: boolean; now?: 
       return fail(mediaRes.errorHint || (mediaType === 'photo' ? '照片没生成出来' : '表情包没生成出来'));
     }
 
-    // 在已收录、还没有参考图的地点拍了照：把这张照片设为该地点的参考图并存成固定场景
+    // 在已收录、还没有参考图的地点拍了照：把这张照片设为该地点的参考图并存成固定场景；
+    // 若带明确场景/房间词且尚无同类固定场景，自动沉淀进场景资产库形成自循环
     if (mediaType === 'photo') {
       await linkPhotoToWorld({ slug: visualSlug, caption: captionText, imageUrl: mediaRes.imageUrl }).catch(() => {});
+      await autoCaptureSceneAssetFromPhoto({
+        slug: visualSlug,
+        imageUrl: mediaRes.imageUrl,
+        caption: captionText,
+      }).catch(() => {});
     }
 
     // 第一张照片自动锁定为形象参考图

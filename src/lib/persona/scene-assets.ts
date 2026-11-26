@@ -345,3 +345,104 @@ export function matchSceneAssetForCaption(
 
   return { asset: bestAsset, isPureEnvironment };
 }
+
+/** 自动沉淀固定场景资产的上限（手动新增不受此限制） */
+export const AUTO_SCENE_ASSET_LIMIT = 8;
+
+const VAGUE_LOCATION_PATTERN = /^(?:家|这里|那边|外面|路上|附近|城市|某处|街头|街上|市中心|室外|室内)$/;
+const EXPLICIT_ROOM_TOKENS = ['卧室', '房间', '书房', '书桌', '客厅', '阳台', '宿舍', '工作室', '画室', '琴房', '厨房'];
+const EXPLICIT_LOCATION_TOKENS = ['咖啡馆', '咖啡店', '奶茶店', '海边', '沙滩', '天台', '公园', '图书馆', '健身房', '餐厅', '书店', '花店', '美术馆', '电影院'];
+const EXPLICIT_ENV_TOKENS = ['工位', '电脑桌'];
+
+/**
+ * 从照片描写或朋友圈定位中识别可固定为「常去场景/房间」的候选信息；
+ * 无明确地点词的纯人像自拍返回 null，避免乱建。
+ */
+export function detectSceneCandidateFromPhoto(params: {
+  caption?: string;
+  location?: string;
+}): { name: string; category: SceneAssetCategory } | null {
+  const cleanLoc = cleanAppearanceText(params.location || '');
+  if (
+    cleanLoc.length >= 2 &&
+    cleanLoc.length <= 20 &&
+    !VAGUE_LOCATION_PATTERN.test(cleanLoc)
+  ) {
+    const category: SceneAssetCategory = EXPLICIT_ROOM_TOKENS.some((t) => cleanLoc.includes(t))
+      ? 'room'
+      : EXPLICIT_ENV_TOKENS.some((t) => cleanLoc.includes(t))
+        ? 'environment'
+        : 'location';
+    return { name: cleanLoc, category };
+  }
+
+  const cleanCap = cleanAppearanceText(params.caption || '');
+  if (!cleanCap) return null;
+
+  for (const token of EXPLICIT_LOCATION_TOKENS) {
+    if (cleanCap.includes(token)) {
+      return { name: token, category: 'location' };
+    }
+  }
+  for (const token of EXPLICIT_ROOM_TOKENS) {
+    if (cleanCap.includes(token)) {
+      return { name: `我的${token}`, category: 'room' };
+    }
+  }
+  for (const token of EXPLICIT_ENV_TOKENS) {
+    if (cleanCap.includes(token)) {
+      return { name: token, category: 'environment' };
+    }
+  }
+  return null;
+}
+
+/**
+ * 拍到明确地点或房间后自动沉淀进固定场景资产库（同类只留 1 张，不重复生成）。
+ */
+export async function autoCaptureSceneAssetFromPhoto(params: {
+  slug: string;
+  imageUrl?: string;
+  caption?: string;
+  location?: string;
+}): Promise<SceneAsset | null> {
+  const url = (params.imageUrl || '').trim();
+  if (!url || url.startsWith('data:image/svg')) return null;
+
+  const candidate = detectSceneCandidateFromPhoto({
+    caption: params.caption,
+    location: params.location,
+  });
+  if (!candidate) return null;
+
+  const existing = await storageRepo.getSceneAssets(params.slug);
+  if (existing.length >= AUTO_SCENE_ASSET_LIMIT) return null;
+
+  const norm = (s: string) => s.trim().toLowerCase().replace(/^我的/, '');
+  const targetNorm = norm(candidate.name);
+  if (
+    existing.some(
+      (a) =>
+        norm(a.name) === targetNorm ||
+        (targetNorm.length >= 2 && norm(a.name).includes(targetNorm)) ||
+        (norm(a.name).length >= 2 && targetNorm.includes(norm(a.name)))
+    )
+  ) {
+    return null;
+  }
+
+  const matchProbe = [candidate.name, params.location || '', params.caption || '']
+    .filter(Boolean)
+    .join(' ');
+  if (matchSceneAssetForCaption(existing, matchProbe)) {
+    return null;
+  }
+
+  const created = await createSceneAssetFromExisting(params.slug, {
+    name: candidate.name,
+    category: candidate.category,
+    imageUrl: url,
+    description: params.caption || params.location,
+  });
+  return created.asset;
+}
