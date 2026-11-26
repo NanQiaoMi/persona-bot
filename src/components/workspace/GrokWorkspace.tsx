@@ -18,6 +18,7 @@ import ChatStage from "./ChatStage";
 import { createFrameBatcher } from "@/lib/chat/frame-batcher";
 import { useStableCallback } from "@/lib/hooks/use-stable-callback";
 import { hasPendingMedia } from "@/lib/media/media-state";
+import { MEDIA_POLL_MIN_MS, nextMediaPollDelay } from "@/lib/media/media-fingerprint";
 import {
   buildStreamRequestBody,
   channelKey,
@@ -568,18 +569,31 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     void requestMediaRecover(activeGroupId ? { groupId: activeGroupId } : { slug: activeSlug });
   }, [activeSlug, activeGroupId, requestMediaRecover]);
 
-  // 还有图片在等结果时，每 4 秒刷新图片卡片状态与新消息；每 20 秒再请服务端检查一次要不要补发
+  // 还有图片在等结果时轮询进度：先问轻量的 /api/media/status 拿指纹，变了才拉完整消息；
+  // 没变化时间隔从 4 秒逐步放慢到 15 秒，页面在后台时暂停；每 20 秒再请服务端检查一次要不要补发
   const mediaPending = messages.some((m) => hasPendingMedia(m.mediaCards));
   const mediaStreaming = Boolean(streaming);
   useEffect(() => {
     if (!mediaPending || mediaStreaming) return;
     const target = activeGroupId ? { groupId: activeGroupId } : { slug: activeSlug };
     const key = channelKey(target);
-    let ticks = 0;
+    const query = target.groupId
+      ? `groupId=${encodeURIComponent(target.groupId)}`
+      : `slug=${encodeURIComponent(target.slug || "")}`;
+    const startedAt = Date.now();
+    let lastRecoverAt = Date.now();
+    let lastFingerprint: string | null = null;
+    let delay = MEDIA_POLL_MIN_MS;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
-    const timer = setInterval(async () => {
-      ticks += 1;
-      if (ticks % 5 === 0) void requestMediaRecover(target);
+
+    const schedule = (ms: number) => {
+      if (cancelled) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void tick(), ms);
+    };
+
+    const fetchFullMessages = async () => {
       try {
         const res = await fetch(
           target.groupId
@@ -589,18 +603,53 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         );
         const data = await res.json();
         if (cancelled || !data?.success || !Array.isArray(data.messages)) return;
-        const serverMsgs = data.messages as ConversationMessage[];
-        applyServerMessages(key, serverMsgs, false);
+        applyServerMessages(key, data.messages as ConversationMessage[], false);
       } catch {
         // 下次再刷
       }
-    }, 4000);
-    // 最多盯 15 分钟，避免一直刷新
-    const stop = setTimeout(() => clearInterval(timer), 15 * 60_000);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      // 最多盯 15 分钟，避免一直刷新
+      if (Date.now() - startedAt > 15 * 60_000) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        schedule(delay);
+        return;
+      }
+      if (Date.now() - lastRecoverAt >= 20_000) {
+        lastRecoverAt = Date.now();
+        void requestMediaRecover(target);
+      }
+      let changed = true;
+      try {
+        const res = await fetch(`/api/media/status?${query}`, { cache: "no-store" });
+        const data = await res.json();
+        if (data?.success && typeof data.fingerprint === "string") {
+          changed = data.fingerprint !== lastFingerprint;
+          lastFingerprint = data.fingerprint;
+        }
+      } catch {
+        // 拿不到指纹就当作有变化，退回拉完整消息
+      }
+      if (cancelled) return;
+      if (changed) await fetchFullMessages();
+      delay = nextMediaPollDelay(delay, changed);
+      schedule(delay);
+    };
+
+    // 切回页面时立刻查一次，并把间隔重置为 4 秒
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      delay = MEDIA_POLL_MIN_MS;
+      schedule(0);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    schedule(delay);
     return () => {
       cancelled = true;
-      clearInterval(timer);
-      clearTimeout(stop);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [mediaPending, mediaStreaming, activeSlug, activeGroupId, applyServerMessages, requestMediaRecover]);
 
