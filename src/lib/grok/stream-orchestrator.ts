@@ -67,6 +67,8 @@ export interface ChatTurnRequest {
   groupId?: string;
   /** 按这个时刻计算角色作息（群聊补「你不在时」的消息用），默认现在 */
   presenceAt?: string;
+  /** 客户端已断开连接时返回 true，跳过无意义的假流式打字等待 */
+  shouldSkipDelays?: () => boolean;
 }
 
 export type StreamEvent =
@@ -357,9 +359,19 @@ export function buildContextualMediaCaption(
   return `${personaName} 温馨自然的日常随手拍照片`;
 }
 
-function sleepForSimulatedStream(ms: number): Promise<void> {
-  if (process.env.VITEST || ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function sleepForSimulatedStream(ms: number, shouldSkip?: () => boolean): Promise<void> {
+  if (process.env.VITEST || ms <= 0 || shouldSkip?.()) return;
+  if (!shouldSkip || ms <= 250) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    return;
+  }
+  let left = ms;
+  while (left > 0) {
+    if (shouldSkip()) return;
+    const chunk = Math.min(250, left);
+    await new Promise((resolve) => setTimeout(resolve, chunk));
+    left -= chunk;
+  }
 }
 
 function splitLongProseParagraph(paragraph: string): string[] {
@@ -1285,17 +1297,14 @@ export async function executeGrokChatTurn(
     activeMode
   );
 
-  // Mark first visual media card as 'generating' when upstream gateway is reachable;
-  // frontend triggers non-blocking /api/media/generate immediately after text reply lands
-  const firstVisualIdx = parsed.mediaCards.findIndex(
-    (c) => (c.type === 'sticker' || c.type === 'photo') && !c.imageUrl
-  );
-  if (firstVisualIdx !== -1 && canCallUpstream) {
-    parsed.mediaCards[firstVisualIdx] = {
-      ...parsed.mediaCards[firstVisualIdx],
-      status: 'generating',
-      model: imageModel,
-    };
+  // Mark all visual media cards without imageUrl as 'generating' when upstream gateway is reachable;
+  // server/frontend trigger sequential /api/media/generate & enqueueNewMediaCards
+  if (canCallUpstream) {
+    parsed.mediaCards = parsed.mediaCards.map((card) =>
+      (card.type === 'sticker' || card.type === 'photo') && !card.imageUrl
+        ? { ...card, status: 'generating', model: imageModel }
+        : card
+    );
   }
 
   const modelLabel = isDemoMode ? '离线演示' : model;
@@ -1405,7 +1414,7 @@ export async function executeGrokChatTurn(
         fullThought: acc,
         durationMs: Math.max(400, Date.now() - startTs + i * 12),
       });
-      await sleepForSimulatedStream(18);
+      await sleepForSimulatedStream(18, req.shouldSkipDelays);
     }
     thoughtDurationMs = Math.max(500, parsed.thought.length * 16);
   }
@@ -1441,12 +1450,13 @@ export async function executeGrokChatTurn(
         const waitingText = presenceStatusText(persona.name, presence);
         if (remaining > 0) {
           if (waitingText) onEvent({ type: 'status', text: waitingText });
-          await sleepForSimulatedStream(remaining);
+          await sleepForSimulatedStream(remaining, req.shouldSkipDelays);
           onEvent({ type: 'status', text: `${persona.name} 正在输入...` });
         }
       }
       await sleepForSimulatedStream(
-        Math.round(computeRealisticTypingDelayMs(targetSegment, 0) * typingFactor)
+        Math.round(computeRealisticTypingDelayMs(targetSegment, 0) * typingFactor),
+        req.shouldSkipDelays
       );
     } else {
       onEvent({
@@ -1454,7 +1464,8 @@ export async function executeGrokChatTurn(
         text: `${persona.name} 正在输入...`,
       });
       await sleepForSimulatedStream(
-        Math.round(computeRealisticTypingDelayMs(targetSegment, i) * typingFactor)
+        Math.round(computeRealisticTypingDelayMs(targetSegment, i) * typingFactor),
+        req.shouldSkipDelays
       );
     }
 
@@ -1469,7 +1480,7 @@ export async function executeGrokChatTurn(
         mediaCards: isLast ? parsed.mediaCards : [],
         isDemoMode,
       });
-      await sleepForSimulatedStream(24);
+      await sleepForSimulatedStream(24, req.shouldSkipDelays);
     }
 
     onEvent({

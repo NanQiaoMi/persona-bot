@@ -23,8 +23,10 @@ export const MEDIA_RETRY_BACKOFF_MS = [30_000, 120_000, 600_000];
 export const MEDIA_STUCK_AFTER_MS = 120_000;
 
 export interface MediaJobTarget {
-  /** 用谁的形象生成（群聊里是发图的那位成员） */
+  /** 消息所在频道 slug（群聊时同时也是发图成员 slug） */
   slug: string;
+  /** 形象归属的角色 slug（单聊 @提及 其它角色时，消息写在频道 slug，形象取 personaSlug） */
+  personaSlug?: string;
   messageId: string;
   cardIndex: number;
   groupId?: string;
@@ -147,14 +149,15 @@ async function doRunMediaJob(t: MediaJobTarget, opts: { manual?: boolean; now?: 
   };
 
   try {
+    const visualSlug = t.personaSlug || t.slug;
     const [settings, persona, sceneAssets] = await Promise.all([
       storageRepo.getSettings(),
-      storageRepo.getPersona(t.slug),
-      storageRepo.getSceneAssets(t.slug),
+      storageRepo.getPersona(visualSlug),
+      storageRepo.getSceneAssets(visualSlug),
     ]);
     const { baseUrl, apiKey, imageModel } = resolveImageConfig(settings);
     const mediaType = card.type === 'photo' ? 'photo' : 'sticker';
-    const captionText = String(card.caption || `${persona?.name || t.slug} 的趣味表达`);
+    const captionText = String(card.caption || `${persona?.name || visualSlug} 的趣味表达`);
     const matchedScene = mediaType === 'photo' ? matchSceneAssetForCaption(sceneAssets, captionText) : null;
     const effectiveReferenceUrl = matchedScene?.isPureEnvironment
       ? matchedScene.asset.imageUrl
@@ -163,12 +166,12 @@ async function doRunMediaJob(t: MediaJobTarget, opts: { manual?: boolean; now?: 
     const mediaRes = await generatePersonaMedia({
       kind: mediaType,
       caption: captionText,
-      personaName: persona?.name || t.slug,
+      personaName: persona?.name || visualSlug,
       personaStyle: persona?.profile.personalityTags?.slice(0, 3).join(', '),
       appearanceAnchor: persona?.profile.appearanceAnchor,
       // 场景资产 + 世界设定里出现在画面中的元素（宠物长相、物品样子等），保持前后一致
       sceneAnchor:
-        [matchedScene?.asset.description, await worldAnchorsForCaption(t.slug, captionText).catch(() => '')]
+        [matchedScene?.asset.description, await worldAnchorsForCaption(visualSlug, captionText).catch(() => '')]
           .filter(Boolean)
           .join('；') || undefined,
       referenceImageUrl: effectiveReferenceUrl,
@@ -183,7 +186,7 @@ async function doRunMediaJob(t: MediaJobTarget, opts: { manual?: boolean; now?: 
 
     // 在已收录、还没有参考图的地点拍了照：把这张照片设为该地点的参考图并存成固定场景
     if (mediaType === 'photo') {
-      await linkPhotoToWorld({ slug: t.slug, caption: captionText, imageUrl: mediaRes.imageUrl }).catch(() => {});
+      await linkPhotoToWorld({ slug: visualSlug, caption: captionText, imageUrl: mediaRes.imageUrl }).catch(() => {});
     }
 
     // 第一张照片自动锁定为形象参考图
@@ -352,6 +355,7 @@ export async function recoverMedia(params: {
   const targets: MediaJobTarget[] = recoverable
     .map((r) => ({
       slug: params.groupId ? r.slugHint || '' : params.slug!,
+      ...(params.groupId ? {} : r.slugHint ? { personaSlug: r.slugHint } : {}),
       messageId: r.messageId,
       cardIndex: r.cardIndex,
       groupId: params.groupId,
@@ -385,7 +389,14 @@ export function enqueueNewMediaCards(params: {
       if (!isVisual(c) || c.status !== 'generating' || c.attempts) return;
       const slug = params.groupId ? m.fromBot?.slug : params.slug;
       if (!slug) return;
-      targets.push({ slug, messageId: m.id, cardIndex, groupId: params.groupId });
+      const personaSlug = !params.groupId && m.fromBot?.slug ? m.fromBot.slug : undefined;
+      targets.push({
+        slug,
+        ...(personaSlug ? { personaSlug } : {}),
+        messageId: m.id,
+        cardIndex,
+        groupId: params.groupId,
+      });
     });
   }
   if (targets.length === 0) return Promise.resolve();
