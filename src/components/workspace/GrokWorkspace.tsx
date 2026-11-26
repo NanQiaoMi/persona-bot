@@ -18,7 +18,9 @@ import ChatStage from "./ChatStage";
 import { hasPendingMedia } from "@/lib/media/media-state";
 import {
   buildStreamRequestBody,
-  mergePolledMessages,
+  channelKey,
+  mergeServerWithLocalPending,
+  pruneSavedPendingMessages,
   type PendingBurstSnapshot,
 } from "@/lib/chat/switch-sync";
 import CommandPalette from "./CommandPalette";
@@ -111,6 +113,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const streamSessionIdRef = useRef(0);
   const detailLoadIdRef = useRef(0);
   const pendingBurstDataRef = useRef<PendingBurstSnapshot | null>(null);
+  const pendingLocalMsgsByChannelRef = useRef<Record<string, ConversationMessage[]>>({});
+  const clientInflightCountByChannelRef = useRef<Record<string, number>>({});
   const runStreamRequestRef = useRef<
     | ((
         history: ConversationMessage[],
@@ -119,6 +123,42 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       ) => Promise<void>)
     | null
   >(null);
+
+  const recordLocalUserMessage = useCallback((key: string, msg: ConversationMessage) => {
+    const prev = pendingLocalMsgsByChannelRef.current[key] || [];
+    pendingLocalMsgsByChannelRef.current[key] = [...prev, msg].slice(-10);
+  }, []);
+
+  const applyServerMessages = useCallback(
+    (key: string, serverMessages: ConversationMessage[], fallbackEmpty = false) => {
+      const remaining = pruneSavedPendingMessages(
+        pendingLocalMsgsByChannelRef.current[key] || [],
+        serverMessages
+      );
+      if (remaining.length > 0) {
+        pendingLocalMsgsByChannelRef.current[key] = remaining;
+      } else {
+        delete pendingLocalMsgsByChannelRef.current[key];
+      }
+      setMessages((prev) => {
+        if (serverMessages.length === 0 && remaining.length === 0) {
+          return fallbackEmpty ? [] : prev;
+        }
+        return mergeServerWithLocalPending(prev, serverMessages, remaining);
+      });
+    },
+    []
+  );
+
+  const trackClientInflight = useCallback((key: string, promise: Promise<unknown>) => {
+    clientInflightCountByChannelRef.current[key] =
+      (clientInflightCountByChannelRef.current[key] || 0) + 1;
+    void promise.finally(() => {
+      const next = (clientInflightCountByChannelRef.current[key] || 1) - 1;
+      if (next <= 0) delete clientInflightCountByChannelRef.current[key];
+      else clientInflightCountByChannelRef.current[key] = next;
+    });
+  }, []);
 
   const [streaming, setStreaming] = useState<{
     isSearching: boolean;
@@ -152,13 +192,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       return;
     }
 
-    // 切走对话或后台发送：不绑定当前页 AbortController，不改新页面 UI，由服务端接管存档与生图
-    void fetch("/api/chat/stream", {
+    // 切走对话或后台发送：不绑定当前页 AbortController，收到响应头再 cancel body 让服务端跳延迟并立刻存档生图
+    const key = channelKey({ slug: snapshot.slug, groupId: snapshot.groupId });
+    const req = fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildStreamRequestBody(snapshot)),
-    }).catch(() => {});
-  }, []);
+    })
+      .then((res) => {
+        void res.body?.cancel().catch(() => {});
+      })
+      .catch(() => {});
+    trackClientInflight(key, req);
+  }, [trackClientInflight]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -179,7 +225,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     idleNudgeCountRef.current = 0;
     flushPendingBurst({ background: true });
     streamSessionIdRef.current += 1;
-    streamAbortRef.current?.abort();
+    // 切走时不 abort 底层 POST 请求，避免刚发出的消息在到达服务端前被掐断；流读取循环会自行 reader.cancel()
     streamAbortRef.current = null;
     queueMicrotask(() => setStreaming(null));
     if (followupTimerRef.current) {
@@ -195,7 +241,6 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     return () => {
       flushPendingBurst({ background: true });
       streamSessionIdRef.current += 1;
-      streamAbortRef.current?.abort();
       streamAbortRef.current = null;
       if (followupTimerRef.current) {
         clearTimeout(followupTimerRef.current);
@@ -410,15 +455,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       if (activeGroupIdRef.current) {
         // 群聊里只刷新主 bot 资料，消息列表由群聊自己管理
       } else if (cData.success && Array.isArray(cData.messages)) {
-        setMessages(cData.messages);
+        applyServerMessages(channelKey({ slug }), cData.messages as ConversationMessage[], true);
       } else {
-        setMessages([]);
+        applyServerMessages(channelKey({ slug }), [], true);
       }
       void checkMomentsUpdate(slug, { markUnreadIfChanged: false });
     } catch (err) {
       console.error("Failed to load active persona:", err);
     }
-  }, [checkMomentsUpdate]);
+  }, [applyServerMessages, checkMomentsUpdate]);
 
   const requestMediaRecover = useCallback(async (target: { slug?: string; groupId?: string }) => {
     try {
@@ -459,6 +504,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       const query = target.groupId
         ? `groupId=${encodeURIComponent(target.groupId)}`
         : `slug=${encodeURIComponent(target.slug || "")}`;
+      const key = channelKey(target);
       const reload = async (): Promise<ConversationMessage[] | null> => {
         const res = await fetch(
           target.groupId
@@ -469,7 +515,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         const data = await res.json();
         if (stillHere() && data?.success && Array.isArray(data.messages)) {
           const list = data.messages as ConversationMessage[];
-          setMessages((prev) => mergePolledMessages(prev, list));
+          applyServerMessages(key, list, false);
           return list;
         }
         return null;
@@ -482,6 +528,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           const data = await res.json();
           if (!stillHere()) return;
           if (!data?.inflight) {
+            if ((clientInflightCountByChannelRef.current[key] || 0) > 0 && i < 5) {
+              setBackgroundTyping(label);
+              await new Promise((r) => setTimeout(r, 400));
+              continue;
+            }
             const latest = await reload();
             if (latest && latest.some((m) => hasPendingMedia(m.mediaCards))) {
               void requestMediaRecover(target);
@@ -498,7 +549,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         if (inflightWatchRef.current === watchId) setBackgroundTyping(null);
       }
     },
-    [requestMediaRecover]
+    [applyServerMessages, requestMediaRecover]
   );
 
   // ── 照片 / 表情包的补生成与重试 ──────────────────────────────
@@ -513,6 +564,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   useEffect(() => {
     if (!mediaPending || mediaStreaming) return;
     const target = activeGroupId ? { groupId: activeGroupId } : { slug: activeSlug };
+    const key = channelKey(target);
     let ticks = 0;
     let cancelled = false;
     const timer = setInterval(async () => {
@@ -528,7 +580,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         const data = await res.json();
         if (cancelled || !data?.success || !Array.isArray(data.messages)) return;
         const serverMsgs = data.messages as ConversationMessage[];
-        setMessages((prev) => mergePolledMessages(prev, serverMsgs));
+        applyServerMessages(key, serverMsgs, false);
       } catch {
         // 下次再刷
       }
@@ -540,7 +592,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       clearInterval(timer);
       clearTimeout(stop);
     };
-  }, [mediaPending, mediaStreaming, activeSlug, activeGroupId, requestMediaRecover]);
+  }, [mediaPending, mediaStreaming, activeSlug, activeGroupId, applyServerMessages, requestMediaRecover]);
 
   // 你点了「重试」：立刻重新生成这一张（不受自动重试次数限制）
   const handleRetryMedia = useCallback(
@@ -599,11 +651,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       if (!active) return;
       if (!activeGroupIdRef.current) {
         // 先查 inflight 再拉聊天记录：避免服务端刚结束 inflight、消息却没拉到的竞态漏刷
+        const key = channelKey({ slug: activeSlug });
         const isInflight = await checkInflightOnce({ slug: activeSlug });
         if (!active || activeGroupIdRef.current || activeSlugRef.current !== activeSlug) return;
         await loadActivePersonaDetail(activeSlug);
         markSplashStep("detail");
-        if (active && !activeGroupIdRef.current && activeSlugRef.current === activeSlug && isInflight) {
+        const shouldWatch =
+          isInflight ||
+          (clientInflightCountByChannelRef.current[key] || 0) > 0 ||
+          (pendingLocalMsgsByChannelRef.current[key]?.length || 0) > 0;
+        if (active && !activeGroupIdRef.current && activeSlugRef.current === activeSlug && shouldWatch) {
           void watchInflight({ slug: activeSlug }, "对方");
         }
       } else {
@@ -918,12 +975,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     activeGroupIdRef.current = activeGroupId;
     flushPendingBurst({ background: true });
     streamSessionIdRef.current += 1;
-    streamAbortRef.current?.abort();
     streamAbortRef.current = null;
     if (!activeGroupId) return;
     let cancelled = false;
     void (async () => {
       try {
+        const key = channelKey({ groupId: activeGroupId });
         const isInflight = await checkInflightOnce({ groupId: activeGroupId });
         if (cancelled || activeGroupIdRef.current !== activeGroupId) return;
         const res = await fetch(`/api/groups/${encodeURIComponent(activeGroupId)}`, {
@@ -938,13 +995,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         const groupMessages: ConversationMessage[] = Array.isArray(data.messages)
           ? data.messages
           : [];
-        setMessages(groupMessages);
+        applyServerMessages(key, groupMessages, true);
         // 「以下为新消息」：从你上次看到的那条之后第一条群友消息开始
         const seenId = groupSeenRef.current[activeGroupId];
         const seenIdx = seenId ? groupMessages.findIndex((m) => m.id === seenId) : -1;
         const firstUnread =
           seenIdx >= 0 ? groupMessages.slice(seenIdx + 1).find((m) => m.role !== "user") : undefined;
         setNewMessagesFromId(firstUnread?.id ?? null);
+        const shouldWatch =
+          isInflight ||
+          (clientInflightCountByChannelRef.current[key] || 0) > 0 ||
+          (pendingLocalMsgsByChannelRef.current[key]?.length || 0) > 0;
         if (
           data.group?.pendingKickoff &&
           groupMessages.length === 0 &&
@@ -952,7 +1013,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         ) {
           kickoffDoneRef.current.add(activeGroupId);
           await runStreamRequestRef.current?.([], activeMode, { kickoff: true });
-        } else if (isInflight) {
+        } else if (shouldWatch) {
           void watchInflight({ groupId: activeGroupId }, "群里有人");
         }
         if (!data.group?.pendingKickoff && groupMessages.length > 0) {
@@ -981,10 +1042,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       // 角色没变，不会触发切换角色时的「还在生成就继续显示正在输入」，这里要自己接上，
       // 否则你在群里时还没写完的回复，回来后停在半截、也不再刷新
       void (async () => {
+        const key = channelKey({ slug });
         const isInflight = await checkInflightOnce({ slug });
         if (activeGroupIdRef.current || activeSlugRef.current !== slug) return;
         await loadActivePersonaDetail(slug);
-        if (!activeGroupIdRef.current && activeSlugRef.current === slug && isInflight) {
+        const shouldWatch =
+          isInflight ||
+          (clientInflightCountByChannelRef.current[key] || 0) > 0 ||
+          (pendingLocalMsgsByChannelRef.current[key]?.length || 0) > 0;
+        if (!activeGroupIdRef.current && activeSlugRef.current === slug && shouldWatch) {
           void watchInflight({ slug }, "对方");
         }
       })();
@@ -1118,6 +1184,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     const isSameChannel = () =>
       activeGroupIdRef.current === requestGroupId &&
       (Boolean(requestGroupId) || activeSlugRef.current === requestSlug);
+    const reqKey = channelKey({ slug: requestSlug, groupId: requestGroupId });
+    clientInflightCountByChannelRef.current[reqKey] =
+      (clientInflightCountByChannelRef.current[reqKey] || 0) + 1;
 
     clearScheduledFollowup();
     idleNudgeCountRef.current = 0;
@@ -1164,6 +1233,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       }
 
       const reader = res.body.getReader();
+      if (!isCurrentSession()) {
+        void reader.cancel().catch(() => {});
+      }
       const decoder = new TextDecoder();
       let buffer = "";
       let finalMessage: ConversationMessage | null = null;
@@ -1172,10 +1244,13 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       let pendingFollowup: PendingFollowup | undefined;
       const committedIds = new Set<string>();
 
-      while (true) {
+      while (isCurrentSession()) {
         const { value, done } = await reader.read();
         if (done) break;
-        if (!isCurrentSession()) break;
+        if (!isCurrentSession()) {
+          void reader.cancel().catch(() => {});
+          break;
+        }
         buffer += decoder.decode(value, { stream: true });
 
         const blocks = buffer.split("\n\n");
@@ -1452,6 +1527,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         console.error("Streaming chat error:", error);
       }
     } finally {
+      const nextCount = (clientInflightCountByChannelRef.current[reqKey] || 1) - 1;
+      if (nextCount <= 0) delete clientInflightCountByChannelRef.current[reqKey];
+      else clientInflightCountByChannelRef.current[reqKey] = nextCount;
       if (streamSessionIdRef.current === mySessionId) {
         streamAbortRef.current = null;
         setStreaming(null);
@@ -1487,6 +1565,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       mode: activeMode,
     };
 
+    recordLocalUserMessage(
+      channelKey({ slug: activeSlugRef.current, groupId: activeGroupIdRef.current }),
+      userMsg
+    );
     const nextHistory = [...messagesRef.current, userMsg];
     messagesRef.current = nextHistory;
     setMessages(nextHistory);
@@ -1541,6 +1623,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       timestamp: new Date().toISOString(),
       mode: activeMode,
     };
+    recordLocalUserMessage(
+      channelKey({ slug: activeSlugRef.current, groupId: activeGroupIdRef.current }),
+      userMsg
+    );
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
     setInput("");
@@ -1593,6 +1679,22 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
     clearScheduledFollowup();
+    const key = channelKey({ slug: activeSlugRef.current, groupId: activeGroupIdRef.current });
+    delete pendingLocalMsgsByChannelRef.current[key];
+    if (
+      pendingBurstDataRef.current &&
+      channelKey({
+        slug: pendingBurstDataRef.current.slug,
+        groupId: pendingBurstDataRef.current.groupId,
+      }) === key
+    ) {
+      if (burstTimerRef.current) {
+        clearTimeout(burstTimerRef.current);
+        burstTimerRef.current = null;
+      }
+      pendingBurstDataRef.current = null;
+      setPendingBurst(false);
+    }
     if (activeGroupIdRef.current) {
       const gid = activeGroupIdRef.current;
       try {

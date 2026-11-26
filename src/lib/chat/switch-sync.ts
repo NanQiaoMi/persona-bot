@@ -25,6 +25,58 @@ export function buildStreamRequestBody(snapshot: PendingBurstSnapshot) {
   };
 }
 
+export function channelKey(target: { slug?: string | null; groupId?: string | null }): string {
+  if (target.groupId) return `group:${target.groupId}`;
+  return `chat:${target.slug || ''}`;
+}
+
+function isSameUserMessage(a: ConversationMessage, b: ConversationMessage): boolean {
+  return (
+    a.id === b.id ||
+    (a.role === 'user' &&
+      b.role === 'user' &&
+      a.content === b.content &&
+      (!a.timestamp || !b.timestamp || a.timestamp === b.timestamp))
+  );
+}
+
+/**
+ * 过滤掉已落盘到服务端的本地待确认消息，并丢弃超时条目，避免异常残留。
+ */
+export function pruneSavedPendingMessages(
+  pending: ConversationMessage[],
+  serverMessages: ConversationMessage[],
+  nowMs = Date.now(),
+  maxAgeMs = 120_000
+): ConversationMessage[] {
+  if (pending.length === 0) return [];
+  const recentServer = serverMessages.slice(-40);
+  return pending.filter((msg) => {
+    const ts = msg.timestamp ? Date.parse(msg.timestamp) : NaN;
+    if (Number.isFinite(ts) && nowMs - ts > maxAgeMs) return false;
+    return !recentServer.some((s) => isSameUserMessage(msg, s));
+  });
+}
+
+/**
+ * 把服务端权威消息与本地尚未落盘的用户消息合并，避免切回或历史加载晚到时覆盖刚发出的消息。
+ */
+export function mergeServerWithLocalPending(
+  prev: ConversationMessage[],
+  serverMessages: ConversationMessage[],
+  pendingLocal: ConversationMessage[]
+): ConversationMessage[] {
+  const unsaved = pruneSavedPendingMessages(pendingLocal, serverMessages);
+  const next = unsaved.length > 0 ? [...serverMessages, ...unsaved] : serverMessages;
+  if (
+    prev.length === next.length &&
+    prev.every((m, idx) => JSON.stringify(m) === JSON.stringify(next[idx]))
+  ) {
+    return prev;
+  }
+  return next;
+}
+
 /**
  * 把后台拉取到的服务端消息合并到当前列表：
  * - 以服务端消息为权威基准（更新既有消息的 mediaCards 状态，并合入后台新落盘的回复）；
@@ -36,13 +88,6 @@ export function mergePolledMessages(
   serverMessages: ConversationMessage[]
 ): ConversationMessage[] {
   if (serverMessages.length === 0) return prev;
-
-  const isSameUserMessage = (a: ConversationMessage, b: ConversationMessage) =>
-    a.id === b.id ||
-    (a.role === 'user' &&
-      b.role === 'user' &&
-      a.content === b.content &&
-      (!a.timestamp || !b.timestamp || a.timestamp === b.timestamp));
 
   const recentServer = serverMessages.slice(-40);
   const unsavedTailUsers: ConversationMessage[] = [];

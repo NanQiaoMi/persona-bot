@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '@/app/api/chat/stream/route';
 import { GET as getInflightRoute } from '@/app/api/chat/inflight/route';
 import { beginInflight, endInflight, getInflight, inflightKey } from '@/lib/chat/inflight';
-import { buildStreamRequestBody, mergePolledMessages } from '@/lib/chat/switch-sync';
+import {
+  buildStreamRequestBody,
+  channelKey,
+  mergePolledMessages,
+  mergeServerWithLocalPending,
+  pruneSavedPendingMessages,
+} from '@/lib/chat/switch-sync';
 import { storageRepo } from '@/lib/storage/repository';
 import type { ConversationMessage } from '@/lib/storage/types';
 
@@ -230,5 +236,47 @@ describe('切走不断流自动生图与切回消息合并', () => {
 
     // 3. 服务端返回空列表时不丢弃本地消息
     expect(mergePolledMessages([u1], [])).toEqual([u1]);
+  });
+
+  it('channelKey、pruneSavedPendingMessages 与 mergeServerWithLocalPending 防止切回时旧列表覆盖新消息', () => {
+    expect(channelKey({ slug: 'mi-mi' })).toBe('chat:mi-mi');
+    expect(channelKey({ slug: 'master-bot', groupId: 'g1' })).toBe('group:g1');
+
+    const now = Date.parse('2026-11-26T08:00:00.000Z');
+    const uFresh: ConversationMessage = {
+      id: 'u_fresh',
+      role: 'user',
+      content: '刚发出的新消息',
+      timestamp: '2026-11-26T07:59:50.000Z',
+    };
+    const uSaved: ConversationMessage = {
+      id: 'u_saved',
+      role: 'user',
+      content: '已落盘的消息',
+      timestamp: '2026-11-26T07:59:40.000Z',
+    };
+    const uExpired: ConversationMessage = {
+      id: 'u_expired',
+      role: 'user',
+      content: '超时残留',
+      timestamp: '2026-11-26T07:50:00.000Z',
+    };
+
+    const pruned = pruneSavedPendingMessages([uSaved, uFresh, uExpired], [uSaved], now, 120_000);
+    expect(pruned.map((m) => m.id)).toEqual(['u_fresh']);
+
+    // 历史加载晚到（服务端暂未落盘 uFresh）：合并后仍保留 uFresh，不会闪没
+    const mergedWithUnsaved = mergeServerWithLocalPending([uFresh], [uSaved], [uFresh]);
+    expect(mergedWithUnsaved.map((m) => m.id)).toEqual(['u_saved', 'u_fresh']);
+
+    // 服务端已落盘 uFresh 后：自动去重，不重复显示
+    const mergedAfterSave = mergeServerWithLocalPending(mergedWithUnsaved, [uSaved, uFresh], [uFresh]);
+    expect(mergedAfterSave.map((m) => m.id)).toEqual(['u_saved', 'u_fresh']);
+
+    // 真正空会话且无待落盘消息时返回 []
+    expect(mergeServerWithLocalPending([uSaved], [], [])).toEqual([]);
+
+    // 无变化时返回原引用
+    expect(mergeServerWithLocalPending(mergedAfterSave, [uSaved, uFresh], [])).toBe(mergedAfterSave);
   });
 });
