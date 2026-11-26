@@ -373,10 +373,16 @@ export default function ChatStage({
 
   if (!persona) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[var(--bg-primary)]">
-        <div className="flex flex-col items-center gap-3 text-xs text-[var(--text-muted)]">
-          <BlobMascot shape="circle" color="#0A0A0C" size={50} showOnlineDot state="thinking" />
-          <span>正在连接 PersonaBot...</span>
+      // 启动动画盖住这里；只有跳过 / 超时后才会看到这个轻量占位
+      <div
+        role="status"
+        aria-label="正在加载角色"
+        className="flex-1 flex items-center justify-center bg-[var(--bg-primary)]"
+      >
+        <div className="flex flex-col items-center gap-3 animate-pulse motion-reduce:animate-none">
+          <div className="h-10 w-10 rounded-full bg-[var(--bg-tertiary)]" />
+          <div className="h-2.5 w-32 rounded-full bg-[var(--bg-tertiary)]" />
+          <div className="h-2.5 w-20 rounded-full bg-[var(--bg-tertiary)]" />
         </div>
       </div>
     );
