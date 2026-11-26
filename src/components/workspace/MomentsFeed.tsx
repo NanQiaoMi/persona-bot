@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { MomentPost, PersonaRecord } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import SaveSceneAssetButton from "./SaveSceneAssetButton";
@@ -114,6 +115,15 @@ export default function MomentsFeed({
       if (pollTimer) clearInterval(pollTimer);
     };
   }, [persona.slug, refreshSignal, onFeedLoaded]);
+
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxImage(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxImage]);
 
   const handleToggleLike = async (postId: string) => {
     setPosts((prev) =>
@@ -477,42 +487,45 @@ export default function MomentsFeed({
         </div>
       )}
 
-      {/* Lightbox for Moment Photos */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
-          onClick={() => setLightboxImage(null)}
-        >
+      {/* Lightbox for Moment Photos（Portal 挂载到 body，避免被右侧栏 transform/overflow 裁切） */}
+      {lightboxImage &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="relative max-w-xl w-full flex flex-col items-center gap-3"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
+            onClick={() => setLightboxImage(null)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxImage.url}
-              alt={lightboxImage.caption}
-              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
-            />
-            <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-black/60 text-white text-xs">
-              <span className="max-w-xs truncate">{lightboxImage.caption}</span>
-              <SaveSceneAssetButton
-                key={lightboxImage.url}
-                slug={persona.slug}
-                imageUrl={lightboxImage.url}
-                defaultName={lightboxImage.caption.slice(0, 14) || "常去场景"}
-                defaultDescription={lightboxImage.caption}
+            <div
+              className="relative max-w-xl w-full flex flex-col items-center gap-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.caption}
+                className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
               />
-              <button
-                type="button"
-                onClick={() => setLightboxImage(null)}
-                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
-              >
-                关闭
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-black/60 text-white text-xs">
+                <span className="max-w-xs truncate">{lightboxImage.caption}</span>
+                <SaveSceneAssetButton
+                  key={lightboxImage.url}
+                  slug={persona.slug}
+                  imageUrl={lightboxImage.url}
+                  defaultName={lightboxImage.caption.slice(0, 14) || "常去场景"}
+                  defaultDescription={lightboxImage.caption}
+                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+                >
+                  关闭
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

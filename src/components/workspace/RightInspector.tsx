@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import LineIcon from "@/components/workspace/LineIcon";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import {
@@ -164,41 +165,23 @@ export default function RightInspector({
     };
   }, [persona?.slug, section, libraryTab]);
 
+  useEffect(() => {
+    if (!previewRefOpen && !previewAsset) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setPreviewRefOpen(false);
+        setPreviewAsset(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewRefOpen, previewAsset]);
+
   if (!persona) {
     return (
       <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
         正在加载角色状态舱...
-        {previewAsset && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
-          onClick={() => setPreviewAsset(null)}
-        >
-          <div
-            className="relative max-w-xl w-full flex flex-col items-center gap-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewAsset.imageUrl}
-              alt={previewAsset.name}
-              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
-            />
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
-              <span className="max-w-xs truncate">
-                {previewAsset.name} · {previewAsset.description}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreviewAsset(null)}
-                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </aside>
+      </aside>
     );
   }
 
@@ -1463,64 +1446,71 @@ export default function RightInspector({
           </div>
         )}
       </div>
-      {previewRefOpen && persona.profile.referenceImageUrl && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
-          onClick={() => setPreviewRefOpen(false)}
-        >
+      {previewRefOpen &&
+        persona.profile.referenceImageUrl &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="relative max-w-xl w-full flex flex-col items-center gap-3"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
+            onClick={() => setPreviewRefOpen(false)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={persona.profile.referenceImageUrl}
-              alt={`${persona.name} 人物参考图`}
-              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
-            />
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
-              <span>{persona.name} · 人物一致性参考图</span>
-              <button
-                type="button"
-                onClick={() => setPreviewRefOpen(false)}
-                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
-              >
-                关闭
-              </button>
+            <div
+              className="relative max-w-xl w-full flex flex-col items-center gap-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={persona.profile.referenceImageUrl}
+                alt={`${persona.name} 人物参考图`}
+                className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+              />
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+                <span>{persona.name} · 人物一致性参考图</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewRefOpen(false)}
+                  className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+                >
+                  关闭
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-      {previewAsset && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
-          onClick={() => setPreviewAsset(null)}
-        >
+          </div>,
+          document.body
+        )}
+      {previewAsset &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="relative max-w-xl w-full flex flex-col items-center gap-3"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-fade-in"
+            onClick={() => setPreviewAsset(null)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewAsset.imageUrl}
-              alt={previewAsset.name}
-              className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
-            />
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
-              <span className="max-w-xs truncate">
-                {previewAsset.name} · {previewAsset.description}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreviewAsset(null)}
-                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
-              >
-                关闭
-              </button>
+            <div
+              className="relative max-w-xl w-full flex flex-col items-center gap-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewAsset.imageUrl}
+                alt={previewAsset.name}
+                className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl object-contain bg-white/5"
+              />
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 text-white text-xs">
+                <span className="max-w-xs truncate">
+                  {previewAsset.name} · {previewAsset.description}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewAsset(null)}
+                  className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 cursor-pointer"
+                >
+                  关闭
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </aside>
   );
 }
