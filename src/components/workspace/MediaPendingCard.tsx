@@ -27,13 +27,45 @@ export default function MediaPendingCard({
   const busy = state === "generating" || retrying;
   // 生成中不给重试；其余状态都能手动重试（等网络时点了也会立刻试一次）
   const canRetry = Boolean(onRetry) && !busy;
+  const busyText = isSticker
+    ? name
+      ? `${name} 正在找表情包…`
+      : "正在找表情包…"
+    : name
+      ? `${name} 正在拍照…`
+      : "正在拍照…";
+
+  if (busy) {
+    return (
+      <div
+        className="mt-1.5 inline-flex flex-col items-start gap-1"
+        role="status"
+        aria-live="polite"
+        title={card.caption}
+      >
+        <span className="inline-flex items-center gap-1.5 text-[11.5px] leading-none text-[var(--text-muted)]">
+          <span className="animate-text-shimmer font-medium">{busyText}</span>
+        </span>
+        <div
+          className={`relative overflow-hidden rounded-2xl ${
+            isSticker ? "w-[132px] h-[132px]" : "w-[220px] h-[164px]"
+          }`}
+          style={{ ["--media-dot" as string]: dotColor(accent) }}
+        >
+          <DotField
+            cols={isSticker ? 8 : 13}
+            rows={isSticker ? 8 : 10}
+            animated
+            clearCenter={false}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      // 生成中只剩波点本身：不画边框和底色；等网络 / 失败时才用浅色卡片承托文字和按钮
-      className={`relative mt-1.5 overflow-hidden rounded-2xl ${
-        busy ? "" : "border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
-      } ${
+      className={`relative mt-1.5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] ${
         isSticker ? "w-[132px] h-[132px]" : "w-[220px] h-[164px]"
       }`}
       style={{ ["--media-dot" as string]: dotColor(accent) }}
@@ -41,50 +73,41 @@ export default function MediaPendingCard({
       role="status"
       aria-live="polite"
     >
-      {/* 波点：生成中从中心一圈圈呼吸着荡开；其余状态静止淡显 */}
-      <DotField cols={isSticker ? 8 : 13} rows={isSticker ? 8 : 10} animated={busy} clearCenter={!busy} />
-      {busy ? (
-        // 生成中只留波点，文字给读屏软件
-        <span className="sr-only">
-          {isSticker ? `${name} 正在找表情包` : `${name} 正在拍照`}
-        </span>
-      ) : (
+      {/* 波点：非生成中静止淡显，中间留白给文字与按钮 */}
+      <DotField cols={isSticker ? 8 : 13} rows={isSticker ? 8 : 10} animated={false} clearCenter />
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
-      <span
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-primary)] text-[var(--text-secondary)] shadow-sm"
-      >
-        <StateIcon state={retrying ? "generating" : state} />
-      </span>
-      <span
-        className={`max-w-full rounded-full px-2.5 py-0.5 leading-snug text-[var(--text-secondary)] ${
-          isSticker && busy ? "whitespace-nowrap text-[10.5px]" : "text-[11.5px]"
-        }`}
-        style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 82%, transparent)" }}
-      >
-        {retrying ? (isSticker ? `${name} 正在找表情包…` : `${name} 正在拍照…`) : describeMediaState(card, name)}
-      </span>
-      {canRetry && (
-        <button
-          type="button"
-          onClick={async () => {
-            setRetrying(true);
-            try {
-              await onRetry?.();
-            } finally {
-              setRetrying(false);
-            }
-          }}
-          className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-primary)] hover:border-[var(--border-strong)] cursor-pointer"
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-primary)] text-[var(--text-secondary)] shadow-sm"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M20 11a8 8 0 1 0-2.3 5.7" />
-            <path d="M20 4v7h-7" />
-          </svg>
-          重试
-        </button>
-      )}
+          <StateIcon state={state} />
+        </span>
+        <span
+          className="max-w-full rounded-full px-2.5 py-0.5 text-[11.5px] leading-snug text-[var(--text-secondary)]"
+          style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 82%, transparent)" }}
+        >
+          {describeMediaState(card, name)}
+        </span>
+        {canRetry && (
+          <button
+            type="button"
+            onClick={async () => {
+              setRetrying(true);
+              try {
+                await onRetry?.();
+              } finally {
+                setRetrying(false);
+              }
+            }}
+            className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-primary)] hover:border-[var(--border-strong)] cursor-pointer"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+              <path d="M20 4v7h-7" />
+            </svg>
+            重试
+          </button>
+        )}
       </div>
-      )}
     </div>
   );
 }
