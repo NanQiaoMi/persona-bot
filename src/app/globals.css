@@ -578,10 +578,17 @@ body {
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ───────────── 启动动画「小团子醒来」 ─────────────
- * 时间轴见 docs/superpowers/plans/2026-11-26-splash-animation-plan.md
+/* ───────────── 启动动画「角色风车」 ─────────────
+ * 时间轴见 docs/superpowers/plans/2026-11-26-splash-animation-plan.md 第 11 节
  * 完整版为默认；html[data-splash="short"] 为会话内再次打开的简短版；
- * prefers-reduced-motion 为静态版。只动 transform / opacity。 */
+ * prefers-reduced-motion 为静态版。只动 transform / opacity。
+ *
+ *   0–760ms    四个角色从四角弹出（间隔 80ms）
+ *   560–1240   顺时针旋进中心并淡出
+ *   600–1650   风车标志带惯性从 -300° 转进来，过冲后回正
+ *   680–1400   四块角色依次弹入槽位；1120 主 bot 弹出；1240 锁定波纹
+ *   1400–1820  主 bot 睁眼、眨眼；1300 起字标逐字浮现
+ *   3000+      等数据时：风车缓慢自转（角色保持正立）、眨眼循环 */
 
 .splash-root {
   position: fixed;
@@ -607,17 +614,17 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 420px;
-  height: 420px;
-  margin: -250px 0 0 -210px;
+  width: 460px;
+  height: 460px;
+  margin: -270px 0 0 -230px;
   border-radius: 9999px;
   background: radial-gradient(circle, var(--accent-teal) 0%, transparent 65%);
-  opacity: 0.08;
-  animation: splash-glow-in 120ms ease-out both;
+  opacity: 0.07;
+  animation: splash-glow-in 400ms ease-out both;
 }
 
 [data-theme="dark"] .splash-glow {
-  opacity: 0.14;
+  opacity: 0.13;
 }
 
 .splash-stage {
@@ -625,75 +632,132 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  transform: translateY(-20px);
+  gap: 18px;
+  transform: translateY(-16px);
 }
 
 .splash-mascot {
   position: relative;
-  width: 96px;
-  height: 96px;
+  width: 150px;
+  height: 150px;
   transition: transform var(--splash-exit, 360ms) var(--ease-standard),
     opacity var(--splash-exit, 360ms) var(--ease-standard);
 }
 
 .splash-root[data-state="exiting"] .splash-mascot {
-  transform: scale(1.15);
+  transform: scale(1.12);
   opacity: 0;
 }
 
-.splash-blob {
-  position: relative;
+/* —— 出场的四个角色 —— */
+.splash-fly {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: rotate(var(--a0));
+  animation: splash-fly-orbit 560ms cubic-bezier(0.55, 0, 0.8, 0.3)
+    calc(560ms + var(--i) * 40ms) both;
+}
+
+.splash-fly-arm {
+  position: absolute;
+  transform: translateX(88px);
+  animation: splash-fly-arm 560ms cubic-bezier(0.55, 0, 0.8, 0.3)
+    calc(560ms + var(--i) * 40ms) both;
+}
+
+.splash-fly-upright {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  transform: rotate(calc(var(--a0) * -1));
+}
+
+.splash-fly-body {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: splash-fly-pop 440ms var(--ease-spring) calc(var(--i) * 80ms) both;
+}
+
+/* —— 风车标志 —— */
+.splash-mark {
+  position: absolute;
+  inset: 0;
+  animation: splash-lock 520ms ease-out 1240ms;
+}
+
+.splash-mark-svg {
+  display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
 }
 
-.splash-blob-drop,
-.splash-blob-body,
+.splash-spin,
+.splash-orbit,
+.splash-piece,
+.splash-upright,
+.splash-hub,
 .splash-eyes,
 .splash-eyes-blink,
 .splash-eyes-look {
   transform-box: fill-box;
-  transform-origin: center center;
+  transform-origin: center;
 }
 
-.splash-blob-drop {
-  transform-origin: center bottom;
-  animation: splash-drop 400ms var(--ease-spring) 120ms both;
+.splash-spin {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: splash-spin 1050ms 600ms both;
 }
 
-.splash-blob-body {
-  transform-origin: center bottom;
-  animation: splash-gulp 220ms var(--ease-spring) 900ms,
-    blob-breathe 4.2s ease-in-out 1200ms infinite;
+.splash-orbit {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: splash-turn 24s linear 3000ms infinite;
+}
+
+.splash-piece {
+  animation: splash-piece-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1)
+    calc(680ms + var(--i) * 70ms) both;
+}
+
+/* 风车自转时，每个角色反向自转，始终保持正立 */
+.splash-upright {
+  animation: splash-turn 24s linear 3000ms infinite reverse;
+}
+
+.splash-hub {
+  animation: splash-hub-pop 480ms var(--ease-spring) 1120ms both;
 }
 
 .splash-eyes {
-  animation: splash-eyes-open 240ms var(--ease-standard) 520ms both;
+  animation: splash-eyes-open 380ms var(--ease-spring) 1400ms both;
 }
 
 .splash-eyes-blink {
-  animation: splash-blink 140ms linear 780ms, blob-blink 4.4s ease-in-out 2400ms infinite;
+  animation: splash-blink 170ms linear 1820ms, blob-blink 4.4s ease-in-out 3200ms infinite;
 }
 
 .splash-eyes-look {
-  animation: splash-look 360ms var(--ease-standard) 820ms;
+  animation: splash-look 900ms var(--ease-standard) 2300ms;
 }
 
-.splash-dot {
+.splash-ripple {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
+  inset: 0;
   border-radius: 9999px;
-  background: var(--dot-color);
+  border: 2px solid var(--text-primary);
   opacity: 0;
-  animation: splash-dot-fly 380ms var(--ease-spring) both;
+  animation: splash-ripple 700ms var(--ease-standard) 1240ms forwards;
 }
 
+/* —— 字标与状态 —— */
 .splash-wordmark {
   display: flex;
   font-size: 22px;
@@ -704,8 +768,8 @@ body {
 
 .splash-wordmark > span {
   display: inline-block;
-  animation: splash-rise 300ms var(--ease-standard) both;
-  animation-delay: calc(760ms + var(--i) * 25ms);
+  animation: splash-letter 500ms var(--ease-spring) both;
+  animation-delay: calc(1300ms + var(--i) * 28ms);
 }
 
 .splash-status {
@@ -715,7 +779,7 @@ body {
   min-height: 18px;
   font-size: 12px;
   color: var(--text-muted);
-  animation: splash-rise 300ms var(--ease-standard) 1000ms both;
+  animation: splash-rise 300ms var(--ease-standard) 1900ms both;
 }
 
 .splash-steps {
@@ -737,6 +801,7 @@ body {
   transform: scale(1.2);
 }
 
+/* —— 关键帧 —— */
 @keyframes splash-failsafe {
   to {
     opacity: 0;
@@ -751,35 +816,122 @@ body {
   }
 }
 
-@keyframes splash-drop {
+@keyframes splash-fly-pop {
   0% {
-    opacity: 0;
-    transform: translateY(-16px) scale(0.6);
+    transform: translateY(12px) scale(0) rotate(-25deg);
   }
-  55% {
-    opacity: 1;
-    transform: translateY(0) scale(1.08, 0.92);
-  }
-  78% {
-    transform: translateY(0) scale(0.97, 1.03);
+  60% {
+    transform: translateY(0) scale(1.15) rotate(6deg);
   }
   100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(1) rotate(0);
   }
 }
 
-@keyframes splash-gulp {
+@keyframes splash-fly-orbit {
+  from {
+    transform: rotate(var(--a0));
+  }
+  to {
+    transform: rotate(calc(var(--a0) + 110deg));
+  }
+}
+
+@keyframes splash-fly-arm {
+  0% {
+    transform: translateX(88px) rotate(0) scale(1);
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(16px) rotate(200deg) scale(1.25);
+    opacity: 0;
+  }
+}
+
+@keyframes splash-spin {
+  0% {
+    transform: rotate(-300deg);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  78% {
+    transform: rotate(8deg);
+    animation-timing-function: ease-in-out;
+  }
+  90% {
+    transform: rotate(-2deg);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes splash-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes splash-piece-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-hub-pop {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.3);
+  }
+  80% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-lock {
+  20% {
+    transform: scale(1.08, 0.93);
+  }
   50% {
-    transform: scale(1.04);
+    transform: scale(0.97, 1.03);
+  }
+}
+
+@keyframes splash-ripple {
+  from {
+    opacity: 0.3;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
   }
 }
 
 @keyframes splash-eyes-open {
-  from {
-    transform: scaleY(0.1);
+  0% {
+    transform: scaleY(0);
   }
-  to {
+  30% {
+    transform: scaleY(0.12);
+  }
+  75% {
+    transform: scaleY(1.25);
+  }
+  100% {
     transform: scaleY(1);
   }
 }
@@ -791,24 +943,30 @@ body {
 }
 
 @keyframes splash-look {
-  40%,
-  60% {
-    transform: translateX(-2.5px);
+  25%,
+  55% {
+    transform: translateX(-2px);
+  }
+  78% {
+    transform: translateX(1.6px);
   }
 }
 
-@keyframes splash-dot-fly {
+@keyframes splash-letter {
   0% {
     opacity: 0;
-    transform: translate(var(--dot-x), var(--dot-y)) scale(0.6);
+    transform: translateY(10px);
+    color: var(--c);
   }
-  30% {
+  55% {
     opacity: 1;
-    transform: translate(calc(var(--dot-x) * 0.85), calc(var(--dot-y) * 0.85)) scale(1);
+    transform: translateY(-2px);
+    color: var(--c);
   }
   100% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.3);
+    opacity: 1;
+    transform: translateY(0);
+    color: var(--text-primary);
   }
 }
 
@@ -823,39 +981,37 @@ body {
   }
 }
 
-@keyframes splash-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+/* —— 简短版：直接拼好的风车快速弹出，没有出场与旋转 —— */
+[data-splash="short"] .splash-fly,
+[data-splash="short"] .splash-ripple {
+  display: none;
 }
-
-/* 简短版：只有团子 + 光晕，字标与状态在数据慢时才淡入 */
-[data-splash="short"] .splash-blob-drop {
-  animation: splash-pop 200ms var(--ease-standard) both;
-}
-[data-splash="short"] .splash-blob-body {
-  animation: blob-breathe 4.2s ease-in-out 200ms infinite;
-}
-[data-splash="short"] .splash-eyes,
-[data-splash="short"] .splash-eyes-look {
+[data-splash="short"] .splash-spin,
+[data-splash="short"] .splash-mark {
   animation: none;
 }
-[data-splash="short"] .splash-eyes-blink {
-  animation: blob-blink 4.4s ease-in-out 1200ms infinite;
+[data-splash="short"] .splash-piece {
+  animation-duration: 260ms;
+  animation-delay: calc(var(--i) * 30ms);
 }
-[data-splash="short"] .splash-dot {
-  display: none;
+[data-splash="short"] .splash-hub {
+  animation-duration: 260ms;
+  animation-delay: 60ms;
+}
+[data-splash="short"] .splash-eyes {
+  animation-delay: 160ms;
+}
+[data-splash="short"] .splash-eyes-blink {
+  animation: blob-blink 4.4s ease-in-out 1500ms infinite;
+}
+[data-splash="short"] .splash-eyes-look {
+  animation: none;
 }
 [data-splash="short"] .splash-wordmark > span {
   animation: splash-rise 200ms var(--ease-standard) 400ms both;
 }
 [data-splash="short"] .splash-status {
-  animation: splash-rise 200ms var(--ease-standard) 500ms both;
+  animation-delay: 500ms;
 }
 
 /* 退场时底下的工作台轻轻浮现 */
@@ -868,23 +1024,24 @@ body {
   transform: scale(0.985);
 }
 
+/* —— 减少动态效果：静态的风车标志 + 字标 —— */
 @media (prefers-reduced-motion: reduce) {
   .splash-glow,
-  .splash-blob-drop,
-  .splash-blob-body,
+  .splash-mark,
+  .splash-spin,
+  .splash-orbit,
+  .splash-piece,
+  .splash-upright,
+  .splash-hub,
   .splash-eyes,
   .splash-eyes-blink,
   .splash-eyes-look,
   .splash-wordmark > span,
-  .splash-status,
-  [data-splash="short"] .splash-blob-drop,
-  [data-splash="short"] .splash-blob-body,
-  [data-splash="short"] .splash-eyes-blink,
-  [data-splash="short"] .splash-wordmark > span,
-  [data-splash="short"] .splash-status {
+  .splash-status {
     animation: none !important;
   }
-  .splash-dot {
+  .splash-fly,
+  .splash-ripple {
     display: none;
   }
   .splash-root[data-state="exiting"] .splash-mascot {

@@ -22,12 +22,12 @@ describe('启动动画版本', () => {
 });
 
 describe('退场时机', () => {
-  it('完整版数据早到时补足 900ms', () => {
-    expect(getExitDelay({ variant: 'full', elapsedMs: 300, ready: true })).toBe(600);
+  it('完整版数据早到时补足到 1800ms', () => {
+    expect(getExitDelay({ variant: 'full', elapsedMs: 300, ready: true })).toBe(1500);
   });
 
   it('数据晚到时立刻退场，不额外拖延', () => {
-    expect(getExitDelay({ variant: 'full', elapsedMs: 1500, ready: true })).toBe(0);
+    expect(getExitDelay({ variant: 'full', elapsedMs: 2000, ready: true })).toBe(0);
     expect(getExitDelay({ variant: 'short', elapsedMs: 50, ready: true })).toBe(0);
     expect(getExitDelay({ variant: 'reduced', elapsedMs: 50, ready: true })).toBe(0);
   });

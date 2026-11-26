@@ -15,22 +15,20 @@ import {
 } from "@/lib/motion/splash";
 import { BUILTIN_MASCOT_PRESETS, MASCOT_SHAPES } from "./mascot-palette";
 
-const BODY_PATH = MASCOT_SHAPES.find((s) => s.id === "circle")!.path;
 const WORDMARK = "PersonaBot".split("");
 
-// 4 位内置角色的颜色从四个方向飞进团子
-const DOT_SLUGS = ["lu-xi", "xia-you", "shen-zhi", "chen-ye"] as const;
-const DOT_OFFSETS = [
-  { x: -64, y: -36 },
-  { x: 62, y: -44 },
-  { x: 58, y: 40 },
-  { x: -60, y: 46 },
-];
-const DOTS = DOT_SLUGS.map((slug, i) => ({
-  color: BUILTIN_MASCOT_PRESETS[slug].color,
-  ...DOT_OFFSETS[i],
-  delay: 600 + i * 60,
-}));
+// 「角色风车」：四位内置角色从四角出场，旋进中心，拼成围着主 bot 的风车标志。
+// 顺序 = 左上、右上、右下、左下；ROT 是各自槽位绕中心的旋转角。
+const CREW = (["lu-xi", "xia-you", "shen-zhi", "chen-ye"] as const).map((slug, i) => {
+  const preset = BUILTIN_MASCOT_PRESETS[slug];
+  return {
+    slug,
+    color: preset.color,
+    path: MASCOT_SHAPES.find((s) => s.id === preset.shape)!.path,
+    rot: i * 90,
+    startDeg: -135 + i * 90,
+  };
+});
 
 export type SplashPhase = "playing" | "exiting" | "done";
 
@@ -138,40 +136,63 @@ export default function SplashScreen({ ready, steps, onPhaseChange }: SplashScre
 
       <div className="splash-stage" aria-hidden="true">
         <div className="splash-mascot">
-          {DOTS.map((dot) => (
-            <span
-              key={dot.color}
-              className="splash-dot"
-              style={
-                {
-                  "--dot-color": dot.color,
-                  "--dot-x": `${dot.x}px`,
-                  "--dot-y": `${dot.y}px`,
-                  animationDelay: `${dot.delay}ms`,
-                } as CSSProperties
-              }
-            />
+          {/* 出场：四个角色从四角弹出，再顺时针旋进中心 */}
+          {CREW.map((c, i) => (
+            <div
+              key={c.slug}
+              className="splash-fly"
+              style={{ "--a0": `${c.startDeg}deg`, "--i": i } as CSSProperties}
+            >
+              <div className="splash-fly-arm">
+                <div className="splash-fly-upright">
+                  <svg viewBox="0 0 64 64" className="splash-fly-body">
+                    <path d={c.path} fill={c.color} />
+                    <rect x="23.5" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
+                    <rect x="35.3" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           ))}
-          <svg viewBox="0 0 64 64" className="splash-blob">
-            <g className="splash-blob-drop">
-              <g className="splash-blob-body">
-                <path d={BODY_PATH} fill="var(--text-primary)" />
+
+          {/* 落定：风车标志（四个角色围着主 bot） */}
+          <div className="splash-mark">
+            <div className="splash-ripple" />
+            <svg viewBox="0 0 120 120" className="splash-mark-svg">
+              <g className="splash-spin">
+                <g className="splash-orbit">
+                  {CREW.map((c, i) => (
+                    <g key={c.slug} transform={`rotate(${c.rot} 60 60)`}>
+                      <g transform="translate(14 6) scale(0.72)">
+                        <g className="splash-piece" style={{ "--i": i } as CSSProperties}>
+                          <g className="splash-upright">
+                            <path d={c.path} fill={c.color} transform={`rotate(${-c.rot} 32 32)`} />
+                          </g>
+                        </g>
+                      </g>
+                    </g>
+                  ))}
+                </g>
+              </g>
+              <g className="splash-hub">
+                <circle cx="60" cy="60" r="18.5" fill="var(--bg-primary)" />
+                <circle cx="60" cy="60" r="15" fill="var(--text-primary)" />
                 <g className="splash-eyes">
                   <g className="splash-eyes-blink">
                     <g className="splash-eyes-look">
-                      <rect x="23.5" y="24" width="5.2" height="11.5" rx="2.6" fill="var(--bg-primary)" />
-                      <rect x="35.3" y="24" width="5.2" height="11.5" rx="2.6" fill="var(--bg-primary)" />
+                      <rect x="52.3" y="55.6" width="4.4" height="8.8" rx="2.2" fill="var(--bg-primary)" />
+                      <rect x="63.3" y="55.6" width="4.4" height="8.8" rx="2.2" fill="var(--bg-primary)" />
                     </g>
                   </g>
                 </g>
               </g>
-            </g>
-          </svg>
+            </svg>
+          </div>
         </div>
 
         <div className="splash-wordmark">
           {WORDMARK.map((ch, i) => (
-            <span key={i} style={{ "--i": i } as CSSProperties}>
+            <span key={i} style={{ "--i": i, "--c": CREW[i % 4].color } as CSSProperties}>
               {ch}
             </span>
           ))}

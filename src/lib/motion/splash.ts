@@ -12,8 +12,8 @@ export interface SplashSteps {
 }
 
 export const SPLASH_TIMING = {
-  /** 完整版至少播到团子睁眼、色点聚拢 */
-  fullMinMs: 900,
+  /** 完整版至少播到风车锁定、主 bot 睁眼眨眼、字标浮现 */
+  fullMinMs: 1800,
   fullExitMs: 360,
   shortExitMs: 220,
   reducedExitMs: 150,
