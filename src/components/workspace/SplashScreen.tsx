@@ -18,15 +18,26 @@ import { BUILTIN_MASCOT_PRESETS, MASCOT_SHAPES } from "./mascot-palette";
 const WORDMARK = "PersonaBot".split("");
 
 // 「角色风车」：四位内置角色从四角出场，旋进中心，拼成围着主 bot 的风车标志。
-// 顺序 = 左上、右上、右下、左下；ROT 是各自槽位绕中心的旋转角。
+// 顺序 = 左上、右上、右下、左下。
+// 性能：所有会动的都是 HTML 包裹层（只动 transform / opacity，走合成线程），
+// 里面的 SVG 一律静止，避免 Chrome 每帧在主线程重绘 SVG。
+const PIECE_SIZE = 57.6; // 每个角色在风车里的尺寸（px）
+// 风车槽位中心（px，相对 150×150 的标志框）：左上、右上、右下、左下
+const SLOT_CENTERS: Array<[number, number]> = [
+  [46.3, 36.3],
+  [113.7, 46.3],
+  [103.7, 113.7],
+  [36.3, 103.7],
+];
+
 const CREW = (["lu-xi", "xia-you", "shen-zhi", "chen-ye"] as const).map((slug, i) => {
   const preset = BUILTIN_MASCOT_PRESETS[slug];
   return {
     slug,
     color: preset.color,
     path: MASCOT_SHAPES.find((s) => s.id === preset.shape)!.path,
-    rot: i * 90,
     startDeg: -135 + i * 90,
+    slot: SLOT_CENTERS[i],
   };
 });
 
@@ -42,7 +53,6 @@ export function hasSplashPlayed(): boolean {
 interface SplashScreenProps {
   ready: boolean;
   steps: SplashSteps;
-  onPhaseChange: (phase: SplashPhase) => void;
 }
 
 function readVariant(reducedMotion: boolean): SplashVariant {
@@ -51,17 +61,41 @@ function readVariant(reducedMotion: boolean): SplashVariant {
   return getSplashVariant({ seenThisSession: attr === "short", reducedMotion });
 }
 
-export default function SplashScreen({ ready, steps, onPhaseChange }: SplashScreenProps) {
+/**
+ * 工作台的浮现由 <html data-splash-phase> + CSS 驱动，不经过 React 状态，
+ * 这样启动画面退场时不会让整个工作台重新渲染一遍（那会和退场动画抢主线程）。
+ */
+function setHtmlPhase(phase: SplashPhase, exitMs?: number) {
+  const el = document.documentElement;
+  if (exitMs !== undefined) el.style.setProperty("--splash-exit", `${exitMs}ms`);
+  if (phase === "done") {
+    el.removeAttribute("data-splash-phase");
+    el.style.removeProperty("--splash-exit");
+  } else {
+    el.setAttribute("data-splash-phase", phase);
+  }
+}
+
+function CharacterSvg({ path, color, eyes }: { path: string; color: string; eyes?: boolean }) {
+  return (
+    <svg viewBox="0 0 64 64" className="splash-char-svg">
+      <path d={path} fill={color} />
+      {eyes && (
+        <>
+          <rect x="23.5" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
+          <rect x="35.3" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+export default function SplashScreen({ ready, steps }: SplashScreenProps) {
   const reducedMotion = useReducedMotion();
   const [phase, setPhase] = useState<SplashPhase>("playing");
   const [exitMs, setExitMs] = useState<number>(SPLASH_TIMING.fullExitMs);
   const [slow, setSlow] = useState(false);
   const phaseRef = useRef<SplashPhase>("playing");
-  const onPhaseChangeRef = useRef(onPhaseChange);
-
-  useEffect(() => {
-    onPhaseChangeRef.current = onPhaseChange;
-  }, [onPhaseChange]);
 
   const startExit = useCallback(
     (skipped: boolean) => {
@@ -74,13 +108,13 @@ export default function SplashScreen({ ready, steps, onPhaseChange }: SplashScre
       } catch {
         // 隐私模式等存储不可用时忽略，下次仍放完整版
       }
+      setHtmlPhase("exiting", duration);
       setExitMs(duration);
       setPhase("exiting");
-      onPhaseChangeRef.current("exiting");
       window.setTimeout(() => {
         phaseRef.current = "done";
+        setHtmlPhase("done");
         setPhase("done");
-        onPhaseChangeRef.current("done");
         if (typeof performance !== "undefined" && performance.mark) {
           performance.mark("splash:exit-end");
         }
@@ -141,15 +175,18 @@ export default function SplashScreen({ ready, steps, onPhaseChange }: SplashScre
             <div
               key={c.slug}
               className="splash-fly"
-              style={{ "--a0": `${c.startDeg}deg`, "--i": i } as CSSProperties}
+              style={{ transform: `rotate(${c.startDeg}deg)`, "--i": i } as CSSProperties}
             >
-              <div className="splash-fly-arm">
-                <div className="splash-fly-upright">
-                  <svg viewBox="0 0 64 64" className="splash-fly-body">
-                    <path d={c.path} fill={c.color} />
-                    <rect x="23.5" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
-                    <rect x="35.3" y="24" width="5.2" height="11.5" rx="2.6" fill="#fff" />
-                  </svg>
+              <div className="splash-fly-spin">
+                <div className="splash-fly-arm">
+                  <div
+                    className="splash-fly-upright"
+                    style={{ transform: `rotate(${-c.startDeg}deg)` }}
+                  >
+                    <div className="splash-fly-pop">
+                      <CharacterSvg path={c.path} color={c.color} eyes />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -158,41 +195,48 @@ export default function SplashScreen({ ready, steps, onPhaseChange }: SplashScre
           {/* 落定：风车标志（四个角色围着主 bot） */}
           <div className="splash-mark">
             <div className="splash-ripple" />
-            <svg viewBox="0 0 120 120" className="splash-mark-svg">
-              <g className="splash-spin">
-                <g className="splash-orbit">
-                  {CREW.map((c, i) => (
-                    <g key={c.slug} transform={`rotate(${c.rot} 60 60)`}>
-                      <g transform="translate(14 6) scale(0.72)">
-                        <g className="splash-piece" style={{ "--i": i } as CSSProperties}>
-                          <g className="splash-upright">
-                            <path d={c.path} fill={c.color} transform={`rotate(${-c.rot} 32 32)`} />
-                          </g>
-                        </g>
-                      </g>
-                    </g>
-                  ))}
-                </g>
-              </g>
-              <g className="splash-hub">
-                <circle cx="60" cy="60" r="18.5" fill="var(--bg-primary)" />
-                <circle cx="60" cy="60" r="15" fill="var(--text-primary)" />
-                <g className="splash-eyes">
-                  <g className="splash-eyes-blink">
-                    <g className="splash-eyes-look">
-                      <rect x="52.3" y="55.6" width="4.4" height="8.8" rx="2.2" fill="var(--bg-primary)" />
-                      <rect x="63.3" y="55.6" width="4.4" height="8.8" rx="2.2" fill="var(--bg-primary)" />
-                    </g>
-                  </g>
-                </g>
-              </g>
-            </svg>
+            <div className="splash-spin">
+              <div className="splash-orbit">
+                {CREW.map((c, i) => (
+                  <div
+                    key={c.slug}
+                    className="splash-slot"
+                    style={{
+                      left: c.slot[0] - PIECE_SIZE / 2,
+                      top: c.slot[1] - PIECE_SIZE / 2,
+                      width: PIECE_SIZE,
+                      height: PIECE_SIZE,
+                    }}
+                  >
+                    <div className="splash-piece" style={{ "--i": i } as CSSProperties}>
+                      <div className="splash-upright">
+                        <CharacterSvg path={c.path} color={c.color} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="splash-hub">
+              <div className="splash-eyes">
+                <div className="splash-eyes-blink">
+                  <div className="splash-eyes-look">
+                    <span className="splash-eye" />
+                    <span className="splash-eye" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="splash-wordmark">
           {WORDMARK.map((ch, i) => (
-            <span key={i} style={{ "--i": i, "--c": CREW[i % 4].color } as CSSProperties}>
+            <span
+              key={i}
+              data-ch={ch}
+              style={{ "--i": i, "--c": CREW[i % 4].color } as CSSProperties}
+            >
               {ch}
             </span>
           ))}
@@ -204,9 +248,10 @@ export default function SplashScreen({ ready, steps, onPhaseChange }: SplashScre
               <span key={i} className="splash-step" data-on={on ? "true" : "false"} />
             ))}
           </span>
-          <span className="animate-text-shimmer">{getSplashStatusText(steps, slow)}</span>
+          <span className="splash-status-text">{getSplashStatusText(steps, slow)}</span>
         </div>
       </div>
     </div>
   );
 }
+

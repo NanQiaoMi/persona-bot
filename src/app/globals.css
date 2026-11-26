@@ -581,12 +581,15 @@ body {
 /* ───────────── 启动动画「角色风车」 ─────────────
  * 时间轴见 docs/superpowers/plans/2026-11-26-splash-animation-plan.md 第 11 节
  * 完整版为默认；html[data-splash="short"] 为会话内再次打开的简短版；
- * prefers-reduced-motion 为静态版。只动 transform / opacity。
+ * prefers-reduced-motion 为静态版。
+ *
+ * 性能约定（第 12 节）：会动的一律是 HTML 包裹层，只动 transform / opacity，
+ * 交给合成线程；SVG 内部全部静止；不做颜色、背景位置等需要重绘的动画。
  *
  *   0–760ms    四个角色从四角弹出（间隔 80ms）
  *   560–1240   顺时针旋进中心并淡出
  *   600–1650   风车标志带惯性从 -300° 转进来，过冲后回正
- *   680–1400   四块角色依次弹入槽位；1120 主 bot 弹出；1240 锁定波纹
+ *   680–1400   四个角色依次弹入槽位；1120 主 bot 弹出；1240 锁定波纹
  *   1400–1820  主 bot 睁眼、眨眼；1300 起字标逐字浮现
  *   3000+      等数据时：风车缓慢自转（角色保持正立）、眨眼循环 */
 
@@ -649,6 +652,31 @@ body {
   opacity: 0;
 }
 
+.splash-char-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* 所有会动的包裹层提前提升为独立图层，动画全程走合成线程 */
+.splash-fly-spin,
+.splash-fly-arm,
+.splash-fly-pop,
+.splash-mark,
+.splash-spin,
+.splash-orbit,
+.splash-piece,
+.splash-upright,
+.splash-hub,
+.splash-eyes,
+.splash-eyes-blink,
+.splash-eyes-look,
+.splash-ripple,
+.splash-wordmark > span {
+  will-change: transform, opacity;
+}
+
 /* —— 出场的四个角色 —— */
 .splash-fly {
   position: absolute;
@@ -656,8 +684,11 @@ body {
   top: 50%;
   width: 0;
   height: 0;
-  transform: rotate(var(--a0));
-  animation: splash-fly-orbit 560ms cubic-bezier(0.55, 0, 0.8, 0.3)
+}
+
+.splash-fly-spin {
+  position: absolute;
+  animation: splash-fly-spin 560ms cubic-bezier(0.55, 0, 0.8, 0.3)
     calc(560ms + var(--i) * 40ms) both;
 }
 
@@ -673,14 +704,11 @@ body {
   width: 36px;
   height: 36px;
   margin: -18px 0 0 -18px;
-  transform: rotate(calc(var(--a0) * -1));
 }
 
-.splash-fly-body {
-  display: block;
+.splash-fly-pop {
   width: 100%;
   height: 100%;
-  overflow: visible;
   animation: splash-fly-pop 440ms var(--ease-spring) calc(var(--i) * 80ms) both;
 }
 
@@ -691,35 +719,28 @@ body {
   animation: splash-lock 520ms ease-out 1240ms;
 }
 
-.splash-mark-svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
 .splash-spin,
-.splash-orbit,
-.splash-piece,
-.splash-upright,
-.splash-hub,
-.splash-eyes,
-.splash-eyes-blink,
-.splash-eyes-look {
-  transform-box: fill-box;
-  transform-origin: center;
+.splash-orbit {
+  position: absolute;
+  inset: 0;
 }
 
 .splash-spin {
-  transform-box: view-box;
-  transform-origin: 60px 60px;
   animation: splash-spin 1050ms 600ms both;
 }
 
 .splash-orbit {
-  transform-box: view-box;
-  transform-origin: 60px 60px;
   animation: splash-turn 24s linear 3000ms infinite;
+}
+
+.splash-slot {
+  position: absolute;
+}
+
+.splash-piece,
+.splash-upright {
+  width: 100%;
+  height: 100%;
 }
 
 .splash-piece {
@@ -733,6 +754,18 @@ body {
 }
 
 .splash-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 37.5px;
+  height: 37.5px;
+  margin: -18.75px 0 0 -18.75px;
+  border-radius: 9999px;
+  background: var(--text-primary);
+  box-shadow: 0 0 0 4.4px var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   animation: splash-hub-pop 480ms var(--ease-spring) 1120ms both;
 }
 
@@ -745,7 +778,17 @@ body {
 }
 
 .splash-eyes-look {
+  display: flex;
+  gap: 8.25px;
   animation: splash-look 900ms var(--ease-standard) 2300ms;
+}
+
+.splash-eye {
+  display: block;
+  width: 5.5px;
+  height: 11px;
+  border-radius: 9999px;
+  background: var(--bg-primary);
 }
 
 .splash-ripple {
@@ -757,19 +800,44 @@ body {
   animation: splash-ripple 700ms var(--ease-standard) 1240ms forwards;
 }
 
-/* —— 字标与状态 —— */
+/* —— 字标与状态 ——
+ * 每个字先显示角色颜色、再回到正文色：用两层文字交叉淡入淡出（只动 opacity），
+ * 不直接动画 color（color 动画每帧都要重绘）。 */
 .splash-wordmark {
   display: flex;
   font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.01em;
-  color: var(--text-primary);
 }
 
 .splash-wordmark > span {
+  position: relative;
   display: inline-block;
+  color: transparent;
   animation: splash-letter 500ms var(--ease-spring) both;
   animation-delay: calc(1300ms + var(--i) * 28ms);
+}
+
+.splash-wordmark > span::before,
+.splash-wordmark > span::after {
+  content: attr(data-ch);
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation-duration: 500ms;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-delay: calc(1300ms + var(--i) * 28ms);
+}
+
+.splash-wordmark > span::before {
+  color: var(--c);
+  animation-name: splash-tint-out;
+}
+
+.splash-wordmark > span::after {
+  color: var(--text-primary);
+  animation-name: splash-tint-in;
 }
 
 .splash-status {
@@ -780,6 +848,10 @@ body {
   font-size: 12px;
   color: var(--text-muted);
   animation: splash-rise 300ms var(--ease-standard) 1900ms both;
+}
+
+.splash-status-text {
+  animation: splash-breathe-text 1.8s ease-in-out 2200ms infinite;
 }
 
 .splash-steps {
@@ -828,12 +900,12 @@ body {
   }
 }
 
-@keyframes splash-fly-orbit {
+@keyframes splash-fly-spin {
   from {
-    transform: rotate(var(--a0));
+    transform: rotate(0deg);
   }
   to {
-    transform: rotate(calc(var(--a0) + 110deg));
+    transform: rotate(110deg);
   }
 }
 
@@ -956,17 +1028,34 @@ body {
   0% {
     opacity: 0;
     transform: translateY(10px);
-    color: var(--c);
   }
   55% {
     opacity: 1;
     transform: translateY(-2px);
-    color: var(--c);
   }
   100% {
     opacity: 1;
     transform: translateY(0);
-    color: var(--text-primary);
+  }
+}
+
+@keyframes splash-tint-out {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes splash-tint-in {
+  0%,
+  55% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
   }
 }
 
@@ -978,6 +1067,12 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes splash-breathe-text {
+  50% {
+    opacity: 0.55;
   }
 }
 
@@ -1010,18 +1105,33 @@ body {
 [data-splash="short"] .splash-wordmark > span {
   animation: splash-rise 200ms var(--ease-standard) 400ms both;
 }
+[data-splash="short"] .splash-wordmark > span::before {
+  display: none;
+}
+[data-splash="short"] .splash-wordmark > span::after {
+  animation: none;
+}
 [data-splash="short"] .splash-status {
   animation-delay: 500ms;
 }
 
-/* 退场时底下的工作台轻轻浮现 */
-[data-splash-reveal] {
+/* —— 工作台浮现：由 <html data-splash-phase> 驱动，不经过 React —— */
+[data-splash-phase] .splash-reveal {
   transition: opacity var(--splash-exit, 360ms) var(--ease-standard),
     transform var(--splash-exit, 360ms) var(--ease-standard);
 }
-[data-splash-reveal="pending"] {
+[data-splash-phase="playing"] .splash-reveal {
   opacity: 0.6;
   transform: scale(0.985);
+  /* 兜底：脚本完全没跑起来时 10 秒后恢复正常 */
+  animation: splash-reveal-failsafe 0s 10s forwards;
+}
+
+@keyframes splash-reveal-failsafe {
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* —— 减少动态效果：静态的风车标志 + 字标 —— */
@@ -1037,17 +1147,20 @@ body {
   .splash-eyes-blink,
   .splash-eyes-look,
   .splash-wordmark > span,
-  .splash-status {
+  .splash-wordmark > span::after,
+  .splash-status,
+  .splash-status-text {
     animation: none !important;
   }
   .splash-fly,
-  .splash-ripple {
+  .splash-ripple,
+  .splash-wordmark > span::before {
     display: none;
   }
   .splash-root[data-state="exiting"] .splash-mascot {
     transform: none;
   }
-  [data-splash-reveal="pending"] {
+  [data-splash-phase="playing"] .splash-reveal {
     opacity: 1;
     transform: none;
   }

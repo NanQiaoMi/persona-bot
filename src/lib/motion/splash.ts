@@ -76,4 +76,4 @@ export const BOOT_SCRIPT = `(function(){var d=document.documentElement;try{var t
   THEME_STORAGE_KEY
 )});if(t==="dark"||t==="light")d.setAttribute("data-theme",t);}catch(e){}try{d.setAttribute("data-splash",sessionStorage.getItem(${JSON.stringify(
   SPLASH_SEEN_KEY
-)})?"short":"full");}catch(e){d.setAttribute("data-splash","full");}})();`;
+)})?"short":"full");}catch(e){d.setAttribute("data-splash","full");}d.setAttribute("data-splash-phase","playing");})();`;

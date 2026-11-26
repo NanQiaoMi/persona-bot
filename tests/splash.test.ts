@@ -91,6 +91,11 @@ describe('<head> 启动脚本', () => {
     expect(run({ theme: 'dark' })['data-theme']).toBe('dark');
   });
 
+  it('首帧就标记启动阶段，让工作台在启动画面下方先处于待浮现状态', () => {
+    expect(run({})['data-splash-phase']).toBe('playing');
+    expect(run({ throwSession: true })['data-splash-phase']).toBe('playing');
+  });
+
   it('忽略非法主题值', () => {
     expect(run({ theme: 'purple' })['data-theme']).toBeUndefined();
   });
