@@ -8,7 +8,11 @@ import {
   buildGuaranteedAppearanceFallback,
   inferAppearanceAnchorFromImage,
 } from '@/lib/persona/appearance-evolution';
-import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
+import {
+  autoCaptureSceneAssetFromPhoto,
+  detectSceneCandidateFromPhoto,
+  matchSceneAssetForCaption,
+} from '@/lib/persona/scene-assets';
 import {
   GET as getAssetsRoute,
   POST as postAssetsRoute,
@@ -208,6 +212,81 @@ describe('Guaranteed Appearance Anchor & Scene Assets', () => {
       const delData = await delRes.json();
       expect(delData.success).toBe(true);
       expect(delData.assets.length).toBe(0);
+    } finally {
+      await storageRepo.deletePersona(slug);
+    }
+  });
+
+  it('detectSceneCandidateFromPhoto identifies explicit locations/rooms and skips vague selfies', () => {
+    expect(
+      detectSceneCandidateFromPhoto({
+        location: '街角咖啡店',
+        caption: '靠窗喝冰拿铁',
+      })
+    ).toEqual({ name: '街角咖啡店', category: 'location' });
+
+    expect(
+      detectSceneCandidateFromPhoto({
+        caption: '在温暖的卧室里对镜自拍',
+      })
+    ).toEqual({ name: '我的卧室', category: 'room' });
+
+    expect(
+      detectSceneCandidateFromPhoto({
+        caption: '室内柔和灯光下的甜酷自拍',
+      })
+    ).toBeNull();
+  });
+
+  it('autoCaptureSceneAssetFromPhoto deduplicates and enables subsequent scene reuse', async () => {
+    const slug = `assets-autoloop-${Date.now()}`;
+    await storageRepo.savePersona(makePersona(slug));
+
+    const img1 = await saveGeneratedMediaBuffer(
+      Buffer.from(TINY_PNG_B64, 'base64'),
+      'png',
+      'photo'
+    );
+    const img2 = await saveGeneratedMediaBuffer(
+      Buffer.from(TINY_PNG_B64, 'base64'),
+      'png',
+      'photo'
+    );
+
+    try {
+      // 1. 占位 SVG 不自动沉淀
+      const svgSkipped = await autoCaptureSceneAssetFromPhoto({
+        slug,
+        imageUrl: 'data:image/svg+xml;utf8,<svg></svg>',
+        location: '街角咖啡店',
+      });
+      expect(svgSkipped).toBeNull();
+
+      // 2. 首次在明确地点拍照，自动固定进资产库
+      const created = await autoCaptureSceneAssetFromPhoto({
+        slug,
+        imageUrl: img1,
+        location: '街角咖啡店',
+        caption: '下午茶时间在街角咖啡店靠窗木桌喝咖啡',
+      });
+      expect(created).toBeTruthy();
+      expect(created?.name).toBe('街角咖啡店');
+      expect(created?.category).toBe('location');
+
+      // 3. 再次在同类型地点拍照时自动去重，不重复生成
+      const duplicate = await autoCaptureSceneAssetFromPhoto({
+        slug,
+        imageUrl: img2,
+        caption: '又来到咖啡店窗边喝冰美式',
+      });
+      expect(duplicate).toBeNull();
+
+      const allAssets = await storageRepo.getSceneAssets(slug);
+      expect(allAssets).toHaveLength(1);
+
+      // 4. 后续在同地点拍照或发朋友圈时能命中该资产复用
+      const reused = matchSceneAssetForCaption(allAssets, '在街角咖啡店木桌边拍一杯热拿铁');
+      expect(reused?.asset.id).toBe(created?.id);
     } finally {
       await storageRepo.deletePersona(slug);
     }

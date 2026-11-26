@@ -94,7 +94,9 @@ export async function refreshWorld(params: {
   const latestPost = posts[0];
   const momentText =
     latestPost && (!world.lastExtractedAt || latestPost.createdAt > world.lastExtractedAt)
-      ? latestPost.content
+      ? [latestPost.location ? `地点：${latestPost.location}` : '', latestPost.content]
+          .filter(Boolean)
+          .join('；')
       : undefined;
 
   const snippetOf = (text: string) => text.replace(/\s+/g, ' ').slice(0, 40);

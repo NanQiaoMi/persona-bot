@@ -7,7 +7,11 @@ import {
   parseJsonFromLlmOutput,
   resolveLlmConfig,
 } from '@/lib/llm/client';
-import { matchSceneAssetForCaption } from '@/lib/persona/scene-assets';
+import {
+  autoCaptureSceneAssetFromPhoto,
+  matchSceneAssetForCaption,
+} from '@/lib/persona/scene-assets';
+import { linkPhotoToWorld } from '@/lib/persona/world-refresh';
 import { storageRepo } from '@/lib/storage/repository';
 import { isNearDuplicateMoment } from '@/lib/persona/moment-dedupe';
 import {
@@ -631,6 +635,21 @@ ${recentContents.length ? `你最近已经发过（这次换个内容，别重�
     post,
     ...current,
   ]);
+
+  if (imageUrl) {
+    await linkPhotoToWorld({
+      slug,
+      caption: `${draft.location} ${draft.imagePrompt}`.trim(),
+      imageUrl,
+    }).catch(() => {});
+    await autoCaptureSceneAssetFromPhoto({
+      slug,
+      imageUrl,
+      caption: draft.imagePrompt,
+      location: draft.location,
+    }).catch(() => {});
+  }
+
   return { post, posts };
 }
 

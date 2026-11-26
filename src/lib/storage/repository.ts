@@ -443,10 +443,20 @@ export class UnifiedStorageRepository {
     if (!(await fileExists(dir))) {
       return false;
     }
-    // 与长记忆后台写入共用一把锁：正在写的先写完，之后的写入会发现目录已删而跳过
-    await this.withLock(`memory-state:${safeSlug}`, () =>
-      fs.rm(dir, { recursive: true, force: true })
+    // 串联持有该角色全部写入锁并重试 ENOTEMPTY：避免后台记忆/世界/场景资产异步写入撞上 rm
+    const lockKeys = [
+      `persona:${safeSlug}`,
+      `conv:${safeSlug}`,
+      `moments:${safeSlug}`,
+      `assets:${safeSlug}`,
+      `world:${safeSlug}`,
+      `memory-state:${safeSlug}`,
+    ];
+    const runWithAllLocks = lockKeys.reduceRight<() => Promise<void>>(
+      (next, key) => () => this.withLock(key, next),
+      () => fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 40 })
     );
+    await runWithAllLocks();
     return true;
   }
 
@@ -867,6 +877,8 @@ export class UnifiedStorageRepository {
     return this.withLock(`assets:${safeSlug}`, async () => {
       const current = await this.getSceneAssets(safeSlug);
       const next = await mutator(current);
+      // 后台自动沉淀可能晚于删除角色才完成：角色目录已不存在时不再重建
+      if (!(await fileExists(this.getPersonaDir(safeSlug)))) return next;
       return this.saveSceneAssets(safeSlug, next);
     });
   }
