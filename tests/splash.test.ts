@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import path from 'path';
 import { describe, expect, it } from 'vitest';
 import {
   BOOT_SCRIPT,
@@ -6,6 +8,7 @@ import {
   getExitDuration,
   getSplashStatusText,
   getSplashVariant,
+  SPLASH_TEMPO,
   SPLASH_TIMING,
 } from '@/lib/motion/splash';
 
@@ -22,12 +25,19 @@ describe('启动动画版本', () => {
 });
 
 describe('退场时机', () => {
-  it('完整版数据早到时补足到 1800ms', () => {
-    expect(getExitDelay({ variant: 'full', elapsedMs: 300, ready: true })).toBe(1500);
+  it('完整版数据早到时补足到最短时长（基准 1800ms × 节奏倍数）', () => {
+    expect(SPLASH_TIMING.fullMinMs).toBe(2700);
+    expect(getExitDelay({ variant: 'full', elapsedMs: 300, ready: true })).toBe(2400);
+  });
+
+  it('CSS 里的节奏倍数与 TS 常量一致', () => {
+    const css = readFileSync(path.resolve(__dirname, '../src/app/globals.css'), 'utf8');
+    const m = css.match(/--splash-tempo:\s*([\d.]+)/);
+    expect(m && Number(m[1])).toBe(SPLASH_TEMPO);
   });
 
   it('数据晚到时立刻退场，不额外拖延', () => {
-    expect(getExitDelay({ variant: 'full', elapsedMs: 2000, ready: true })).toBe(0);
+    expect(getExitDelay({ variant: 'full', elapsedMs: 3000, ready: true })).toBe(0);
     expect(getExitDelay({ variant: 'short', elapsedMs: 50, ready: true })).toBe(0);
     expect(getExitDelay({ variant: 'reduced', elapsedMs: 50, ready: true })).toBe(0);
   });
@@ -40,7 +50,7 @@ describe('退场时机', () => {
   });
 
   it('退场时长按版本区分，跳过时更快', () => {
-    expect(getExitDuration('full')).toBe(360);
+    expect(getExitDuration('full')).toBe(450);
     expect(getExitDuration('short')).toBe(220);
     expect(getExitDuration('reduced')).toBe(150);
     expect(getExitDuration('full', true)).toBe(220);

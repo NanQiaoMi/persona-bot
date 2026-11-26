@@ -11,10 +11,16 @@ export interface SplashSteps {
   detail: boolean;
 }
 
+/**
+ * 节奏倍数：完整版所有关键帧的时长和延迟都乘以它。
+ * 必须与 globals.css 里 .splash-root 的 --splash-tempo 一致（tests/splash.test.ts 会校验）。
+ */
+export const SPLASH_TEMPO = 1.5;
+
 export const SPLASH_TIMING = {
-  /** 完整版至少播到风车锁定、主 bot 睁眼眨眼、字标浮现 */
-  fullMinMs: 1800,
-  fullExitMs: 360,
+  /** 完整版至少播到风车锁定、主 bot 睁眼眨眼、字标浮现（基准 1800ms × 节奏倍数） */
+  fullMinMs: Math.round(1800 * SPLASH_TEMPO),
+  fullExitMs: 450,
   shortExitMs: 220,
   reducedExitMs: 150,
   skipExitMs: 220,
