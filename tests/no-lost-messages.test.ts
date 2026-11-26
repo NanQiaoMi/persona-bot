@@ -242,24 +242,24 @@ describe('切走不断流自动生图与切回消息合并', () => {
     expect(channelKey({ slug: 'mi-mi' })).toBe('chat:mi-mi');
     expect(channelKey({ slug: 'master-bot', groupId: 'g1' })).toBe('group:g1');
 
-    const now = Date.parse('2026-11-26T08:00:00.000Z');
+    const now = Date.now();
     const uFresh: ConversationMessage = {
       id: 'u_fresh',
       role: 'user',
       content: '刚发出的新消息',
-      timestamp: '2026-11-26T07:59:50.000Z',
+      timestamp: new Date(now - 10_000).toISOString(),
     };
     const uSaved: ConversationMessage = {
       id: 'u_saved',
       role: 'user',
       content: '已落盘的消息',
-      timestamp: '2026-11-26T07:59:40.000Z',
+      timestamp: new Date(now - 20_000).toISOString(),
     };
     const uExpired: ConversationMessage = {
       id: 'u_expired',
       role: 'user',
       content: '超时残留',
-      timestamp: '2026-11-26T07:50:00.000Z',
+      timestamp: new Date(now - 10 * 60_000).toISOString(),
     };
 
     const pruned = pruneSavedPendingMessages([uSaved, uFresh, uExpired], [uSaved], now, 120_000);
