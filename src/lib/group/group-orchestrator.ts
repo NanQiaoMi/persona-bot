@@ -3,6 +3,8 @@
  * → 角色之间按需互相接话（有轮数上限）→ 以多气泡 SSE 事件推给前端 → 写入群聊记录。
  * 未配置模型时走离线群聊话术，保证零配置可演示。
  */
+import { createBotFromIntent, createdReplyText } from '@/lib/persona/chat-create';
+import { detectCreateBotIntent } from '@/lib/persona/create-intent';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
 import {
   buildGroupAntiEchoDirective,
@@ -221,6 +223,36 @@ export async function executeGroupTurn(
     }
     // 连发的几条一起作为本轮话题，决定谁来接
     triggerText = turns.map((t) => (t.content || '').trim()).filter(Boolean).join('\n');
+
+    // 群里说「帮我建个 XX 的 bot 叫 X」（可以 @主 bot）：主 bot 直接建好、拉进群，新人先打招呼
+    const createIntent = detectCreateBotIntent(triggerText);
+    if (createIntent) {
+      onEvent?.({ type: 'status', text: `正在给${createIntent.name || '新 Bot'}捏人设...` });
+      const { persona: created, card } = await createBotFromIntent(createIntent);
+      const memberSlugs = Array.from(new Set([...group.memberSlugs, created.slug]));
+      await storageRepo.updateGroup(group.id, { memberSlugs });
+      group.memberSlugs = memberSlugs;
+      members.push(created);
+      metaBySlug.set(created.slug, botMeta(created, members.length - 1));
+      const master = await storageRepo.getPersona('master-bot');
+      const joinedCard = { ...card, joinedGroupId: group.id };
+      const text = createdReplyText(joinedCard, { inGroup: true, autoNamed: !createIntent.name });
+      const masterMsg: ConversationMessage = {
+        id: nextId('master'),
+        role: 'assistant',
+        content: text,
+        timestamp: new Date().toISOString(),
+        fromBot: master ? botMeta(master) : { slug: 'master-bot', name: '主 bot' },
+        bursts: [text],
+        botCreated: joinedCard,
+      };
+      newMessages.push(masterMsg);
+      await storageRepo.appendGroupMessages(group.id, [masterMsg]);
+      history.push(masterMsg);
+      onEvent?.({ type: 'message_part', message: masterMsg, index: newMessages.length - 1, total: newMessages.length, hasMore: true });
+      triggerText = text;
+      triggerSpeakerName = masterMsg.fromBot?.name || '主 bot';
+    }
   }
 
   if (members.length === 0) {

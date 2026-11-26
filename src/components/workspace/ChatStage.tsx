@@ -282,6 +282,9 @@ export default function ChatStage({
   const groupMembers = activeGroup
     ? (personas || []).filter((p) => activeGroup.memberSlugs.includes(p.slug))
     : [];
+  // 群里 @ 的候选：本群成员，再加上主 bot（@ 它可以直接建新 Bot 拉进群）
+  const masterPersona = activeGroup ? (personas || []).find((p) => p.slug === "master-bot") : undefined;
+  const groupMentionables = masterPersona ? [...groupMembers, masterPersona] : groupMembers;
   const groupTypingMember = (() => {
     if (!activeGroup) return null;
     if (groupTyping) return groupMembers.find((p) => p.slug === groupTyping.slug) || null;
@@ -816,7 +819,7 @@ export default function ChatStage({
       <GrokComposer
         personaName={activeGroup ? `群「${activeGroup.name}」` : persona.name}
         accentColor={mascotCfg.color}
-        personas={activeGroup ? groupMembers : personas}
+        personas={activeGroup ? groupMentionables : personas}
         mentionAllCount={activeGroup ? groupMembers.length : undefined}
         value={input}
         onChange={onChangeInput}

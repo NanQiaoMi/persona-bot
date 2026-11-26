@@ -477,6 +477,16 @@ export class UnifiedStorageRepository {
       () => fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 40 })
     );
     await runWithAllLocks();
+    // 角色没了，也从所在的群里移出去（否则群标题人数、@ 列表还算着 TA）
+    try {
+      const groups = await this.listGroups();
+      for (const g of groups) {
+        if (!g.memberSlugs.includes(safeSlug)) continue;
+        await this.updateGroup(g.id, { memberSlugs: g.memberSlugs.filter((s) => s !== safeSlug) });
+      }
+    } catch {
+      // 清理群成员失败不影响删除本身
+    }
     return true;
   }
 

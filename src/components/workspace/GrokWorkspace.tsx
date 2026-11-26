@@ -14,6 +14,7 @@ import {
   SearchResultItem,
 } from "@/lib/storage/types";
 import AvatarPickerModal from "./AvatarPickerModal";
+import { PERSONAS_CHANGED_EVENT } from "./BotCreatedCardView";
 import ChatStage from "./ChatStage";
 import { createFrameBatcher } from "@/lib/chat/frame-batcher";
 import { useStableCallback } from "@/lib/hooks/use-stable-callback";
@@ -988,6 +989,16 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     }
   }, [activeGroupId, messages, saveGroupSeen]);
 
+  // 新 Bot 卡片上点了「撤销」：刷新角色列表和群列表
+  useEffect(() => {
+    const onChanged = () => {
+      void loadPersonaList();
+      void loadGroups();
+    };
+    window.addEventListener(PERSONAS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(PERSONAS_CHANGED_EVENT, onChanged);
+  }, [loadPersonaList, loadGroups]);
+
   // 应用开着时，大约每 5 分钟给没在看的群补一下「你不在时」的聊天，侧栏据此显示未读
   const groupsRef = useRef<GroupChat[]>([]);
   useEffect(() => {
@@ -1590,6 +1601,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       await (requestGroupId ? loadGroups() : loadPersonaList());
       if (finalMessage?.groupInvite) {
         await loadGroups();
+      }
+      // 这一轮主 bot 建了新 Bot：侧栏角色列表（群里建的还有群成员）要跟上
+      if (turnMessages.some((m) => m.botCreated) || finalMessage?.botCreated) {
+        await Promise.all([loadPersonaList(), loadGroups()]);
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {

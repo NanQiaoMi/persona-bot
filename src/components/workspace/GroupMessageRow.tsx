@@ -4,6 +4,7 @@ import { thumbUrl } from "@/lib/media/thumb-url";
 import type { ReactNode } from "react";
 import MediaPendingCard from "./MediaPendingCard";
 import type { ConversationMessage, MediaCard } from "@/lib/storage/types";
+import BotCreatedCardView from "./BotCreatedCardView";
 import BlobMascot from "./BlobMascot";
 import type { MascotShapeId } from "./mascot-palette";
 
@@ -70,6 +71,8 @@ interface GroupMessageRowProps {
   onSelectPersona?: (slug: string) => void;
   renderBody?: (text: string) => ReactNode;
   onRetryMedia?: (messageId: string, cardIndex: number) => Promise<void>;
+  /** 主 bot 建的新 Bot 卡片：这个角色是否还在 */
+  botCreatedExists?: boolean;
 }
 
 const BUBBLE_CLASS =
@@ -83,6 +86,7 @@ export function GroupMessageRow({
   onSelectPersona,
   renderBody,
   onRetryMedia,
+  botCreatedExists,
 }: GroupMessageRowProps) {
   const bot = msg.fromBot;
   const text = msg.content || "";
@@ -156,6 +160,14 @@ export function GroupMessageRow({
           )}
           {body}
         </div>
+        )}
+
+        {msg.botCreated && (
+          <BotCreatedCardView
+            card={msg.botCreated}
+            exists={botCreatedExists !== false}
+            onOpen={onSelectPersona}
+          />
         )}
 
         {/* 照片 / 表情包：生成中显示占位，完成后显示图片 */}
