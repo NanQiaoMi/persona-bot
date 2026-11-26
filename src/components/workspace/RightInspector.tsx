@@ -1,4 +1,5 @@
 "use client";
+import { thumbUrl } from "@/lib/media/thumb-url";
 
 import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -674,8 +675,10 @@ function RightInspector({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={persona.profile.referenceImageUrl}
+                            src={thumbUrl(persona.profile.referenceImageUrl)}
                             alt="人物参考图"
+                            loading="lazy"
+                            decoding="async"
                             className="w-12 h-12 object-cover"
                           />
                         </button>
@@ -968,8 +971,10 @@ function RightInspector({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={asset.imageUrl}
+                              src={thumbUrl(asset.imageUrl)}
                               alt={asset.name}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover"
                             />
                           </button>

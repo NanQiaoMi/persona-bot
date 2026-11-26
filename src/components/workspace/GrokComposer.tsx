@@ -336,6 +336,7 @@ export default function GrokComposer({
               <img
                 src={activeImagePreview}
                 alt="上传预览"
+                decoding="async"
                 className="w-full h-full object-cover"
               />
               <button

@@ -1,4 +1,5 @@
 "use client";
+import { thumbUrl } from "@/lib/media/thumb-url";
 
 import type { ReactNode } from "react";
 import MediaPendingCard from "./MediaPendingCard";
@@ -191,9 +192,11 @@ function GroupMediaCard({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={card.imageUrl}
+        src={thumbUrl(card.imageUrl)}
         alt={card.caption}
         title={card.caption}
+        loading="lazy"
+        decoding="async"
         className={`mt-1.5 rounded-2xl border border-[var(--border-subtle)] object-cover ${
           isSticker ? "w-[120px] h-[120px] bg-transparent" : "max-w-[220px] max-h-[280px]"
         }`}

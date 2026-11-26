@@ -44,7 +44,7 @@ export const WeChatAvatar: React.FC<WeChatAvatarProps> = ({
     <div className={`relative inline-block ${className}`}>
       <div className={`${sizeStyles[size]} rounded-lg overflow-hidden`}>
         {imageUrl ? (
-          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           <div
             className={`w-full h-full flex items-center justify-center text-white font-medium ${getColorFromName(name)}`}

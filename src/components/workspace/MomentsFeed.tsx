@@ -1,4 +1,5 @@
 "use client";
+import { thumbUrl } from "@/lib/media/thumb-url";
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -228,8 +229,10 @@ export default function MomentsFeed({
               {persona.profile.referenceImageUrl || mascotCfg.image ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
-                  src={persona.profile.referenceImageUrl || mascotCfg.image}
+                  src={thumbUrl(persona.profile.referenceImageUrl || mascotCfg.image)}
                   alt={persona.name}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -299,8 +302,10 @@ export default function MomentsFeed({
                     {persona.profile.referenceImageUrl || mascotCfg.image ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={persona.profile.referenceImageUrl || mascotCfg.image}
+                        src={thumbUrl(persona.profile.referenceImageUrl || mascotCfg.image)}
                         alt={post.authorName}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -365,9 +370,10 @@ export default function MomentsFeed({
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={imgUrl}
+                          src={thumbUrl(imgUrl)}
                           alt={post.imageCaptions?.[i] || "朋友圈配图"}
                           loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover transition-transform duration-300 group-hover/post:scale-[1.015]"
                         />
                       </button>

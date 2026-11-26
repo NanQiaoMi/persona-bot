@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { ensureThumbnail } from '@/lib/media/thumbnails';
 import {
   LOCAL_CHAT_MODELS,
   LOCAL_GATEWAY_BASE_URL,
@@ -191,6 +192,8 @@ export async function saveGeneratedMediaBuffer(
   const filename = `${safePrefix}_${Date.now()}_${rand}.${ext}`;
   const fullPath = path.join(GENERATED_MEDIA_DIR, filename);
   await fs.writeFile(fullPath, buffer);
+  // 落盘时顺手生成缩略图，聊天卡片 / 相册第一次打开就是小图；失败不影响原图
+  await ensureThumbnail(GENERATED_MEDIA_DIR, filename).catch(() => null);
   return `/api/media/${filename}`;
 }
 
