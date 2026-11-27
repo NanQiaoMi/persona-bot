@@ -5,13 +5,19 @@
  * - 由在场状态推导回复前的「没看到消息」延迟与打字速度，并生成注入提示词的说明
  * 纯函数，不读写存储；now 可注入，方便测试。
  */
-import { DEFAULT_RHYTHM_ARCHETYPE, RHYTHM_TEMPLATES } from './rhythm-templates';
+import {
+  DEFAULT_RHYTHM_ARCHETYPE,
+  matchSpecializedRhythmOverride,
+  RHYTHM_TEMPLATES,
+} from './rhythm-templates';
 import type { Availability, RhythmArchetype, RhythmSlot } from './rhythm-types';
+import type { DailyRhythmOverride } from './spec';
 
 export interface PresenceSubject {
   slug: string;
   name?: string;
   profile?: { occupation?: string; personalityTags?: string[] };
+  spec?: { dailyRhythmOverride?: DailyRhythmOverride };
 }
 
 export interface PresenceState {
@@ -75,7 +81,8 @@ function findSlot(slots: RhythmSlot[], minute: number): { slot: RhythmSlot; inde
 }
 
 export function getPresenceState(subject: PresenceSubject, now: Date = new Date()): PresenceState {
-  const archetype = pickRhythmArchetype(subject.profile);
+  const override = subject.spec?.dailyRhythmOverride ?? matchSpecializedRhythmOverride(subject.profile);
+  const archetype = override?.archetype ?? pickRhythmArchetype(subject.profile);
   const tpl = RHYTHM_TEMPLATES[archetype];
   const shifted = new Date(now.getTime() - rhythmShiftMinutes(subject.slug) * 60_000);
   const day = shifted.getDay();
@@ -84,15 +91,38 @@ export function getPresenceState(subject: PresenceSubject, now: Date = new Date(
   const minute = shifted.getHours() * 60 + shifted.getMinutes();
   const { slot, index } = findSlot(slots, minute);
 
-  const pick = (s: RhythmSlot) =>
-    s.activities[hashString(`${subject.slug}|${dateKey(shifted)}|${s.startMin}`) % s.activities.length] ||
-    s.activities[0] ||
-    '';
+  const poolForSlot = (s: RhythmSlot): string[] => {
+    const slotHour = Math.floor(s.startMin / 60);
+    if (s.availability === 'asleep' && override?.asleepActivities?.length) {
+      return override.asleepActivities;
+    }
+    if (s.availability === 'busy' && override?.busyActivities?.length) {
+      return override.busyActivities;
+    }
+    if (s.availability === 'free') {
+      if ((slotHour >= 22 || slotHour < 4) && override?.lateNightActivities?.length) {
+        return override.lateNightActivities;
+      }
+      if (override?.freeActivities?.length) {
+        return override.freeActivities;
+      }
+    }
+    return s.activities;
+  };
+
+  const pick = (s: RhythmSlot) => {
+    const pool = poolForSlot(s);
+    return (
+      pool[hashString(`${subject.slug}|${dateKey(shifted)}|${s.startMin}`) % pool.length] ||
+      pool[0] ||
+      ''
+    );
+  };
   const next = slots[(index + 1) % slots.length];
 
   return {
     archetype,
-    archetypeLabel: tpl.label,
+    archetypeLabel: override?.label || tpl.label,
     availability: slot.availability,
     activity: pick(slot),
     minutesUntilChange: Math.max(1, slot.endMin - minute),

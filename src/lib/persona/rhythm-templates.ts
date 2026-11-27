@@ -1,5 +1,6 @@
 /** 五类作息模板：时间单位为「当天第几分钟」。每张表首尾相接覆盖 0~1440。 */
 
+import type { DailyRhythmOverride } from './spec';
 import type { RhythmArchetype, RhythmTemplate } from './rhythm-types';
 
 /** 把 时:分 转成当天分钟数，如 m(7, 30) === 450 */
@@ -157,5 +158,87 @@ export const RHYTHM_TEMPLATES: Record<RhythmArchetype, RhythmTemplate> = {
   night_owl: nightOwl,
   service,
 };
+
+export interface SpecializedRhythmProfile {
+  id: string;
+  keywords: string[];
+  override: DailyRhythmOverride;
+}
+
+/** 细分职业/兴趣作息词表覆盖（不改变 RHYTHM_TEMPLATES 5 大时间骨架，解决同质化“画稿/改稿”错配） */
+export const SPECIALIZED_RHYTHM_OVERRIDES: SpecializedRhythmProfile[] = [
+  {
+    id: 'travel_photographer',
+    keywords: ['旅拍', '摄影', '胶片', '街拍'],
+    override: {
+      archetype: 'creative',
+      label: '自由旅拍摄影师',
+      freeActivities: ['整理胶片底片中', '窗边喝冰手冲', '在旧书店发呆', '看海边日落光影'],
+      busyActivities: ['背相机扫街采风', '在暗房洗底片', '蹲日落机位中', '修旅拍图选片中'],
+      asleepActivities: ['睡着了', '梦里在海边散步'],
+      lateNightActivities: ['挑今天拍的胶片', '听海浪白噪音'],
+    },
+  },
+  {
+    id: 'gamer',
+    keywords: ['游戏', '电竞', '开黑', '双排', '排位'],
+    override: {
+      archetype: 'night_owl',
+      label: '游戏测试 / 开黑搭子',
+      freeActivities: ['研究新版本攻略', '逛游戏社区吃瓜', '喝气泡水刷视频', '开把休闲图热身'],
+      busyActivities: ['测新版本bug中', '组队打排位冲分', '写测试复现报告', '高强度开黑中'],
+      asleepActivities: ['熬完夜补觉中', '睡得正香'],
+      lateNightActivities: ['深夜排位连胜中', '挂麦刷副本中'],
+    },
+  },
+  {
+    id: 'radio_host',
+    keywords: ['电台', '书房', '心理', '深夜陪伴'],
+    override: {
+      archetype: 'night_owl',
+      label: '深夜电台策划',
+      freeActivities: ['书房泡红茶看书', '回听听众来信', '阳台吹晚风发呆', '挑今晚电台歌单'],
+      busyActivities: ['录深夜电台节目', '整理听众故事稿', '剪辑电台音频中', '和团队对专栏'],
+      asleepActivities: ['拉紧窗帘补觉中', '睡得正香'],
+      lateNightActivities: ['亮着台灯录晚安', '读完最后几页书'],
+    },
+  },
+  {
+    id: 'foodie_explorer',
+    keywords: ['美食', '探店', '烧烤', '夜宵', '炭火'],
+    override: {
+      archetype: 'night_owl',
+      label: '城市美食探店博主',
+      freeActivities: ['刷老巷子美食地图', '窝沙发看探店视频', '喝冰美式消食中', '计划今晚夜宵单'],
+      busyActivities: ['在老巷子探店试菜', '拍炭火烧烤素材', '剪探店避雷视频', '大排档排队等位'],
+      asleepActivities: ['吃撑了睡得正香', '睡着了'],
+      lateNightActivities: ['大排档撸串测评', '巷口打包夜宵中'],
+    },
+  },
+];
+
+export function matchSpecializedRhythmOverride(profile?: {
+  occupation?: string;
+  personalityTags?: string[];
+}): DailyRhythmOverride | undefined {
+  const haystack = [profile?.occupation || '', ...(profile?.personalityTags || [])]
+    .join(' ')
+    .toLowerCase();
+  if (!haystack.trim()) return undefined;
+
+  let best: DailyRhythmOverride | undefined;
+  let bestScore = 0;
+  for (const item of SPECIALIZED_RHYTHM_OVERRIDES) {
+    const score = item.keywords.reduce(
+      (acc, k) => (k && haystack.includes(k.toLowerCase()) ? acc + 1 : acc),
+      0
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = item.override;
+    }
+  }
+  return best;
+}
 
 export const DEFAULT_RHYTHM_ARCHETYPE: RhythmArchetype = 'office';
