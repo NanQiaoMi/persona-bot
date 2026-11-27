@@ -11,7 +11,7 @@ import {
   openerKey,
   WATCHED_PHRASES,
 } from '@/lib/persona/repetition-guard';
-import type { ConversationMessage, PersonaMode, PersonaProfile } from '@/lib/storage/types';
+import type { ConversationMessage, PersonaMode, PersonaProfile, PersonaRecord } from '@/lib/storage/types';
 
 export interface GroupMemberLite {
   slug: string;
@@ -337,6 +337,26 @@ export function buildGroupTranscriptForSpeaker(
   return turns;
 }
 
+/** 为群聊成员生成仅针对“当前在群里的人”的轻量人物关系提示 */
+export function buildPeerRelationsDirective(
+  persona: Pick<PersonaRecord, 'spec'>,
+  otherMembers: Array<{ slug: string; name: string }>
+): string {
+  const relations = persona.spec?.peerRelations;
+  if (!Array.isArray(relations) || relations.length === 0 || otherMembers.length === 0) {
+    return '';
+  }
+  const presentSlugs = new Set(otherMembers.map((m) => m.slug));
+  const matched = relations.filter((r) => presentSlugs.has(r.targetSlug));
+  if (matched.length === 0) return '';
+  return [
+    '- 你和群里熟人的相处氛围：',
+    ...matched.slice(0, 4).map(
+      (r) => `  · 对「${r.targetName}」（${r.relation}）：${r.tone}`
+    ),
+  ].join('\n');
+}
+
 /** 群聊场景追加到系统提示词的规则 */
 export function buildGroupSystemDirective(params: {
   groupName: string;
@@ -345,12 +365,14 @@ export function buildGroupSystemDirective(params: {
   otherMemberNames: string[];
   replyTo?: { name: string; text: string };
   isKickoff?: boolean;
+  peerRelationsHint?: string;
 }): string {
   const others = params.otherMemberNames.join('、') || '其他人';
   const lines = [
     '## 群聊模式（本轮你在微信群里说话）',
     `- 群名「${params.groupName}」，群里有：我（群主，也就是和你单聊的那个人）、${others}，以及你自己（${params.speakerName}）。`,
     params.topic ? `- 这个群的话题：${params.topic}` : '',
+    params.peerRelationsHint || '',
     '- 上下文里「名字：内容」是别人说的话，不带前缀的是你自己之前说的。',
     `- 回复时不要加自己的名字前缀（不要写「${params.speakerName}：」），直接说内容。`,
     '- 像真实群聊一样说话：一次只发 1~2 条短消息，比单聊更短更随意；可以接别人的话、吐槽、附和或唱反调，必要时用「@名字」点名某个人。',

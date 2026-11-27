@@ -7,6 +7,8 @@ import {
   parseJsonFromLlmOutput,
   resolveLlmConfig,
 } from '@/lib/llm/client';
+import { getOrInitDailyLife, recordMomentInDailyLife } from '@/lib/persona/daily-life';
+import { getPresenceState } from '@/lib/persona/daily-rhythm';
 import {
   autoCaptureSceneAssetFromPhoto,
   matchSceneAssetForCaption,
@@ -15,6 +17,7 @@ import { linkPhotoToWorld } from '@/lib/persona/world-refresh';
 import { storageRepo } from '@/lib/storage/repository';
 import { isNearDuplicateMoment } from '@/lib/persona/moment-dedupe';
 import {
+  ConversationMessage,
   MomentComment,
   MomentPost,
   MomentTopic,
@@ -452,6 +455,9 @@ export async function generateNewMomentPost(
     throw new Error('Persona not found');
   }
 
+  const dailyLife = await getOrInitDailyLife(persona).catch(() => null);
+  const sulkingLevel = persona.emotionState?.sulking?.level ?? 0;
+
   const llm = resolveLlmConfig(settings);
   const topicFilter = options?.topic;
   // 最近发过的内容：新动态不能和它们太像
@@ -482,6 +488,8 @@ export async function generateNewMomentPost(
       const prompt = `请你以「${persona.name}」的本人视角，发一条像真人在微信朋友圈发的生活图文动态。
 当前时段：${timeLabel}
 性格标签：${persona.profile.personalityTags.join('、') || '自然随性'}
+${dailyLife ? `今日生活主线：${dailyLife.mainEvent}\n今日心情底色：${dailyLife.moodTone}` : ''}
+${sulkingLevel >= 1 ? `【情绪状态提醒】你现在正有点闹别扭（${persona.emotionState?.sulking?.reason || '心情不太好'}），绝对不要发开心雀跃、岁月静好或甜腻日常，语气克制简短或偏冷感。` : ''}
 ${topicFilter ? `希望的主题类型：${topicFilter}（travel旅行/scenery风景/food美食/selfie个人生活照/daily日常/night夜色）` : '主题类型：从旅行风景、日常随手拍、美食、城市夜景或生活照中自然挑一个'}
 ${options?.hint ? `额外提示：${options.hint}` : ''}
 近期记忆参考：${persona.memoriesMd.slice(-300)}
@@ -635,6 +643,7 @@ ${recentContents.length ? `你最近已经发过（这次换个内容，别重�
     post,
     ...current,
   ]);
+  await recordMomentInDailyLife(persona, post).catch(() => undefined);
 
   if (imageUrl) {
     await linkPhotoToWorld({
@@ -839,7 +848,39 @@ export function shouldAutoPublishMoment(params: {
 }
 
 /**
- * 全自主后台发朋友圈：按冷却和语境判断是否到点，满足则自动调用生成模型与生图模型发新动态
+ * 朋友圈自动发布作息与情绪门控：
+ * - 闹别扭 >=2 级冷处理期间不自动发违和动态
+ * - 按作息正在睡觉时，访问页面不发；聊天触发时仅当最近 15 分钟内无用户活跃对话才拦截
+ */
+export function canAutoPublishMomentNow(
+  persona: PersonaRecord,
+  trigger: 'chat' | 'visit',
+  recentMsgs: ConversationMessage[],
+  now: Date = new Date()
+): { allowed: boolean; reason?: string } {
+  if ((persona.emotionState?.sulking?.level ?? 0) >= 2) {
+    return { allowed: false, reason: '闹别扭冷处理期间不自动发违和动态' };
+  }
+
+  const presence = getPresenceState(persona, now);
+  if (presence.availability === 'asleep') {
+    if (trigger === 'visit') {
+      return { allowed: false, reason: '按作息此刻正在睡觉' };
+    }
+    const lastUserMsg = [...recentMsgs].reverse().find((m) => m.role === 'user');
+    const lastUserMs = lastUserMsg?.timestamp ? new Date(lastUserMsg.timestamp).getTime() : NaN;
+    const isFreshActiveChat =
+      Number.isFinite(lastUserMs) && now.getTime() - lastUserMs <= 15 * 60_000;
+    if (!isFreshActiveChat) {
+      return { allowed: false, reason: '按作息此刻正在睡觉且无刚发生的对话' };
+    }
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * 全自主后台发朋友圈：按作息/情绪门控与冷却规则判断是否到点，满足则自动调用生成模型与生图模型发新动态
  */
 export async function maybeAutoPublishMoment(
   slug: string,
@@ -852,12 +893,16 @@ export async function maybeAutoPublishMoment(
 
   inFlightAutoMoments.add(slug);
   try {
+    const now = new Date(options?.nowMs ?? Date.now());
     const [persona, allPersonas, recentMsgs] = await Promise.all([
       storageRepo.getPersona(slug),
       storageRepo.listPersonas(),
       storageRepo.getConversation(slug, 12),
     ]);
     if (!persona) return false;
+
+    const gate = canAutoPublishMomentNow(persona, trigger, recentMsgs, now);
+    if (!gate.allowed) return false;
 
     const posts = await ensureInitialMoments(persona, allPersonas);
     const recentUserMessages = recentMsgs
@@ -868,7 +913,7 @@ export async function maybeAutoPublishMoment(
       posts,
       recentUserMessages,
       trigger,
-      nowMs: options?.nowMs,
+      nowMs: now.getTime(),
     });
     if (!decision.due) return false;
 
