@@ -137,6 +137,18 @@ export interface PeerRelation {
   tone: string;
 }
 
+export interface UserImpression {
+  /** 角色对你的专属称呼/昵称（可选） */
+  nickname?: string;
+  /** TA 眼中的你一句话主观印象 */
+  summary?: string;
+  /** TA 观察到的你的习惯/偏好/软肋（按角色严格隔离，最多 6 条） */
+  observedHabits: string[];
+  /** 最近相处感受 */
+  recentVibe?: string;
+  updatedAt?: string;
+}
+
 export interface PersonaSpec {
   specVersion: number;
   fingerprint?: StyleFingerprint;
@@ -151,6 +163,8 @@ export interface PersonaSpec {
   dailyRhythmOverride?: DailyRhythmOverride;
   /** 群聊里对其他成员的轻量人物关系印象 */
   peerRelations?: PeerRelation[];
+  /** TA 眼中的你（按角色严格隔离的主观认知档案） */
+  userImpression?: UserImpression;
   learned: LearnedItem[];
   /** 最近若干轮回复的质量分（风格分 × 用户反应），作为试用规则的对照基线 */
   recentQuality?: number[];
@@ -321,6 +335,18 @@ export function ensurePersonaSpec(personaMd: string, spec?: Partial<PersonaSpec>
       ...(spec.temperament ? { temperament: spec.temperament } : {}),
       ...(spec.dailyRhythmOverride ? { dailyRhythmOverride: spec.dailyRhythmOverride } : {}),
       ...(Array.isArray(spec.peerRelations) ? { peerRelations: spec.peerRelations } : {}),
+      ...(spec.userImpression && typeof spec.userImpression === 'object'
+        ? {
+            userImpression: {
+              ...spec.userImpression,
+              observedHabits: Array.isArray(spec.userImpression.observedHabits)
+                ? spec.userImpression.observedHabits.filter(
+                    (h): h is string => typeof h === 'string' && h.trim().length > 0
+                  )
+                : [],
+            },
+          }
+        : {}),
       learned: spec.learned.filter((it) => it && typeof it.text === 'string'),
       recentQuality: Array.isArray(spec.recentQuality) ? spec.recentQuality.slice(-12) : undefined,
       memoryStats: spec.memoryStats && typeof spec.memoryStats === 'object' ? spec.memoryStats : undefined,

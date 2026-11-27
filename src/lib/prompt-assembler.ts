@@ -1,10 +1,13 @@
+import { buildRelationStageDirective } from '@/lib/emotion/relation-stage';
 import { DeepSearchResponse, formatSearchContextForPrompt } from '@/lib/grok/deep-search';
 import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { fitPersonaToBudget, fitProfileToBudget } from '@/lib/persona/prompt-budget';
 import { OOC_GUARD_PROMPT } from '@/lib/persona/prompts';
+import type { MemoryStat } from '@/lib/persona/spec';
 import { BlendedStyle } from '@/lib/persona/style-blend';
 import { UserChatStyleProfile } from '@/lib/persona/style-loop';
+import { buildUserImpressionDirective } from '@/lib/persona/user-impression';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
 
@@ -40,6 +43,12 @@ export interface AssembleOptions {
   cognitiveReflectionDirective?: string;
   /** 统一今日生活与心境板 */
   dailyLifeDirective?: string;
+  /** 4 档关系阶段行为指令 */
+  relationStageDirective?: string;
+  /** 按角色隔离的「TA 眼中的你」认知档案 */
+  userImpressionDirective?: string;
+  /** 记忆条目的重要度与召回统计 */
+  memoryStats?: Record<string, MemoryStat>;
   /** 当前闹别扭等级 (0~3)，用于对拍照/贴纸能力做分层门控 */
   sulkingLevel?: number;
 }
@@ -71,14 +80,28 @@ export class PromptAssembler {
     };
   }
 
-  private filterMemories(memories: string, lastMessage?: string): string {
+  private filterMemories(
+    memories: string,
+    lastMessage?: string,
+    memoryStats?: Record<string, MemoryStat>
+  ): string {
     return retrieveRelevantMemories(memories, lastMessage, {
       topK: 6,
       budgetChars: 1500,
+      memoryStats,
     }).context;
   }
 
   assembleFromRecord(persona: PersonaRecord, options: AssembleOptions = {}): string {
+    const isMaster = Boolean(persona.isMaster || persona.slug === 'master-bot');
+    const intimacy = options.emotionSummary?.intimacy ?? persona.intimacy;
+    const relationStageDirective =
+      options.relationStageDirective ??
+      (isMaster ? '' : buildRelationStageDirective(intimacy));
+    const userImpressionDirective =
+      options.userImpressionDirective ??
+      (isMaster ? '' : buildUserImpressionDirective(persona.spec?.userImpression));
+
     return this.assembleSystemPrompt(
       {
         persona_md: persona.personaMd,
@@ -98,7 +121,12 @@ export class PromptAssembler {
         intimacy: persona.intimacy,
       },
       options.lastUserMessage,
-      options
+      {
+        ...options,
+        memoryStats: options.memoryStats ?? persona.spec?.memoryStats,
+        relationStageDirective,
+        userImpressionDirective,
+      }
     );
   }
 
@@ -118,7 +146,11 @@ export class PromptAssembler {
       options.mode || (data.meta?.defaultMode as PersonaMode) || 'authentic'
     );
 
-    const filteredMemories = this.filterMemories(data.memories_md, lastUserMessage);
+    const filteredMemories = this.filterMemories(
+      data.memories_md,
+      lastUserMessage,
+      options.memoryStats
+    );
     const searchBlock = formatSearchContextForPrompt(options.searchContext);
     const sulkingLevel = options.sulkingLevel ?? 0;
 
@@ -173,6 +205,11 @@ export class PromptAssembler {
     }
     sections.push('');
 
+    if (options.relationStageDirective) {
+      sections.push(options.relationStageDirective);
+      sections.push('');
+    }
+
     if (options.sulkingDirective) {
       sections.push(options.sulkingDirective);
       sections.push('- 【优先级仲裁】以上实时情绪与脾气余波高于下方所有对话模式调味，绝对不许强颜欢笑或一秒变回客服热情。');
@@ -190,6 +227,11 @@ export class PromptAssembler {
     sections.push('## 共同记忆锚点 (Shared Memories)');
     sections.push(filteredMemories || '（暂无特定历史记忆）');
     sections.push('');
+
+    if (options.userImpressionDirective) {
+      sections.push(options.userImpressionDirective);
+      sections.push('');
+    }
 
     if (options.dailyLifeDirective) {
       sections.push(options.dailyLifeDirective);
