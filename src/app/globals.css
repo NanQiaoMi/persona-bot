@@ -5,74 +5,151 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Apple-Native Light Minimalist Palette (Default Grok Bot Aesthetic) */
+/* Apple/Linear Minimalist Light Palette */
 :root,
 [data-theme="light"] {
   --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f7;
-  --bg-tertiary: #e9e9ef;
-  --bg-bubble-ai: #f2f2f5;
+  --bg-secondary: #f7f7f9;
+  --bg-tertiary: #efeff2;
+  --bg-bubble-ai: #f4f4f6;
   --bg-composer: #ffffff;
   --bg-elevated: rgba(255, 255, 255, 0.88);
-  --bg-hover: rgba(0, 0, 0, 0.055);
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-muted: #8e8e93;
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-strong: rgba(0, 0, 0, 0.12);
+  --bg-hover: rgba(0, 0, 0, 0.045);
+
+  /* Surface hierarchy */
+  --surface-canvas: var(--bg-primary);
+  --surface-panel: var(--bg-secondary);
+  --surface-card: #ffffff;
+  --surface-card-hover: #fafafb;
+  --surface-active: #ffffff;
+  --surface-popover: rgba(255, 255, 255, 0.9);
+  --surface-overlay: rgba(15, 15, 20, 0.24);
+
+  /* Typography */
+  --text-primary: #18181b;
+  --text-secondary: #63636e;
+  --text-muted: #8e8e98;
+
+  /* Crisp hairline borders */
+  --border-hairline: rgba(0, 0, 0, 0.07);
+  --border-subtle: rgba(0, 0, 0, 0.065);
+  --border-strong: rgba(0, 0, 0, 0.13);
+
+  /* Accents & Focus */
   --accent-teal: #18a999;
   --accent-emerald: #10b981;
   --accent-violet: #7c4dff;
   --accent-rose: #f43f5e;
   --accent-cyan: #2684ff;
-  --user-capsule: #1d1d1f;
+  --focus-ring-color: rgba(24, 169, 153, 0.45);
+
+  --user-capsule: #18181b;
   --user-capsule-text: #ffffff;
-  --card-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.07),
-    0 2px 6px rgba(0, 0, 0, 0.04),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
-  --pill-shadow: 0 4px 16px rgba(0, 0, 0, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.04),
+
+  /* Multi-layer shadows */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03),
+    0 8px 24px -4px rgba(0, 0, 0, 0.06),
     0 0 0 1px rgba(0, 0, 0, 0.05);
-  --active-row-shadow: 0 4px 14px rgba(0, 0, 0, 0.05),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
+  --pill-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.055);
+  --active-row-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 2px 8px -2px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.055);
+  --popover-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06),
+    0 16px 40px -8px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-/* Obsidian Dark Theme (Toggleable) */
+/* Obsidian Dark Theme (Linear-inspired luminance steps) */
 [data-theme="dark"] {
-  --bg-primary: #09090c;
-  --bg-secondary: #111116;
-  --bg-tertiary: #1c1c24;
-  --bg-bubble-ai: #17171f;
-  --bg-composer: #14141b;
-  --bg-elevated: rgba(20, 20, 27, 0.86);
-  --bg-hover: rgba(255, 255, 255, 0.08);
-  --text-primary: #f5f5f7;
+  --bg-primary: #0a0a0d;
+  --bg-secondary: #101014;
+  --bg-tertiary: #18181f;
+  --bg-bubble-ai: #15151b;
+  --bg-composer: #121217;
+  --bg-elevated: rgba(22, 22, 29, 0.88);
+  --bg-hover: rgba(255, 255, 255, 0.06);
+
+  /* Surface hierarchy */
+  --surface-canvas: var(--bg-primary);
+  --surface-panel: var(--bg-secondary);
+  --surface-card: #14141a;
+  --surface-card-hover: #1a1a22;
+  --surface-active: #1b1b23;
+  --surface-popover: rgba(24, 24, 31, 0.92);
+  --surface-overlay: rgba(0, 0, 0, 0.56);
+
+  /* Typography */
+  --text-primary: #f4f4f6;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Crisp hairline borders */
+  --border-hairline: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.15);
+
+  /* Accents & Focus */
   --accent-teal: #18a999;
   --accent-emerald: #10b981;
   --accent-violet: #a855f7;
   --accent-rose: #f43f5e;
   --accent-cyan: #38bdf8;
-  --user-capsule: #272730;
-  --user-capsule-text: #f5f5f7;
-  --card-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
-  --pill-shadow: 0 4px 18px rgba(0, 0, 0, 0.42),
+  --focus-ring-color: rgba(45, 212, 191, 0.45);
+
+  --user-capsule: #262630;
+  --user-capsule-text: #f4f4f6;
+
+  /* Multi-layer shadows with subtle top inner highlight */
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 12px 32px -4px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+  --pill-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.08);
-  --active-row-shadow: 0 4px 16px rgba(0, 0, 0, 0.35),
+  --active-row-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 10px rgba(0, 0, 0, 0.32),
     0 0 0 1px rgba(255, 255, 255, 0.08);
+  --popover-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 24px 48px -8px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.09);
 }
 
 body {
-  background: var(--bg-primary);
+  background: var(--surface-canvas);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Accessible focus rings */
+:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.focus-within-ring:focus-within {
+  box-shadow: 0 0 0 2px var(--focus-ring-color);
 }
 
 ::-webkit-scrollbar {
@@ -518,6 +595,94 @@ body {
 .group\/send .animate-wave-1, .group\/send .animate-wave-2, .group\/send .animate-wave-3, .group\/send .animate-wave-4 { animation-play-state: paused; }
 .group\/send:hover .animate-wave-1, .group\/send:hover .animate-wave-2, .group\/send:hover .animate-wave-3, .group\/send:hover .animate-wave-4 { animation-play-state: running; }
 
+/* ===== Surface, Hairline, Typography & Micro-transition Utilities ===== */
+.surface-canvas {
+  background: var(--surface-canvas);
+}
+
+.surface-panel {
+  background: var(--surface-panel);
+}
+
+.surface-card {
+  background: var(--surface-card);
+  box-shadow: var(--card-shadow);
+}
+
+.surface-popover {
+  background: var(--surface-popover);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--popover-shadow);
+}
+
+.hairline-border {
+  border: 1px solid var(--border-hairline);
+}
+.hairline-t {
+  border-top: 1px solid var(--border-hairline);
+}
+.hairline-b {
+  border-bottom: 1px solid var(--border-hairline);
+}
+.hairline-l {
+  border-left: 1px solid var(--border-hairline);
+}
+.hairline-r {
+  border-right: 1px solid var(--border-hairline);
+}
+
+.type-title {
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.type-section {
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.type-body {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+}
+
+.type-caption {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  letter-spacing: -0.004em;
+  color: var(--text-secondary);
+}
+
+.type-mono-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.transition-surface {
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.transition-interactive {
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
 .grok-floating-card {
   box-shadow: var(--card-shadow);
 }
@@ -534,7 +699,7 @@ body {
   background: linear-gradient(
     to bottom,
     var(--bg-primary) 0%,
-    rgba(255, 255, 255, 0.72) 60%,
+    rgba(255, 255, 255, 0.74) 60%,
     transparent 100%
   );
 }
@@ -543,7 +708,7 @@ body {
   background: linear-gradient(
     to bottom,
     var(--bg-primary) 0%,
-    rgba(9, 9, 12, 0.72) 60%,
+    rgba(10, 10, 13, 0.74) 60%,
     transparent 100%
   );
 }
@@ -575,9 +740,21 @@ body {
   .animate-wave-4,
   .animate-eye-left,
   .animate-eye-right,
+  .animate-fade-in,
+  .animate-popover-in,
+  .animate-msg-spring,
+  .animate-msg-ai,
+  .animate-msg-user,
+  .grok-cursor,
   .media-dot--wave,
   .typing-dot {
     animation: none !important;
+  }
+
+  .transition-surface,
+  .transition-interactive,
+  .blob-interactive .blob-body-layer {
+    transition: none !important;
   }
 }
 

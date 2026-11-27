@@ -57,15 +57,15 @@ export default function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[13vh] px-4 bg-black/35 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[13vh] px-4 bg-[var(--surface-overlay,rgba(15,15,20,0.32))] backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[600px] rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl overflow-hidden"
+        className="w-full max-w-[600px] rounded-[22px] border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_20px_50px_rgba(0,0,0,0.18))] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Search Bar */}
-        <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center gap-3">
+        <div className="px-5 py-4 border-b border-[var(--border-hairline,var(--border-subtle))] flex items-center gap-3">
           <svg
             width="17"
             height="17"
@@ -91,7 +91,7 @@ export default function CommandPalette({
           <button
             type="button"
             onClick={onClose}
-            className="text-[11px] px-2 py-0.5 rounded-md border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
           >
             ESC
           </button>
@@ -100,7 +100,7 @@ export default function CommandPalette({
         <div className="max-h-[420px] overflow-y-auto px-3 py-2.5 space-y-4">
           {/* Bots List */}
           <div>
-            <div className="px-3 py-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+            <div className="px-3 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-[var(--text-muted)]">
               Bot
             </div>
             <div className="space-y-0.5">
@@ -128,7 +128,7 @@ export default function CommandPalette({
                       setQuery("");
                       onClose();
                     }}
-                    className={`w-full px-3 py-2.5 rounded-[14px] flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2.5 rounded-[14px] flex items-center justify-between gap-3 text-left transition-colors duration-150 cursor-pointer ${
                       isActive
                         ? "bg-[var(--bg-hover)]"
                         : "hover:bg-[var(--bg-hover)]"
@@ -149,7 +149,7 @@ export default function CommandPalette({
                             {p.name}
                           </span>
                           {isMaster && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 text-[var(--text-muted)]">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/[0.05] dark:bg-white/[0.08] text-[var(--text-muted)]">
                               主 Bot
                             </span>
                           )}
@@ -162,10 +162,10 @@ export default function CommandPalette({
 
                     <div className="flex items-center gap-2 shrink-0">
                       {isActive && (
-                        <span className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                        <span className="w-2 h-2 rounded-full bg-[var(--accent-teal)]" />
                       )}
                       {idx < 9 && (
-                        <span className="text-[11.5px] text-[var(--text-muted)] font-mono">
+                        <span className="text-[11.5px] text-[var(--text-muted)] font-mono tabular-nums">
                           ⌘{idx + 1}
                         </span>
                       )}
@@ -178,7 +178,7 @@ export default function CommandPalette({
 
           {/* Actions Section */}
           <div>
-            <div className="px-3 py-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+            <div className="px-3 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-[var(--text-muted)]">
               操作
             </div>
             <div className="space-y-0.5 text-[13px]">
@@ -189,10 +189,10 @@ export default function CommandPalette({
                     onClose();
                     onOpenCreateBot();
                   }}
-                  className="w-full px-3 py-2.5 rounded-[14px] hover:bg-[var(--bg-hover)] flex items-center justify-between text-[var(--text-primary)] transition-colors cursor-pointer"
+                  className="w-full px-3 py-2.5 rounded-[14px] hover:bg-[var(--bg-hover)] flex items-center justify-between text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[15px] text-[var(--text-secondary)]">
+                    <span className="w-7 h-7 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-center text-[15px] text-[var(--text-secondary)]">
                       +
                     </span>
                     <span className="font-medium">新建 Bot</span>
@@ -209,7 +209,7 @@ export default function CommandPalette({
                   onOpenSettings();
                   onClose();
                 }}
-                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
               >
                 <span className="w-7 text-center">⚙️</span>
                 <span>打开设置与 API 密钥舱</span>
@@ -221,7 +221,7 @@ export default function CommandPalette({
                   onToggleTheme();
                   onClose();
                 }}
-                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
               >
                 <span className="w-7 text-center">🌓</span>
                 <span>切换外观主题（浅色 / 深色）</span>
@@ -233,7 +233,7 @@ export default function CommandPalette({
                   router.push("/create");
                   onClose();
                 }}
-                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
               >
                 <span className="w-7 text-center">✨</span>
                 <span>聊天记录灵魂蒸馏工作室 (/create)</span>
@@ -245,7 +245,7 @@ export default function CommandPalette({
                   router.push("/gallery");
                   onClose();
                 }}
-                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="w-full px-3 py-2 rounded-[14px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
               >
                 <span className="w-7 text-center">🪐</span>
                 <span>角色广场 (/gallery)</span>
@@ -255,7 +255,7 @@ export default function CommandPalette({
 
           {/* Grok Modes */}
           <div>
-            <div className="px-3 py-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+            <div className="px-3 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-[var(--text-muted)]">
               切换当前人格尺度
             </div>
             <div className="grid grid-cols-2 gap-1 px-1">
@@ -269,7 +269,7 @@ export default function CommandPalette({
                       onChangeMode(mKey);
                       onClose();
                     }}
-                    className="px-3 py-2 rounded-[12px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2 text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                    className="px-3 py-2 rounded-[12px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2 text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
                   >
                     <LineIcon name={spec.icon} size={14} />
                     <span>{spec.shortLabel}</span>

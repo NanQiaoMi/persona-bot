@@ -7,7 +7,7 @@ interface GlassCardProps {
 
 export const GlassCard: React.FC<GlassCardProps> = ({ children, className = "" }) => {
   return (
-    <div className={`glass glass-card rounded-3xl p-6 ${className}`}>
+    <div className={`surface-card rounded-2xl p-6 transition-surface ${className}`}>
       {children}
     </div>
   );

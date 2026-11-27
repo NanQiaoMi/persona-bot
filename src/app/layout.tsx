@@ -35,7 +35,7 @@ export default function RootLayout({
         {/* 首帧就用对主题（暗色不闪白），并标记启动阶段 */}
         <script id="personabot-boot" dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <body className="min-h-full flex flex-col bg-[var(--surface-canvas)] text-[var(--text-primary)] font-sans selection:bg-[var(--accent-teal)]/20 selection:text-[var(--text-primary)]">
         {children}
       </body>
     </html>

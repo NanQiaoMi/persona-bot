@@ -38,22 +38,17 @@ export const WeChatBubble: React.FC<WeChatBubbleProps> = ({
 
         <div className="relative">
           <div
-            className={`px-3 py-2 rounded-lg text-sm leading-relaxed ${
+            className={`px-3.5 py-2 rounded-2xl text-sm leading-relaxed transition-surface ${
               isUser
-                ? 'bg-[#95EC69] text-[#353535] rounded-tr-none'
-                : 'bg-white text-[#353535] rounded-tl-none shadow-sm'
+                ? 'bg-[var(--user-capsule)] text-[var(--user-capsule-text)] rounded-tr-sm'
+                : 'bg-[var(--bg-bubble-ai)] text-[var(--text-primary)] hairline-border rounded-tl-sm'
             }`}
           >
-            <div
-              className={`absolute bottom-2 w-2 h-2 transform rotate-45 ${
-                isUser ? '-right-1 bg-[#95EC69]' : '-left-1 bg-white'
-              }`}
-            />
             <p className="whitespace-pre-wrap break-words">{content}</p>
           </div>
 
           {timestamp && (
-            <p className={`text-[10px] text-[#999999] mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
+            <p className={`text-[10px] text-[var(--text-muted)] type-mono-num mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
               {timestamp}
             </p>
           )}

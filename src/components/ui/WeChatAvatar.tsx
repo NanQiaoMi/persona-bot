@@ -42,7 +42,7 @@ export const WeChatAvatar: React.FC<WeChatAvatarProps> = ({
 
   return (
     <div className={`relative inline-block ${className}`}>
-      <div className={`${sizeStyles[size]} rounded-lg overflow-hidden`}>
+      <div className={`${sizeStyles[size]} rounded-lg overflow-hidden ring-1 ring-[var(--border-hairline)]`}>
         {imageUrl ? (
           <img src={imageUrl} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
@@ -56,8 +56,8 @@ export const WeChatAvatar: React.FC<WeChatAvatarProps> = ({
 
       {online !== undefined && (
         <div
-          className={`absolute -bottom-0.5 -right-0.5 ${dotSizes[size]} rounded-full border-2 border-white ${
-            online ? 'bg-[#07C160]' : 'bg-[#999999]'
+          className={`absolute -bottom-0.5 -right-0.5 ${dotSizes[size]} rounded-full border-2 border-[var(--surface-canvas)] ${
+            online ? 'bg-[#10b981]' : 'bg-[var(--text-muted)]'
           }`}
         />
       )}

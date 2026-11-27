@@ -84,33 +84,33 @@ export default function CreateGroupModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm px-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--surface-overlay,rgba(15,15,20,0.32))] backdrop-blur-sm px-4 animate-fade-in"
       onClick={() => {
         if (!submitting) onClose();
       }}
     >
       <div
-        className="w-full max-w-[440px] rounded-[24px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl overflow-hidden"
+        className="w-full max-w-[440px] rounded-[24px] border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_20px_50px_rgba(0,0,0,0.18))] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 pt-5 pb-2 flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">
+        <div className="px-6 pt-5 pb-3 border-b border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]">
             发起群聊
           </h3>
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+            className="w-7 h-7 rounded-full border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all duration-150 cursor-pointer"
           >
             ✕
           </button>
         </div>
 
-        <div className="px-6 pb-6 pt-2 flex flex-col">
+        <div className="px-6 pb-6 pt-3 flex flex-col">
           {/* Member list */}
-          <p className="text-[12px] text-[var(--text-muted)] mb-2">
+          <p className="text-[12px] text-[var(--text-muted)] mb-2 tabular-nums">
             选择至少 2 个角色（已选 {selected.length}）
           </p>
           <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1">
@@ -128,7 +128,7 @@ export default function CreateGroupModal({
                   role="checkbox"
                   aria-checked={isSelected}
                   onClick={() => toggle(p.slug)}
-                  className={`w-full text-left px-3 py-2 rounded-[16px] flex items-center gap-3 transition-colors cursor-pointer ${
+                  className={`w-full text-left px-3 py-2 rounded-[16px] flex items-center gap-3 transition-all duration-150 cursor-pointer ${
                     isSelected
                       ? "bg-[var(--bg-hover)] ring-1 ring-[var(--border-strong)]"
                       : "hover:bg-[var(--bg-hover)]"
@@ -154,7 +154,7 @@ export default function CreateGroupModal({
                   </div>
                   <span
                     aria-hidden="true"
-                    className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] shrink-0 ${
+                    className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] shrink-0 transition-colors duration-150 ${
                       isSelected
                         ? "bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]"
                         : "border-[var(--border-strong)] text-transparent"
@@ -174,14 +174,14 @@ export default function CreateGroupModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={`群名（可选，默认：${defaultName}）`}
-              className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
+              className="w-full rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
             />
             <input
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="话题（可选，比如：周末去哪玩）"
-              className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
+              className="w-full rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
             />
           </div>
 
@@ -193,7 +193,7 @@ export default function CreateGroupModal({
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer disabled:opacity-60"
+              className="px-4 py-1.5 rounded-full border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150 cursor-pointer disabled:opacity-60"
             >
               取消
             </button>
@@ -201,10 +201,10 @@ export default function CreateGroupModal({
               type="button"
               disabled={!canCreate}
               onClick={() => void handleCreate()}
-              className={`px-5 py-1.5 rounded-full text-[13px] font-medium transition-all ${
+              className={`px-5 py-1.5 rounded-full text-[13px] font-medium transition-all duration-150 ${
                 canCreate
                   ? "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 cursor-pointer"
-                  : "bg-[var(--bg-secondary)] text-[var(--text-muted)] opacity-60 cursor-not-allowed"
+                  : "bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-muted)] opacity-60 cursor-not-allowed"
               }`}
             >
               {submitting ? "建群中…" : "建群"}

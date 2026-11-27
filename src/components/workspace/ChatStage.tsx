@@ -271,13 +271,10 @@ export default function ChatStage({
   }
 
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
-  // 首页快捷卡片的图标底色：角色颜色的浅色版；颜色太深（如主 bot 的黑色）时改用主题文字色，暗色主题下也看得清
-  const heroAccentStyle = isVeryDark(mascotCfg.color)
-    ? { backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" }
-    : {
-        backgroundColor: `color-mix(in srgb, ${mascotCfg.color} 14%, transparent)`,
-        color: mascotCfg.color,
-      };
+  // 首页快捷列表的悬停图标色：角色颜色太深（如主 bot 的黑色）时改用主题文字色，暗色主题下也看得清
+  const rowAccentColor = isVeryDark(mascotCfg.color)
+    ? "var(--text-primary)"
+    : mascotCfg.color;
   // 群聊：成员名（用于 @ 高亮）、头像图片、按名字找人（「X 正在输入」）
   const groupMembers = activeGroup
     ? (personas || []).filter((p) => activeGroup.memberSlugs.includes(p.slug))
@@ -299,10 +296,10 @@ export default function ChatStage({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDropFile}
-      className="relative flex-1 flex flex-col h-dvh bg-[var(--bg-primary)] min-w-0 overflow-hidden"
+      className="relative flex-1 flex flex-col h-dvh bg-[var(--surface-canvas,var(--bg-primary))] min-w-0 overflow-hidden"
     >
       {isDraggingFile && (
-        <div className="pointer-events-none absolute inset-3 z-40 rounded-3xl border-2 border-dashed border-[#18a999] bg-[var(--bg-elevated)]/85 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
+        <div className="pointer-events-none absolute inset-3 z-40 rounded-3xl border-2 border-dashed border-[#18a999] bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">
           <span className="text-3xl">🖼️</span>
           <span className="text-sm font-semibold text-[var(--text-primary)]">
             松手即可发送图片给 {persona.name}
@@ -313,19 +310,19 @@ export default function ChatStage({
       <div
         aria-hidden="true"
         // 用径向渐变画柔光，不再用 64px 高斯模糊滤镜（效果相近，省掉整块离屏模糊）
-        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[620px] h-60 opacity-[0.09] dark:opacity-[0.14]"
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[620px] h-60 opacity-[0.08] dark:opacity-[0.13]"
         style={{
           background: `radial-gradient(closest-side, ${mascotCfg.color}, transparent)`,
         }}
       />
       {/* Frosted Floating Header */}
-      <header className="relative z-20 px-4 md:px-6 pt-3.5 pb-3 flex items-center justify-between grok-glass-header pointer-events-none">
+      <header className="relative z-20 px-4 md:px-6 pt-3 pb-2.5 flex items-center justify-between grok-glass-header pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
           {!sidebarOpen && (
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all"
+              className="w-8 h-8 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
               title="展开侧边栏"
             >
               ◧
@@ -351,10 +348,10 @@ export default function ChatStage({
                 setConfirmClear(false);
                 onClearHistory();
               }}
-              className={`px-3.5 py-1.5 rounded-full border grok-floating-pill text-[11.5px] font-medium hover:-translate-y-0.5 transition-all cursor-pointer ${
+              className={`h-8 px-3.5 rounded-full border grok-floating-pill text-[11.5px] font-medium transition-surface focus-ring cursor-pointer ${
                 confirmClear
                   ? "bg-rose-500/12 border-rose-500/40 text-rose-500"
-                  : "bg-[var(--bg-composer)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  : "bg-[var(--surface-card,var(--bg-composer))] border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
               }`}
               title={confirmClear ? "再次点击确认清空当前对话" : "清空当前对话"}
             >
@@ -365,20 +362,20 @@ export default function ChatStage({
 
         {/* Center Floating Pill with Living BlobMascot（群聊时显示群名与成员） */}
         {activeGroup ? (
-          <div className="pointer-events-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill">
+          <div className="pointer-events-auto inline-flex items-center gap-2 h-9 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill">
             <button
               type="button"
               onClick={onExitGroup}
-              className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] px-1"
+              className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] px-1 transition-surface focus-ring rounded-full cursor-pointer"
               title="返回主 bot"
               aria-label="返回主 bot"
             >
               ‹
             </button>
-            <span className="text-[13.5px] font-semibold text-[var(--text-primary)] max-w-[180px] truncate">
+            <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] max-w-[180px] truncate">
               {activeGroup.name}
             </span>
-            <span className="text-[11px] text-[var(--text-muted)]">
+            <span className="type-mono-num text-[11px] text-[var(--text-muted)]">
               {streaming ? (
                 <span className="animate-text-shimmer font-medium">
                   {streaming.statusText || "群里有人在输入..."}
@@ -392,21 +389,21 @@ export default function ChatStage({
         <button
           type="button"
           onClick={onToggleInspector}
-          className="pointer-events-auto inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          className="pointer-events-auto inline-flex items-center gap-2.5 h-9 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill hover:border-[var(--border-strong)] active:scale-[0.985] transition-interactive focus-ring cursor-pointer"
           title="点击滑出/收起角色灵魂状态舱"
         >
           <BlobMascot
             shape={mascotCfg.shape}
             color={mascotCfg.color}
             image={mascotCfg.image}
-            size={24}
+            size={22}
             trackPointer
             state={streaming ? "working" : "idle"}
           />
-          <span className="text-[13.5px] font-semibold text-[var(--text-primary)]">
+          <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
             {persona.name}
           </span>
-          <span className="text-[11px] text-[var(--text-muted)]">
+          <span className="type-mono-num text-[11px] text-[var(--text-muted)]">
             {showInspector ? (
               "✕"
             ) : streaming ? (
@@ -425,7 +422,7 @@ export default function ChatStage({
           <button
             type="button"
             onClick={handleShare}
-            className="px-4 py-1.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill text-[12px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            className="h-8 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill text-[11.5px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.97] transition-interactive focus-ring cursor-pointer"
           >
             {sharedToast ? "已复制 ✓" : "分享"}
           </button>
@@ -436,16 +433,16 @@ export default function ChatStage({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-6"
+        className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-8"
       >
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-[740px] mx-auto">
           {messages.length === 0 && !streaming ? (
             /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
-            <div className="pt-10 pb-8 flex flex-col items-center text-center space-y-6 animate-fade-in">
+            <div className="pt-12 pb-10 flex flex-col items-center text-center space-y-7 animate-fade-in">
               <button
                 type="button"
                 onClick={onOpenAvatarPicker}
-                className="group/hero relative flex flex-col items-center justify-center focus:outline-none"
+                className="group/hero relative flex flex-col items-center justify-center focus-ring rounded-2xl p-1 cursor-pointer"
                 title="点击更换角色形状与颜色"
               >
                 <div className="animate-float-gentle">
@@ -457,16 +454,16 @@ export default function ChatStage({
                     trackPointer
                   />
                 </div>
-                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
+                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
                   点击定制形状与颜色
                 </span>
               </button>
 
               <div className="flex flex-col items-center gap-3 max-w-lg">
-                <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+                <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
                   {persona.name}
                 </h2>
-                <p className="max-w-md text-[13.5px] leading-7 text-[var(--text-secondary)]">
+                <p className="max-w-md text-[13.5px] leading-[1.65] text-[var(--text-secondary)]">
                   {persona.profile.bio ||
                     "支持 DeepSearch 实时联网生成结构化页面、Think 内心潜台词与多档人格模式。"}
                 </p>
@@ -483,7 +480,7 @@ export default function ChatStage({
                   ].map((stat) => (
                     <span
                       key={stat.label}
-                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-secondary)]"
+                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] text-[var(--text-secondary)] type-mono-num"
                     >
                       <LineIcon name={stat.icon} size={13} className="text-[var(--text-muted)]" />
                       <span className="max-w-[12em] truncate">{stat.label}</span>
@@ -492,8 +489,11 @@ export default function ChatStage({
                 </div>
               </div>
 
-              {/* 一键开聊：图标底色跟随角色的颜色 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-2">
+              {/* 一键开聊：Linear / Raycast 极简细线列表 */}
+              <div
+                className="w-full max-w-[540px] rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-card,var(--bg-composer))] grok-floating-card overflow-hidden divide-y divide-[var(--border-hairline,var(--border-subtle))]"
+                style={{ ["--row-accent" as string]: rowAccentColor }}
+              >
                 {(persona.isMaster || persona.slug === "master-bot"
                   ? ([
                       {
@@ -562,42 +562,41 @@ export default function ChatStage({
                     onClick={() =>
                       onQuickSend(chip.text, { deepSearch: chip.enableSearch })
                     }
-                    className="group/chip p-4 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-card hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 text-left transition-all duration-200 flex items-start gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+                    className="w-full px-4 py-3 flex items-center gap-3.5 text-left transition-surface hover:bg-[var(--surface-panel,var(--bg-secondary))] focus-ring group/chip cursor-pointer"
                   >
-                    <span
-                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover/chip:scale-105"
-                      style={heroAccentStyle}
-                    >
-                      <LineIcon name={chip.icon} size={17} />
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                        <span className="truncate">{chip.title}</span>
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
-                        >
-                          <path d="M5 12h14M13 6l6 6-6 6" />
-                        </svg>
+                    <LineIcon
+                      name={chip.icon}
+                      size={16}
+                      className="shrink-0 text-[var(--text-muted)] group-hover/chip:text-[var(--row-accent)] transition-colors"
+                    />
+                    <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2.5">
+                      <span className="text-[13px] font-medium text-[var(--text-primary)] shrink-0">
+                        {chip.title}
                       </span>
-                      <span className="block mt-1 text-[11.5px] leading-5 text-[var(--text-secondary)] line-clamp-2">
+                      <span className="text-[12px] text-[var(--text-muted)] truncate">
                         {chip.sub}
                       </span>
                     </span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
+                    >
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
                   </button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-5 pt-1">
+            <div className="space-y-4 pt-2">
               <ChatMessageList
                 messages={messages}
                 persona={persona}
@@ -626,7 +625,7 @@ export default function ChatStage({
               {/* 切走期间还在生成的回复：切回来后继续显示正在输入 */}
               {!streaming && !(activeGroup && groupTypingMember) && backgroundTypingName && (
                 <div className="flex items-start animate-msg-ai">
-                  <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
+                  <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline,var(--border-subtle))] animate-fade-in">
                     <div className="flex items-center gap-1" aria-hidden="true">
                       <span className="typing-dot" />
                       <span className="typing-dot typing-dot-2" />
@@ -644,7 +643,7 @@ export default function ChatStage({
                 <div
                   className={`flex flex-col items-start animate-msg-ai ${
                     messages[messages.length - 1]?.role === "assistant"
-                      ? "-mt-3"
+                      ? "-mt-2.5"
                       : ""
                   }`}
                 >
@@ -670,7 +669,7 @@ export default function ChatStage({
                       ).map((bText, bIdx, arr) => (
                         <div
                           key={bIdx}
-                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
+                          className="max-w-[85%] sm:max-w-[580px] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
                         >
                           <GrokMessageBody
                             content={bText}
@@ -679,7 +678,7 @@ export default function ChatStage({
                         </div>
                       ))}
                       {streaming.statusText && (
-                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
+                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline,var(--border-subtle))] animate-fade-in">
                           <BlobMascot
                             shape={mascotCfg.shape}
                             color={mascotCfg.color}
@@ -700,7 +699,7 @@ export default function ChatStage({
                       )}
                     </div>
                   ) : (
-                    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] border border-[var(--border-subtle)] animate-fade-in">
+                    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline,var(--border-subtle))] animate-fade-in">
                       <BlobMascot
                         shape={mascotCfg.shape}
                         color={mascotCfg.color}
@@ -804,11 +803,11 @@ export default function ChatStage({
 
       {/* Scroll-to-Bottom Floating Pill */}
       {showScrollBottom && (
-        <div className="pointer-events-none absolute bottom-[88px] inset-x-0 z-20 flex justify-center animate-fade-in">
+        <div className="pointer-events-none absolute bottom-[92px] inset-x-0 z-20 flex justify-center animate-fade-in">
           <button
             type="button"
             onClick={scrollToBottom}
-            className="pointer-events-auto px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] backdrop-blur-xl border border-[var(--border-subtle)] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:-translate-y-0.5 transition-all cursor-pointer"
+            className="pointer-events-auto h-8 px-3.5 rounded-full surface-popover bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-xl border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.97] transition-interactive focus-ring cursor-pointer"
           >
             ↓ 回到最新消息
           </button>

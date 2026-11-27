@@ -191,7 +191,7 @@ function RightInspector({
 
   if (!persona) {
     return (
-      <aside className="w-80 shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
+      <aside className="w-full sm:w-[312px] shrink-0 border-l border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
         正在加载角色状态舱...
       </aside>
     );
@@ -205,13 +205,14 @@ function RightInspector({
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
 
   return (
-    <aside className="w-full sm:w-[312px] shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-dvh animate-fade-in">
+    <aside className="w-full sm:w-[312px] shrink-0 border-l border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] flex flex-col h-dvh animate-fade-in">
       {/* Top Close & Centered Hero Avatar (Screenshot 3 Layout) */}
       <div className="relative px-4 pt-4 pb-3 flex flex-col items-center">
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+          aria-label="收起右侧面板"
+          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all duration-150 cursor-pointer"
           title="收起右侧面板"
         >
           ✕
@@ -231,22 +232,22 @@ function RightInspector({
             trackPointer
             state={isStreaming ? "working" : "idle"}
           />
-          <h3 className="mt-2.5 text-[15px] font-semibold text-[var(--text-primary)] group-hover:opacity-75 transition-opacity">
+          <h3 className="mt-2.5 text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)] group-hover:opacity-75 transition-opacity">
             {persona.name}
           </h3>
         </button>
 
         {/* Segmented Control: 动态 | 资料库 */}
-        <div className="mt-3 inline-flex items-center p-0.5 rounded-full bg-black/[0.05] dark:bg-white/[0.06]">
+        <div className="mt-3 inline-flex items-center p-0.5 rounded-full bg-black/[0.045] dark:bg-white/[0.06] border border-[var(--border-hairline,var(--border-subtle))]">
           <button
             type="button"
             onClick={() => {
               setSection("activity");
               onClearUnreadMoments?.();
             }}
-            className={`relative px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
+            className={`relative px-3.5 py-1 rounded-full text-[12px] font-medium transition-all duration-150 cursor-pointer ${
               section === "activity"
-                ? "bg-[var(--bg-composer)] text-[var(--text-primary)] grok-active-row"
+                ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
@@ -254,16 +255,16 @@ function RightInspector({
             {hasUnreadMoments && section !== "activity" && (
               <span
                 aria-label="有新朋友圈动态"
-                className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[var(--bg-secondary)]"
+                className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[var(--surface-panel,var(--bg-secondary))]"
               />
             )}
           </button>
           <button
             type="button"
             onClick={() => setSection("library")}
-            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
+            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-all duration-150 cursor-pointer ${
               section === "library"
-                ? "bg-[var(--bg-composer)] text-[var(--text-primary)] grok-active-row"
+                ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
@@ -288,7 +289,7 @@ function RightInspector({
             <div
               role="tablist"
               aria-label="资料库分类"
-              className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)]"
+              className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))]"
             >
               {LIBRARY_TABS.map((tab) => {
                 const active = libraryTab === tab.id;
@@ -300,9 +301,9 @@ function RightInspector({
                     aria-selected={active}
                     title={tab.label}
                     onClick={() => setLibraryTab(tab.id)}
-                    className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[11px] leading-none font-medium transition-all cursor-pointer ${
+                    className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[11px] leading-none font-medium transition-all duration-150 cursor-pointer ${
                       active
-                        ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
+                        ? "bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-primary)] grok-active-row"
                         : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                     }`}
                   >
@@ -332,16 +333,16 @@ function RightInspector({
 
             {libraryTab === "emotion" && (
               <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[var(--text-secondary)]">当前心情</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-semibold">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] font-semibold">
                       {persona.emotionState.moodLabel ||
                         persona.emotionState.primary}
                     </span>
                   </div>
                   <div>
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-[var(--text-secondary)] truncate">
                           亲密度 / 好感度
@@ -350,11 +351,11 @@ function RightInspector({
                           {resolveRelationStage(persona.intimacy).label}
                         </span>
                       </div>
-                      <span className="text-rose-500 font-bold tabular-nums">
+                      <span className="text-rose-500 font-semibold tabular-nums">
                         ♥ {persona.intimacy}%
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-[#18a999] transition-all duration-500"
                         style={{ width: `${persona.intimacy}%` }}
@@ -407,8 +408,8 @@ function RightInspector({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
-                  <div className="font-semibold text-[var(--text-primary)]">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
+                  <div className="font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
                     PAD 三维情绪状态机
                   </div>
                   <div>
@@ -420,9 +421,9 @@ function RightInspector({
                         {pleasurePct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#18a999]"
+                        className="h-full rounded-full bg-[var(--accent-teal,#18a999)] transition-all duration-300"
                         style={{ width: `${pleasurePct}%` }}
                       />
                     </div>
@@ -436,9 +437,9 @@ function RightInspector({
                         {arousalPct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-sky-500"
+                        className="h-full rounded-full bg-sky-500/85 transition-all duration-300"
                         style={{ width: `${arousalPct}%` }}
                       />
                     </div>
@@ -452,17 +453,17 @@ function RightInspector({
                         {dominancePct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-purple-500"
+                        className="h-full rounded-full bg-violet-500/85 transition-all duration-300"
                         style={{ width: `${dominancePct}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
-                  <div className="font-semibold text-[var(--text-primary)]">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
+                  <div className="font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
                     人格指纹
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -479,7 +480,7 @@ function RightInspector({
                     {persona.profile.personalityTags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2.5 py-0.5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+                        className="px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-secondary)] border border-[var(--border-hairline,var(--border-subtle))]"
                       >
                         {tag}
                       </span>
@@ -495,7 +496,7 @@ function RightInspector({
                 />
 
                 {/* 基础性格：创建时写的一句话，之后可以在这里慢慢改，每次聊天都会带上 */}
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-[var(--text-primary)] truncate">
                       基础性格
@@ -557,7 +558,7 @@ function RightInspector({
                 </div>
 
                 {/* Consistent Photo Appearance Anchor Editor */}
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="font-semibold text-[var(--text-primary)] truncate">
@@ -823,7 +824,7 @@ function RightInspector({
                 <WorldAssetsPanel slug={persona.slug} personaName={persona.name} />
 
                 {/* Scene / Environment Fixed Asset Library */}
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-[var(--text-primary)]">
                       🏠 固定场景资产库
@@ -1108,10 +1109,10 @@ function RightInspector({
                     value={editingPersonaMd}
                     onChange={(e) => setEditingPersonaMd(e.target.value)}
                     rows={18}
-                    className="w-full p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
+                    className="w-full p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
                   />
                 ) : (
-                  <pre className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                  <pre className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
                     {persona.personaMd}
                   </pre>
                 )}
@@ -1163,16 +1164,16 @@ function RightInspector({
                     value={editingMemoriesMd}
                     onChange={(e) => setEditingMemoriesMd(e.target.value)}
                     rows={16}
-                    className="w-full p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none"
+                    className="w-full p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
                   />
                 ) : (
-                  <pre className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                  <pre className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
                     {persona.memoriesMd}
                   </pre>
                 )}
 
                 {/* Evolution, Snapshots & Soul Bundle Card */}
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-[var(--text-primary)]">
                       ✨ 记忆自进化与灵魂备份
@@ -1401,14 +1402,14 @@ function RightInspector({
 
             {libraryTab === "corrections" && (
               <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
-                  <div className="font-semibold">新增行为纠偏 (OOC Guard)</div>
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
+                  <div className="font-semibold tracking-[-0.01em]">新增行为纠偏 (OOC Guard)</div>
                   <textarea
                     value={newCorrection}
                     onChange={(e) => setNewCorrection(e.target.value)}
                     rows={3}
                     placeholder="例如：她生气时绝不会主动讲道理，只会发个冷笑话或说“随便你”..."
-                    className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs focus:outline-none"
+                    className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-xs focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150"
                   />
                   <button
                     type="button"
@@ -1419,25 +1420,25 @@ function RightInspector({
                       setNewCorrection("");
                       setSaving(false);
                     }}
-                    className="w-full py-2 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-semibold text-xs transition-all cursor-pointer"
+                    className="w-full py-2 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-semibold text-xs transition-all duration-150 cursor-pointer"
                   >
                     写入永久纠偏层
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-[11px] text-[var(--text-muted)]">
+                  <div className="text-[11px] text-[var(--text-muted)] tabular-nums">
                     已生效纠偏记录 ({persona.corrections?.length || 0})
                   </div>
                   {!persona.corrections || persona.corrections.length === 0 ? (
-                    <div className="p-4 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center text-[var(--text-muted)]">
+                    <div className="p-4 rounded-2xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[var(--text-muted)]">
                       暂无纠偏记录，也可以在聊天气泡上右键选「不像 TA」
                     </div>
                   ) : (
                     persona.corrections.map((item) => (
                       <div
                         key={item.id}
-                        className="p-3 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-1"
+                        className="p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-1"
                       >
                         <div className="text-[#18a999] font-medium">
                           ✓ {item.correction}
@@ -1455,11 +1456,11 @@ function RightInspector({
             )}
 
             {/* Collapsible Chat Preferences & AI Advanced Controls */}
-            <div className="pt-2 border-t border-[var(--border-subtle)]">
+            <div className="pt-2 border-t border-[var(--border-hairline,var(--border-subtle))]">
               <button
                 type="button"
                 onClick={() => setAdvancedExpanded((v) => !v)}
-                className="w-full px-3 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] flex items-center justify-between text-[11.5px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer"
+                className="w-full px-3 py-2.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] flex items-center justify-between text-[11.5px] font-medium text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
               >
                 <span>⚙️ 对话偏好与高级设定</span>
                 <span className="text-[10.5px] text-[var(--text-muted)]">
@@ -1468,7 +1469,7 @@ function RightInspector({
               </button>
 
               {advancedExpanded && (
-                <div className="mt-2 p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-3 animate-fade-in">
+                <div className="mt-2 p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-3 animate-fade-in">
                   <div className="grid grid-cols-2 gap-2">
                     {onToggleThink && (
                       <button

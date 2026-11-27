@@ -187,10 +187,10 @@ export default function PortConfigPopover({
       ref={boxRef}
       role="dialog"
       aria-label="配置端口"
-      className="absolute bottom-[62px] left-3.5 right-3.5 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-3.5 z-40 animate-popover-in text-[12px]"
+      className="absolute bottom-[62px] left-3.5 right-3.5 rounded-[20px] border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_16px_40px_rgba(0,0,0,0.16))] p-3.5 z-40 animate-popover-in text-[12px]"
     >
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[13px] font-semibold text-[var(--text-primary)]">配置端口</span>
+        <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">配置端口</span>
         <span className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
           <StatusDot status={status} />
           {statusLabel(status)}
@@ -205,7 +205,7 @@ export default function PortConfigPopover({
               aria-label="协议"
               value={parts.protocol}
               onChange={(e) => update({ protocol: e.target.value as EndpointParts["protocol"] })}
-              className="h-8 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] px-1.5 text-[11.5px] text-[var(--text-primary)] focus:outline-none"
+              className="h-8 rounded-lg bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] px-1.5 text-[11.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150"
             >
               <option value="http">http</option>
               <option value="https">https</option>
@@ -215,7 +215,7 @@ export default function PortConfigPopover({
               value={parts.host}
               onChange={(e) => update({ host: e.target.value })}
               placeholder="127.0.0.1"
-              className="min-w-0 flex-1 h-8 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] px-2 text-[11.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)]"
+              className="min-w-0 flex-1 h-8 rounded-lg bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] px-2 text-[11.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150"
             />
             <span className="text-[var(--text-muted)]">:</span>
             <input
@@ -224,13 +224,13 @@ export default function PortConfigPopover({
               value={parts.port}
               onChange={(e) => update({ port: e.target.value.replace(/[^\d]/g, "").slice(0, 5) })}
               placeholder="默认"
-              className={`w-[62px] h-8 rounded-lg bg-[var(--bg-secondary)] border px-2 text-[11.5px] tabular-nums text-[var(--text-primary)] focus:outline-none ${
-                portOk ? "border-[var(--border-subtle)] focus:border-[var(--border-strong)]" : "border-rose-500"
+              className={`w-[62px] h-8 rounded-lg bg-[var(--surface-panel,var(--bg-secondary))] border px-2 text-[11.5px] tabular-nums text-[var(--text-primary)] focus:outline-none transition-colors duration-150 ${
+                portOk ? "border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)]" : "border-rose-500"
               }`}
             />
           </div>
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[10.5px] text-[var(--text-muted)]">
-            <span className="truncate" title={url}>
+            <span className="truncate font-mono" title={url}>
               {portOk ? url : "端口要在 1–65535 之间，留空用默认"}
             </span>
           </div>
@@ -240,7 +240,7 @@ export default function PortConfigPopover({
                 key={p.url}
                 type="button"
                 onClick={() => setParts(splitBaseUrl(p.url))}
-                className="px-2 py-0.5 rounded-full border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] cursor-pointer"
+                className="px-2 py-0.5 rounded-full border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150 cursor-pointer"
               >
                 {p.label}
               </button>
@@ -248,7 +248,7 @@ export default function PortConfigPopover({
           </div>
         </>
       ) : (
-        <div className="h-8 rounded-lg bg-[var(--bg-secondary)] animate-pulse" />
+        <div className="h-8 rounded-lg bg-[var(--surface-panel,var(--bg-secondary))] animate-pulse" />
       )}
 
       {message && (
@@ -266,7 +266,7 @@ export default function PortConfigPopover({
           type="button"
           disabled={!parts || !portOk || status === "testing"}
           onClick={() => void runTest(url, url === savedUrl)}
-          className="py-1.5 rounded-full border border-[var(--border-subtle)] text-[11.5px] whitespace-nowrap text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 cursor-pointer"
+          className="py-1.5 rounded-full border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] whitespace-nowrap text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 transition-colors duration-150 cursor-pointer"
         >
           {status === "testing" ? "检测中…" : "测试连接"}
         </button>
@@ -274,7 +274,7 @@ export default function PortConfigPopover({
           type="button"
           disabled={!dirty || !portOk || saving}
           onClick={() => void handleSave()}
-          className="py-1.5 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] text-[11.5px] font-medium whitespace-nowrap hover:opacity-90 disabled:opacity-40 cursor-pointer"
+          className="py-1.5 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] text-[11.5px] font-medium whitespace-nowrap hover:opacity-90 disabled:opacity-40 transition-all duration-150 cursor-pointer"
         >
           {saving ? "保存中…" : "保存"}
         </button>
@@ -285,7 +285,7 @@ export default function PortConfigPopover({
           onClose();
           onOpenFullSettings();
         }}
-        className="mt-2 w-full text-center text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+        className="mt-2 w-full text-center text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
       >
         模型与密钥设置 →
       </button>

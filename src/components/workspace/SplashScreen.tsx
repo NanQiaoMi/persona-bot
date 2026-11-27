@@ -166,7 +166,7 @@ export default function SplashScreen({ ready, steps }: SplashScreenProps) {
 
   return (
     <div
-      className="splash-root"
+      className="splash-root antialiased"
       data-state={phase}
       style={{ "--splash-exit": `${exitMs}ms` } as CSSProperties}
       role="status"
@@ -258,7 +258,7 @@ export default function SplashScreen({ ready, steps }: SplashScreenProps) {
               <span key={i} className="splash-step" data-on={on ? "true" : "false"} />
             ))}
           </span>
-          <span className="splash-status-text">{getSplashStatusText(steps, slow)}</span>
+          <span className="splash-status-text tabular-nums tracking-[0.01em]">{getSplashStatusText(steps, slow)}</span>
         </div>
       </div>
     </div>

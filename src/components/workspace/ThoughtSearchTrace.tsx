@@ -69,8 +69,8 @@ export default function ThoughtSearchTrace({
           setUserToggled(true);
           setExpanded(!isOpen);
         }}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer ${
-          isLive ? "border-[#18a999]/35" : "border-[var(--border-subtle)]"
+        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-tertiary)] border text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-surface focus-ring cursor-pointer ${
+          isLive ? "border-[#18a999]/40" : "border-[var(--border-hairline,var(--border-subtle))]"
         }`}
       >
         <span
@@ -80,7 +80,7 @@ export default function ThoughtSearchTrace({
         >
           ✦
         </span>
-        <span className="font-medium">{summaryText}</span>
+        <span className="font-medium tracking-[-0.004em]">{summaryText}</span>
         <svg
           viewBox="0 0 16 16"
           fill="none"
@@ -99,7 +99,7 @@ export default function ThoughtSearchTrace({
       </button>
 
       {isOpen && (
-        <div className="mt-2 ml-2 pl-3.5 border-l-2 border-[var(--border-subtle)] space-y-2.5 animate-fade-in">
+        <div className="mt-2 ml-2.5 pl-3.5 border-l border-[var(--border-strong)] space-y-2.5 animate-fade-in">
           {hasSearch && (
             <div className="space-y-1.5">
               <div className="text-[11px] text-[var(--text-secondary)]">
@@ -117,9 +117,9 @@ export default function ThoughtSearchTrace({
                       target="_blank"
                       rel="noreferrer"
                       title={item.snippet}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all max-w-[260px]"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[10px] bg-[var(--surface-card,var(--bg-secondary))] hover:bg-[var(--surface-card-hover,var(--bg-tertiary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-surface focus-ring max-w-[260px]"
                     >
-                      <span className="text-[10px] font-mono px-1 rounded bg-black/5 dark:bg-white/10 text-[var(--text-primary)]">
+                      <span className="text-[10px] font-mono type-mono-num px-1 rounded bg-black/5 dark:bg-white/10 text-[var(--text-primary)]">
                         {idx + 1}
                       </span>
                       <span className="truncate">{item.title}</span>
@@ -131,11 +131,11 @@ export default function ThoughtSearchTrace({
           )}
 
           {thoughtText && (
-            <div className="rounded-2xl bg-[var(--bg-secondary)]/75 border border-dashed border-[var(--border-strong)] px-3.5 py-2.5 space-y-1">
+            <div className="rounded-[14px] bg-[var(--surface-panel,var(--bg-secondary))]/80 border border-[var(--border-hairline,var(--border-subtle))] px-3.5 py-2.5 space-y-1">
               <div className="text-[11px] text-[var(--text-muted)]">
                 💭 {personaName ? `${personaName} 偷藏的小心思` : "偷听到的心声"}
               </div>
-              <div className="space-y-1 text-xs italic text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+              <div className="space-y-1 text-[12px] italic text-[var(--text-secondary)] leading-[1.55] whitespace-pre-wrap">
                 {thoughtText
                   .split(/\n+/)
                   .map((beat) => beat.trim())
