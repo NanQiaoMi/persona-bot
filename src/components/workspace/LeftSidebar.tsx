@@ -137,7 +137,7 @@ function LeftSidebar({
   );
 
   return (
-    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen select-none">
+    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-dvh select-none">
       {/* Top Action Row */}
       <div className="px-4 pt-4 pb-1 flex items-center justify-between">
         <div className="flex items-center gap-1.5">

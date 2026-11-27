@@ -23,7 +23,7 @@ const PROVIDER_PRESETS: Array<{
 }> = [
   {
     id: "local_gateway",
-    label: "本地网关 18630",
+    label: "本地网关",
     baseUrl: LOCAL_GATEWAY_BASE_URL,
     model: "gpt-5.6",
     badge: "对话 + 生图",
@@ -264,19 +264,20 @@ export default function SettingsModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--border-subtle)] flex items-start justify-between gap-3">
           <div>
             <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
               ⚙️ 本地网关、生图表情包与模型设置舱
             </h3>
             <p className="text-[11.5px] text-[var(--text-muted)] mt-0.5">
-              支持本地网关 (127.0.0.1:18630/v1) 对话 + 表情包/拍照生图，以及 xAI / DeepSeek / OpenAI
+              支持本地网关对话 + 表情包/拍照生图，以及 xAI / DeepSeek / OpenAI
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-full hover:bg-[var(--bg-hover)] flex items-center justify-center text-xs text-[var(--text-secondary)] cursor-pointer"
+            aria-label="关闭"
+            className="shrink-0 w-7 h-7 rounded-full hover:bg-[var(--bg-hover)] flex items-center justify-center text-xs text-[var(--text-secondary)] cursor-pointer"
           >
             ✕
           </button>
