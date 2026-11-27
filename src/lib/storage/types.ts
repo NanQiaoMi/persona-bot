@@ -101,6 +101,26 @@ export interface PersonaRelationshipState {
 
 export type SnapshotKind = 'manual' | 'auto';
 
+export interface DailyLifeMomentDigest {
+  id: string;
+  content: string;
+  topic?: string;
+  location?: string;
+  createdAt: string;
+}
+
+export interface DailyLifeState {
+  /** YYYY-MM-DD 本地日期 */
+  dateKey: string;
+  /** 今日主线小事（单聊 / 朋友圈 / 群聊 / 主动破冰共享） */
+  mainEvent: string;
+  /** 当日情绪底色（随情绪/闹别扭同步更新） */
+  moodTone: string;
+  /** 今日及近 48h 内已发朋友圈摘要，最多 3 条 */
+  recentMoments: DailyLifeMomentDigest[];
+  updatedAt: string;
+}
+
 export interface PersonaSummary {
   slug: string;
   name: string;
