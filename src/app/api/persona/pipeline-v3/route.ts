@@ -12,6 +12,9 @@ export async function POST(request: Request) {
       targetSpeaker,
       defaultMode,
       avatarEmoji,
+      ensureUniqueSlug,
+      basicPersonality,
+      appearanceAnchor,
     } = body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -26,6 +29,9 @@ export async function POST(request: Request) {
       targetSpeaker,
       defaultMode,
       avatarEmoji,
+      ensureUniqueSlug: ensureUniqueSlug !== false,
+      basicPersonality,
+      appearanceAnchor,
     });
 
     return NextResponse.json({

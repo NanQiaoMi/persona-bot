@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { inferDefaultModeFromPersonality } from "@/lib/persona/mind";
 import { PersonaRecord } from "@/lib/storage/types";
 import BlobMascot from "./BlobMascot";
 import {
@@ -46,7 +47,7 @@ export default function CreateBotModal({
           name: trimmed,
           avatarShape: shape,
           avatarColor: color,
-          defaultMode: "fun",
+          defaultMode: inferDefaultModeFromPersonality(personalityHint.trim()),
           ensureUniqueSlug: true,
           basicPersonality: personalityHint.trim() || undefined,
           appearanceAnchor: appearanceAnchor.trim() || undefined,
@@ -54,7 +55,7 @@ export default function CreateBotModal({
             ? `${trimmed} · ${personalityHint.trim()}`
             : `${trimmed} · 专属拟人 AI Bot`,
           personalityInfo:
-            personalityHint.trim() || "嘴硬心软、有鲜明脾气、说话像熟人一样的私人搭子",
+            personalityHint.trim() || "性格鲜活、有主见、说话自然的真实朋友",
         }),
       });
       const data = await res.json();
