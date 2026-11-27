@@ -1353,10 +1353,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
     clearScheduledFollowup();
     idleNudgeCountRef.current = 0;
-    const useDeepSearch = options?.deepSearchOverride ?? deepSearch;
+    // 开关打开 / 快捷入口指定 → 本条强制联网；开关关着 → 不传，让服务端按消息内容判断要不要自动搜
+    const useDeepSearch: boolean | undefined =
+      options?.deepSearchOverride ?? (deepSearch ? true : undefined);
 
     setStreaming({
-      isSearching: useDeepSearch,
+      isSearching: Boolean(useDeepSearch),
       thought: "",
       thoughtDurationMs: 0,
       isStreamingThought: thinkMode,
@@ -1790,9 +1792,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     options?: { deepSearch?: boolean }
   ) => {
     if (!text.trim() || streaming) return;
-    if (options?.deepSearch) {
-      setDeepSearch(true);
-    }
+    // 快捷入口要求联网时只对这一条生效，不再顺手把联网开关一直打开
     const userMsg: ConversationMessage = {
       id: `msg_${Date.now()}_u`,
       role: "user",

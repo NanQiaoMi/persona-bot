@@ -5,6 +5,8 @@ export interface DeepSearchResponse {
   provider: 'gateway' | 'tavily' | 'serper' | 'builtin';
   results: SearchResultItem[];
   timestamp: string;
+  /** 网关搜索返回的完整摘要（已清洗，最长 4000 字），供后续整理要点用；其它搜索方式没有 */
+  answer?: string;
 }
 
 /**
@@ -19,22 +21,34 @@ export function extractSearchQuery(userMessage: string): string {
 }
 
 /**
- * 判断用户消息是否天然包含实时性/百科查询意图
+ * 判断这条消息是否明确需要查实时信息 / 资料（自动联网用，宁可少搜不要乱搜）：
+ * - 太短（少于 4 个字）的寒暄不搜，如「咋啦」「在吗」；
+ * - 问的是「你 / 我」本人的不搜，如「你是谁」「你在干嘛」；
+ * - 需要明确的实时线索（热搜、新闻、行情、天气、比分、最新发布…）或明确的查询动作（搜一下、查一下、帮我查）。
  */
 export function shouldAutoTriggerSearch(userMessage: string): boolean {
-  const patterns = [
-    /热搜|新闻|最新|最近|今天|刚刚|头条|大事|行情|股价|汇率|比分|天气/,
-    /是什么|是谁|怎么评价|怎么看|为什么会|发生了什么|百科|搜一下|查一下/,
-    /Grok|OpenAI|DeepSeek|AI|大模型|科技圈|数码|电影|新番/i,
+  const text = (userMessage || '').trim();
+  if (text.replace(/[\s\p{P}\p{S}]/gu, '').length < 4) return false;
+  if (/(搜一下|搜搜|查一下|查查|帮我(搜|查)|联网|上网查|百度一下|谷歌一下)/.test(text)) return true;
+  if (/^(你|我)|(你|我)(是谁|是什么|在干嘛|在做什么|怎么样|觉得)/.test(text)) return false;
+  const realtime = [
+    /热搜|新闻|头条|快讯|大事件?|发生了什么|出什么事/,
+    /行情|股价|汇率|币价|油价|金价|比分|赛果|天气|气温|台风|地震/,
+    /(最新|最近|今天|今日|昨天|本周|这周|刚刚).{0,8}(消息|动态|发布|上映|新品|政策|新闻|热点|热门|进展|版本|比赛)/,
+    /(发布会|上市|开售|上映|官宣|更新了什么)/,
   ];
-  return patterns.some((p) => p.test(userMessage));
+  return realtime.some((p) => p.test(text));
 }
 
 /** 模型网关联网搜索的超时：网关背后是真实网页搜索，实测 15–30 秒不等 */
 export const GATEWAY_SEARCH_TIMEOUT_MS = 40_000;
 const GATEWAY_CACHE_TTL_MS = 5 * 60_000;
 const GATEWAY_CACHE_MAX = 50;
-const gatewayCache = new Map<string, { at: number; results: SearchResultItem[] }>();
+interface GatewaySearchOutcome {
+  results: SearchResultItem[];
+  answer: string;
+}
+const gatewayCache = new Map<string, { at: number; outcome: GatewaySearchOutcome }>();
 
 /** 搜索接口地址：优先用设置里填的；没填就用模型网关地址 + /search（如 http://127.0.0.1:8000/v1/search） */
 export function resolveGatewaySearchUrl(settings?: Partial<RuntimeSettings>): string {
@@ -112,13 +126,13 @@ export function mapGatewaySearchResult(data: GatewaySearchPayload): SearchResult
 async function searchWithGateway(
   rawInput: string,
   settings?: Partial<RuntimeSettings>
-): Promise<SearchResultItem[]> {
+): Promise<GatewaySearchOutcome> {
   const url = resolveGatewaySearchUrl(settings);
   if (!url) throw new Error('Gateway search URL not configured');
   const prompt = rawInput.trim().slice(0, 200);
   const cacheKey = `${url}|${prompt}`;
   const cached = gatewayCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < GATEWAY_CACHE_TTL_MS) return cached.results;
+  if (cached && Date.now() - cached.at < GATEWAY_CACHE_TTL_MS) return cached.outcome;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const apiKey = (settings?.llmApiKey || '').trim();
@@ -130,15 +144,19 @@ async function searchWithGateway(
     signal: AbortSignal.timeout(GATEWAY_SEARCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Gateway search status ${res.status}`);
-  const results = mapGatewaySearchResult((await res.json()) as GatewaySearchPayload);
-  if (results.length > 0) {
+  const payload = (await res.json()) as GatewaySearchPayload;
+  const outcome: GatewaySearchOutcome = {
+    results: mapGatewaySearchResult(payload),
+    answer: cleanGatewayAnswer(payload.answer || '').slice(0, 4000),
+  };
+  if (outcome.results.length > 0) {
     if (gatewayCache.size >= GATEWAY_CACHE_MAX) {
       const oldest = gatewayCache.keys().next().value;
       if (oldest !== undefined) gatewayCache.delete(oldest);
     }
-    gatewayCache.set(cacheKey, { at: Date.now(), results });
+    gatewayCache.set(cacheKey, { at: Date.now(), outcome });
   }
-  return results;
+  return outcome;
 }
 
 /** 仅供测试：清空网关搜索缓存 */
@@ -262,12 +280,13 @@ export async function performDeepSearch(
 
   if (settings?.searchProvider === 'gateway') {
     try {
-      const results = await searchWithGateway(rawInput, settings);
+      const { results, answer } = await searchWithGateway(rawInput, settings);
       if (results.length > 0) {
         return {
           query: rawInput.trim().slice(0, 80),
           provider: 'gateway',
           results,
+          answer,
           timestamp: new Date().toISOString(),
         };
       }
