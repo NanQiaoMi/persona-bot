@@ -1,16 +1,38 @@
 # PersonaBot
 
-基于 Next.js 的拟人化 AI 聊天机器人平台，支持从聊天记录中蒸馏出人物 Persona，生成像真人一样说话的 AI。
+基于 Next.js 的拟人化 AI 聊天机器人平台，支持从聊天记录中蒸馏出人物 Persona，生成像真人一样说话、有情绪起伏且会主动联系你的 AI。
+
+<p align="center">
+  <img src="docs/images/personabot-cover.png" alt="PersonaBot 封面展示" />
+  <br />
+  <sub><b>PersonaBot</b> · 从真实聊天记录蒸馏五层人格，支持 PAD 情绪演进与主动破冰</sub>
+</p>
 
 ## 功能特性
 
-- 🎭 **Persona 创建** - 从聊天记录中蒸馏出人物性格
-- 💬 **拟人对话** - 基于 Persona 进行真实对话
-- ❤️ **情感引擎** - 支持情感状态跟踪和演进
-- 👥 **多角色切换** - 支持创建和切换多个 Persona
-- 🔐 **用户系统** - 邀请码注册、JWT 认证
-- 📱 **微信风格 UI** - 熟悉的聊天界面
-- 🐳 **Docker 部署** - 一键部署
+- 🎭 **Persona 创建与五层蒸馏** - 纯 TypeScript 解析微信 / iMessage / 通用聊天记录，5 阶段管线蒸馏出人物语言习惯、性格与共同记忆
+- 💬 **拟人流式对话** - 基于 SSE 多阶段流式输出（联网检索轨迹 → 内心潜台词 → 情绪变化 → 拟人回复）
+- ❤️ **PAD 三维情感引擎** - 支持情绪状态实时跟踪、时间差自然衰减与主动破冰发起对话
+- 🔍 **DeepSearch 与多尺度人格** - 支持免 Key 实时联网检索与 `authentic` / `fun` / `companion` / `analytical` 模式切换
+- 👥 **多角色切换** - 内置标杆角色，支持创建、编辑和切换多个专属 Persona
+- 🔐 **用户系统** - 邀请码注册、JWT 认证，支持零配置本地存储与 MongoDB 无缝切换
+- 🐳 **Docker 部署** - 一键构建与容器化部署
+
+## 系统架构与数据流
+
+```mermaid
+flowchart TB
+  UI["沉浸式三栏工作台\n角色列表 · SSE 对话舞台 · PAD 状态舱"] --> API["/api/chat/stream (SSE)"]
+  Distill["纯 TS 蒸馏管线\n微信 / iMessage 解析 -> 五层人格"] --> Repo
+  subgraph Brain["Grok Brain & Emotion Engine"]
+    Search["DeepSearch\n实时联网检索"]
+    Prompt["PromptAssembler\n五层人格 + 模式 + PAD 情绪"]
+    Stream["StreamOrchestrator\nsearch -> thought -> emotion -> reply"]
+  end
+  API --> Repo["统一存储仓储\n本地文件库 / MongoDB"]
+  API --> Brain
+  Brain --> Repo
+```
 
 ## 快速开始
 
