@@ -52,7 +52,10 @@ describe('Persona Studio 5-Stage Distillation & End-to-End Stream Turn', () => {
     expect(events).toContain('reply');
     expect(events).toContain('done');
     expect(replyMsg.thought).toBeTruthy();
-    expect(replyMsg.searchResults?.length).toBeGreaterThan(0);
+    // 搜不到就如实为空，绝不能出现编造的「热度脉搏 / 网友热评」假结果
+    for (const item of replyMsg.searchResults || []) {
+      expect(['Grok DeepSearch Pulse', 'Social Trend Radar']).not.toContain(item.source);
+    }
     expect(replyMsg.pageCard).toBeDefined();
     expect(replyMsg.pageCard?.metrics.length).toBe(4);
 

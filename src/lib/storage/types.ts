@@ -280,7 +280,9 @@ export interface RuntimeSettings {
   imageModel?: string;
   enableAutoSticker?: boolean;
   enableAutoPhoto?: boolean;
-  searchProvider: 'builtin' | 'tavily' | 'serper';
+  searchProvider: 'gateway' | 'builtin' | 'tavily' | 'serper';
+  /** 联网搜索接口地址；留空则用模型网关地址 + /search */
+  searchGatewayUrl?: string;
   tavilyApiKey: string;
   serperApiKey: string;
   defaultThinkMode: boolean;

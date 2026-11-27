@@ -71,7 +71,8 @@ export default function SettingsModal({
     imageModel: "gpt-image-2.6",
     enableAutoSticker: true,
     enableAutoPhoto: true,
-    searchProvider: "builtin",
+    searchProvider: "gateway",
+    searchGatewayUrl: "",
     tavilyApiKey: "",
     serperApiKey: "",
     defaultThinkMode: true,
@@ -224,6 +225,9 @@ export default function SettingsModal({
         body: JSON.stringify({
           query: testQuery || "今日科技热点",
           provider: form.searchProvider,
+          searchGatewayUrl: form.searchGatewayUrl,
+          llmBaseUrl: form.llmBaseUrl,
+          llmApiKey: form.llmApiKey,
           tavilyApiKey: form.tavilyApiKey,
           serperApiKey: form.serperApiKey,
         }),
@@ -505,12 +509,17 @@ export default function SettingsModal({
             <label className="font-semibold text-[var(--text-primary)] block">
               3. 🌐 DeepSearch 实时联网搜索引擎
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[
                 {
+                  id: "gateway",
+                  title: "模型网关搜索（推荐）",
+                  desc: "走本机网关的真实网页搜索，约 15–30 秒",
+                },
+                {
                   id: "builtin",
-                  title: "内置免配置搜索",
-                  desc: "Wikipedia + DuckDuckGo",
+                  title: "维基百科（免配置）",
+                  desc: "只能查百科词条，查不到新闻",
                 },
                 {
                   id: "tavily",
@@ -543,6 +552,23 @@ export default function SettingsModal({
                 </button>
               ))}
             </div>
+
+            {form.searchProvider === "gateway" && (
+              <div className="space-y-1">
+                <input
+                  type="text"
+                  value={form.searchGatewayUrl || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, searchGatewayUrl: e.target.value }))
+                  }
+                  placeholder={`搜索接口地址，留空则用 ${(form.llmBaseUrl || "http://127.0.0.1:8000/v1").replace(/\/+$/, "")}/search`}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs"
+                />
+                <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                  使用上面模型配置里的 API Key 鉴权。网关没开或超时（40 秒）时自动退回维基百科；搜不到时角色会如实说没查到。
+                </p>
+              </div>
+            )}
 
             {form.searchProvider === "tavily" && (
               <input
