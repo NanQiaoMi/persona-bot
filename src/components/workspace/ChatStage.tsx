@@ -1,8 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { PERSONA_MODES } from "@/lib/grok/persona-modes";
-import { stripEmoji } from "@/lib/text/emoji";
 import LineIcon from "./LineIcon";
 import {
   ConversationMessage,
@@ -288,7 +286,6 @@ export default function ChatStage({
     const name = streaming?.statusText?.match(/^(.+?)\s*正在输入/)?.[1]?.trim();
     return name ? groupMembers.find((p) => p.name === name) || null : null;
   })();
-  const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
     <div
@@ -438,55 +435,31 @@ export default function ChatStage({
         <div className="max-w-[740px] mx-auto">
           {messages.length === 0 && !streaming ? (
             /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
-            <div className="pt-12 pb-10 flex flex-col items-center text-center space-y-7 animate-fade-in">
-              <button
-                type="button"
-                onClick={onOpenAvatarPicker}
-                className="group/hero relative flex flex-col items-center justify-center focus-ring rounded-2xl p-1 cursor-pointer"
-                title="点击更换角色形状与颜色"
-              >
-                <div className="animate-float-gentle">
-                  <BlobMascot
-                    shape={mascotCfg.shape}
-                    color={mascotCfg.color}
-                    image={mascotCfg.image}
-                    size={84}
-                    trackPointer
-                  />
-                </div>
-                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
-                  点击定制形状与颜色
-                </span>
-              </button>
+            <div className="pt-20 pb-10 flex flex-col items-center text-center gap-8 animate-fade-in">
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onOpenAvatarPicker}
+                  className="group/hero relative flex flex-col items-center justify-center focus-ring rounded-2xl p-1 cursor-pointer"
+                  title="点击更换角色形状与颜色"
+                >
+                  <div className="animate-float-gentle">
+                    <BlobMascot
+                      shape={mascotCfg.shape}
+                      color={mascotCfg.color}
+                      image={mascotCfg.image}
+                      size={84}
+                      trackPointer
+                    />
+                  </div>
+                  <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
+                    点击定制形状与颜色
+                  </span>
+                </button>
 
-              <div className="flex flex-col items-center gap-3 max-w-lg">
                 <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
                   {persona.name}
                 </h2>
-                <p className="max-w-md text-[13.5px] leading-[1.65] text-[var(--text-secondary)]">
-                  {persona.profile.bio ||
-                    "支持 DeepSearch 实时联网生成结构化页面、Think 内心潜台词与多档人格模式。"}
-                </p>
-                {/* 模式 / 亲密度 / 此刻心情：三个独立的小标签 */}
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
-                  {[
-                    { icon: modeSpec.icon, label: modeSpec.shortLabel },
-                    { icon: "heart" as const, label: `亲密度 ${persona.intimacy}%` },
-                    {
-                      icon: "pulse" as const,
-                      label:
-                        stripEmoji(persona.emotionState.moodLabel || "") || "在线",
-                    },
-                  ].map((stat) => (
-                    <span
-                      key={stat.label}
-                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] text-[var(--text-secondary)] type-mono-num"
-                    >
-                      <LineIcon name={stat.icon} size={13} className="text-[var(--text-muted)]" />
-                      <span className="max-w-[12em] truncate">{stat.label}</span>
-                    </span>
-                  ))}
-                </div>
               </div>
 
               {/* 一键开聊：无卡片浮动细线列表 */}
