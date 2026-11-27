@@ -18,23 +18,25 @@ PersonaBot 是一个将**真实聊天记录蒸馏人物灵魂（五层人格 + �
 
 ## 3. 核心目录结构
 - `src/app/` — App Router 页面与 REST/SSE API 路由（唯一 `/` 入口，`/chat/[slug]`、`/create`、`/gallery`）
-- `src/components/` — UI 组件（`workspace/` 三栏工作台、`persona/` 蒸馏向导、`settings/` 模型配置舱）
+- `src/components/` — UI 组件（`workspace/` 三栏工作台含 `PersonaTuningPanel` 性格脾气调音台、`persona/` 蒸馏向导、`settings/` 模型配置舱）
 - `src/lib/storage/` — 统一存储仓储层（本地结构化文件 + 快照回滚与灵魂包导入导出 + MongoDB 适配 + 内置标杆角色自动初始化）
-- `src/lib/persona/` — 内置 Grok 标杆角色库、全套重写 Prompt、纯 TS 五阶段蒸馏引擎、自动记忆与习惯自进化 (`evolution.ts`) 与 Prompt 组装器
+- `src/lib/persona/` — 内置 Grok 标杆角色库、全套重写 Prompt、纯 TS 五阶段蒸馏引擎、性格思维与作息引擎、自动记忆与习惯自进化 (`evolution.ts`) 与 Prompt 组装器
 - `src/lib/grok/` — DeepSearch 联网、人格模式修饰器、时间感知主动破冰、SSE 流式编排器
-- `src/lib/emotion/` — PAD 三维情绪状态机、时间衰减与好感度引擎
+- `src/lib/emotion/` — PAD 三维情绪状态机、6 原型脾气/4 档关系阶段、时间衰减与好感度引擎
 - `src/lib/parsers/` — 纯 TS 聊天记录解析器（微信 TXT/HTML/JSON、iMessage、通用文本）
-- `tests/` — Vitest 自动化测试套件
+- `eval/` 与 `tests/` — 真模型灵魂对抗评测 (`persona-live-eval.ts`) 与 Vitest 自动化测试套件
 - `docs/` — 架构文档（`ARCHITECTURE.md`）、演进计划（`PLAN.md`）、决策记录（`DECISIONS.md`）
 
 ## 4. 常用开发与验证命令
 ```bash
-npm install          # 安装依赖
-npm run dev          # 启动本地开发服务器 (http://localhost:3000)
-npm run lint         # ESLint 静态检查
-npm run typecheck    # TypeScript 类型检查
-npm test             # 运行 Vitest 自动化测试
-npm run build        # 验证 Next.js 生产构建
+npm install            # 安装依赖
+npm run dev            # 启动本地开发服务器 (http://localhost:3000)
+npm run lint           # ESLint 静态检查
+npm run typecheck      # TypeScript 类型检查
+npm test               # 运行 Vitest 自动化测试
+npm run eval:persona   # 运行离线人格回归评分
+npm run eval:persona:live -- --offline   # 运行 15 场景灵魂对抗评测（去掉 --offline 连本地/云端 LLM）
+npm run build          # 验证 Next.js 生产构建
 ```
 
 ## 5. 开发铁律与禁忌
