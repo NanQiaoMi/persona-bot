@@ -7,12 +7,23 @@ export class EmotionEngine {
   private state: EmotionState;
   private personality: PersonalityTraits;
 
-  constructor(personality: PersonalityTraits, initialState?: EmotionVector) {
+  constructor(
+    personality: PersonalityTraits,
+    initialState?: EmotionVector,
+    initialHistory?: EmotionVector[]
+  ) {
     this.personality = personality;
     this.state = {
       current: initialState || createDefaultEmotionVector(),
-      history: [],
-      baseline: personality
+      history: Array.isArray(initialHistory)
+        ? initialHistory.map((emotion) => ({
+            timestamp: new Date(),
+            event: 'history',
+            emotion,
+            context: 'persisted',
+          }))
+        : [],
+      baseline: personality,
     };
   }
 
@@ -24,7 +35,7 @@ export class EmotionEngine {
     const appraisal = appraiseEvent(
       event,
       this.personality,
-      this.state.history.map(h => h.emotion),
+      this.state.history.map((h) => h.emotion),
       {}
     );
 
@@ -34,12 +45,7 @@ export class EmotionEngine {
     this.state.current = {
       ...this.state.current,
       ...newEmotion,
-      primary: mapPADToEmotion(
-        newEmotion.pleasure ?? this.state.current.pleasure,
-        newEmotion.arousal ?? this.state.current.arousal,
-        newEmotion.dominance ?? this.state.current.dominance
-      ),
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
     };
 
     this.state.current = applyInertia(
@@ -49,12 +55,18 @@ export class EmotionEngine {
     );
 
     this.state.current = clampEmotionVector(this.state.current);
+    // 惯性混合与钳位完成后再重算主情绪，保证 primary 与最终 PAD 一致
+    this.state.current.primary = mapPADToEmotion(
+      this.state.current.pleasure,
+      this.state.current.arousal,
+      this.state.current.dominance
+    );
 
     this.state.history.push({
       timestamp: new Date(),
       event: event.content,
       emotion: { ...this.state.current },
-      context: `${event.type} from ${event.sender}`
+      context: `${event.type} from ${event.sender}`,
     });
 
     if (this.state.history.length > 50) {
@@ -64,11 +76,12 @@ export class EmotionEngine {
     return this.getCurrentState();
   }
 
-  evolveByTime(hoursElapsed: number): EmotionVector {
+  evolveByTime(hoursElapsed: number, options?: { isSulking?: boolean }): EmotionVector {
     this.state.current = evolveEmotion(
       this.state.current,
       hoursElapsed,
-      this.personality
+      this.personality,
+      options
     );
 
     return this.getCurrentState();

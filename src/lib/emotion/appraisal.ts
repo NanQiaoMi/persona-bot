@@ -108,17 +108,36 @@ const STRONG_NEGATION_RE = /(?:一点也|一点都|根本|完全|压根|绝不|�
 const STANDALONE_COLD_RE = /^(?:哦+|噢+|行吧行吧|随便|无所谓|呵呵)[。.~～…!！]*$/;
 
 export function assessNovelty(event: EmotionalEvent, history: EmotionVector[]): number {
-  if (history.length === 0) return 0.8;
+  const content = (event.content || '').trim();
+  const len = content.length;
+
+  let textNovelty = 0.25;
+  if (event.type === 'correction') {
+    textNovelty = 0.85;
+  } else {
+    if (len >= 30) textNovelty += 0.2;
+    else if (len >= 10) textNovelty += 0.1;
+    if (/[?？!！]/.test(content)) textNovelty += 0.14;
+    if (/(居然|竟然|突然|突发|新|重磅|听说|猜猜|卧槽|笑死|离谱)/.test(content)) {
+      textNovelty += 0.2;
+    }
+    if (event.metadata?.boundaryHit === true) {
+      textNovelty += 0.18;
+    }
+  }
+
+  if (history.length === 0) {
+    return Math.max(0.15, Math.min(0.95, Number(textNovelty.toFixed(3))));
+  }
 
   const recentEmotions = history.slice(-5);
+  const last = recentEmotions[recentEmotions.length - 1];
   const avgPleasure =
     recentEmotions.reduce((sum, e) => sum + e.pleasure, 0) / recentEmotions.length;
-  const avgArousal =
-    recentEmotions.reduce((sum, e) => sum + e.arousal, 0) / recentEmotions.length;
+  const shift = Math.abs(last.pleasure - avgPleasure) + Math.abs(last.arousal - 0.35) * 0.4;
 
-  const typeNovelty = event.type === 'correction' ? 0.9 : 0.5;
-
-  return Math.min(1, typeNovelty * 0.6 + Math.abs(avgPleasure) * 0.2 + avgArousal * 0.2);
+  const combined = textNovelty * 0.72 + Math.min(0.4, shift) * 0.7;
+  return Math.max(0.15, Math.min(0.95, Number(combined.toFixed(3))));
 }
 
 export function assessPleasantness(
@@ -193,21 +212,28 @@ export function assessGoalRelevance(
   event: EmotionalEvent,
   personality: PersonalityTraits
 ): number {
-  let relevance = 0.5;
-
-  if (event.type === 'message' && event.sender === 'user') {
-    relevance = 0.7;
-  }
+  const content = (event.content || '').trim();
+  let relevance = 0.45;
 
   if (event.type === 'correction') {
-    relevance = 0.9;
+    relevance = 0.88;
+  } else if (event.type === 'message' && event.sender === 'user') {
+    if (content.length <= 3 && !/[?？!！]/.test(content)) {
+      relevance = 0.35;
+    } else {
+      relevance = 0.55;
+      if (content.length >= 20) relevance += 0.1;
+      if (/[你我咱]/.test(content)) relevance += 0.08;
+      if (/[?？]/.test(content)) relevance += 0.06;
+    }
+    if (event.metadata?.boundaryHit === true) {
+      relevance = Math.max(relevance, 0.86);
+    }
   }
 
-  if (personality.extraversion > 0.7) {
-    relevance *= 1.2;
-  }
+  relevance *= 1 + (personality.extraversion - 0.5) * 0.2;
 
-  return Math.min(1, relevance);
+  return Math.max(0.2, Math.min(1, Number(relevance.toFixed(3))));
 }
 
 export function assessCopingPotential(
@@ -215,33 +241,52 @@ export function assessCopingPotential(
   personality: PersonalityTraits,
   context: { timeSinceLastChat?: number; relationshipDuration?: number }
 ): number {
-  let potential = 0.5;
+  const content = (event.content || '').trim();
+  let potential = 0.42;
 
-  potential += personality.emotionalStability * 0.3;
-  potential += personality.agreeableness * 0.2;
+  potential += personality.emotionalStability * 0.25;
+  potential += (1 - personality.agreeableness) * 0.18;
 
-  if (context.relationshipDuration) {
-    potential += Math.min(0.2, (context.relationshipDuration / 365) * 0.1);
+  if (event.metadata?.boundaryHit === true) {
+    // 踩雷时主导感随脾气直率度变化，高顺从会略收低，低顺从会反手顶回去
+    potential += personality.agreeableness >= 0.7 ? -0.15 : 0.12;
+  }
+  if (/(随便|算了|不知道|怎么办|好累)/.test(content)) {
+    potential -= 0.08;
+  } else if (/(凭什么|你必须|听我的|搞定|没问题)/.test(content)) {
+    potential += 0.08;
   }
 
-  return Math.min(1, potential);
+  if (context.relationshipDuration) {
+    potential += Math.min(0.15, (context.relationshipDuration / 365) * 0.1);
+  }
+
+  return Math.max(0.15, Math.min(0.95, Number(potential.toFixed(3))));
 }
 
 export function assessNormCompatibility(
   event: EmotionalEvent,
   personality: PersonalityTraits
 ): number {
-  let compatibility = 0.7;
+  const content = (event.content || '').trim();
+  let compatibility = 0.68;
+
+  if (event.metadata?.boundaryHit === true) {
+    compatibility -= 0.4;
+  } else if (/(敷衍|随便|无所谓|闭嘴|滚|呵呵)/.test(content)) {
+    compatibility -= 0.18;
+  } else if (/(谢谢|辛苦|晚安|想你|抱抱|喜欢)/.test(content)) {
+    compatibility += 0.1;
+  }
 
   if (personality.openness > 0.7) {
-    compatibility += 0.2;
+    compatibility += 0.08;
   }
-
   if (personality.conscientiousness > 0.7) {
-    compatibility -= 0.1;
+    compatibility -= 0.06;
   }
 
-  return Math.max(0, Math.min(1, compatibility));
+  return Math.max(0.05, Math.min(1, Number(compatibility.toFixed(3))));
 }
 
 export function appraiseEvent(
@@ -267,20 +312,34 @@ export function appraisalToEmotion(
   // 去掉旧版 `+ goalRelevance * 0.3` 的固定正向偏置：中性消息 valence=0，负向消息不再被强行拉正
   const relevanceAmp = 0.75 + appraisal.goalRelevance * 0.35;
   const valence = Math.max(-1, Math.min(1, appraisal.pleasantness * relevanceAmp));
-  const arousal = appraisal.novelty * 0.5 + appraisal.goalRelevance * 0.5;
+  const arousal = Math.max(
+    0.1,
+    Math.min(
+      0.98,
+      0.18 +
+        appraisal.novelty * 0.34 +
+        Math.abs(appraisal.pleasantness) * 0.38 +
+        (appraisal.goalRelevance - 0.5) * 0.2
+    )
+  );
   const dominance = appraisal.copingPotential;
 
-  const intensity =
-    appraisal.novelty * 0.2 +
-    Math.abs(appraisal.pleasantness) * 0.3 +
-    appraisal.goalRelevance * 0.3 +
-    appraisal.copingPotential * 0.2;
+  const intensity = Math.max(
+    0.1,
+    Math.min(
+      1,
+      0.14 +
+        Math.abs(appraisal.pleasantness) * 0.52 +
+        appraisal.novelty * 0.18 +
+        appraisal.goalRelevance * 0.16
+    )
+  );
 
   return {
-    pleasure: valence,
-    arousal: Math.min(1, arousal),
-    dominance: Math.min(1, dominance),
-    intensity: Math.min(1, intensity),
+    pleasure: Number(valence.toFixed(3)),
+    arousal: Number(arousal.toFixed(3)),
+    dominance: Number(dominance.toFixed(3)),
+    intensity: Number(intensity.toFixed(3)),
     appraisal,
   };
 }

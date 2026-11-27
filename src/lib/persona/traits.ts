@@ -115,13 +115,16 @@ const NUMERIC_TRAIT_KEYS: NumericTraitKey[] = [
 const MAX_TRAIT_STEP = 0.08;
 const MIN_TRAIT_VALUE = 0.1;
 const MAX_TRAIT_VALUE = 0.95;
+export const MAX_TRAIT_DRIFT = 0.2;
 
 /**
- * 对大五性格特质与情绪恢复参数进行温和有界的平滑微调（单次变化 ±0.08，区间 [0.1, 0.95]）
+ * 对大五性格特质与情绪恢复参数进行温和有界的平滑微调
+ * （单次变化 ±0.08，区间 [0.1, 0.95]，且受初始锚点 baseline ±0.20 最大漂移半径约束）
  */
 export function applySmoothTraitDeltas(
   base: PersonaTraitsSpec,
-  deltas: Partial<Record<NumericTraitKey, number>> | undefined
+  deltas: Partial<Record<NumericTraitKey, number>> | undefined,
+  baseline?: Partial<Record<NumericTraitKey, number>>
 ): { updated: boolean; traits: PersonaTraitsSpec; changedKeys: NumericTraitKey[] } {
   if (!deltas || typeof deltas !== 'object') {
     return { updated: false, traits: base, changedKeys: [] };
@@ -135,8 +138,20 @@ export function applySmoothTraitDeltas(
     if (typeof rawDelta !== 'number' || !Number.isFinite(rawDelta)) continue;
     const boundedDelta = Math.max(-MAX_TRAIT_STEP, Math.min(MAX_TRAIT_STEP, rawDelta));
     const currentVal = typeof base[key] === 'number' ? base[key] : 0.5;
+    const anchorVal =
+      baseline && typeof baseline[key] === 'number' && Number.isFinite(baseline[key])
+        ? (baseline[key] as number)
+        : undefined;
+    const minBound =
+      anchorVal !== undefined
+        ? Math.max(MIN_TRAIT_VALUE, anchorVal - MAX_TRAIT_DRIFT)
+        : MIN_TRAIT_VALUE;
+    const maxBound =
+      anchorVal !== undefined
+        ? Math.min(MAX_TRAIT_VALUE, anchorVal + MAX_TRAIT_DRIFT)
+        : MAX_TRAIT_VALUE;
     const targetVal = Number(
-      Math.max(MIN_TRAIT_VALUE, Math.min(MAX_TRAIT_VALUE, currentVal + boundedDelta)).toFixed(2)
+      Math.max(minBound, Math.min(maxBound, currentVal + boundedDelta)).toFixed(2)
     );
     if (Math.abs(targetVal - currentVal) >= 0.01) {
       next[key] = targetVal;

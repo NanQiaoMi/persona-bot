@@ -97,6 +97,8 @@ export interface PickSpeakersInput<T extends GroupMemberLite> {
   random?: RandomFn;
   /** 每个成员此刻的状态；睡着的人不主动回，忙的人少回 */
   availabilityOf?: (slug: string) => 'free' | 'busy' | 'asleep';
+  /** 闹别扭等级 (0~3)；>=2 降低发言意愿，>=3 不作为旁观闲聊插话者 */
+  sulkingLevelOf?: (slug: string) => number;
 }
 
 /**
@@ -142,6 +144,7 @@ export function pickSpeakers<T extends GroupMemberLite>({
   maxSpeakers = GROUP_MAX_SPEAKERS,
   random = Math.random,
   availabilityOf,
+  sulkingLevelOf,
 }: PickSpeakersInput<T>): T[] {
   if (members.length === 0) return [];
 
@@ -155,14 +158,19 @@ export function pickSpeakers<T extends GroupMemberLite>({
   const cap = Math.max(1, Math.min(maxSpeakers, pool.length + mentioned.length));
 
   const ranked = [...pool]
-    .map((m) => ({
-      member: m,
-      score:
-        (topicRelevance(text, m) * 2 +
-          Math.min(turnsSinceSpoke(history, m.slug), 8) * 0.35 +
-          random() * 0.9) *
-        (availabilityOf?.(m.slug) === 'busy' ? 0.5 : 1),
-    }))
+    .map((m) => {
+      const sulkLevel = sulkingLevelOf?.(m.slug) ?? 0;
+      const sulkWeight = sulkLevel >= 3 ? 0.25 : sulkLevel >= 2 ? 0.4 : 1;
+      return {
+        member: m,
+        score:
+          (topicRelevance(text, m) * 2 +
+            Math.min(turnsSinceSpoke(history, m.slug), 8) * 0.35 +
+            random() * 0.9) *
+          (availabilityOf?.(m.slug) === 'busy' ? 0.5 : 1) *
+          sulkWeight,
+      };
+    })
     .sort((a, b) => b.score - a.score)
     .map((r) => r.member);
 
@@ -177,9 +185,11 @@ export function pickSpeakers<T extends GroupMemberLite>({
 
   if (mentioned.length > 0) {
     const result = mentioned.slice(0, Math.max(1, Math.min(maxSpeakers, mentioned.length)));
-    // 点名一个人时，偶尔有醒着的旁人忍不住插一句
+    // 点名一个人时，偶尔有醒着且未冷战的人忍不住插一句
     if (result.length === 1 && maxSpeakers > 1 && random() < 0.3) {
-      const extra = ranked.find((m) => m.slug !== result[0].slug);
+      const extra = ranked.find(
+        (m) => m.slug !== result[0].slug && (sulkingLevelOf?.(m.slug) ?? 0) < 3
+      );
       if (extra) result.push(extra);
     }
     return result;
@@ -199,8 +209,14 @@ export function pickSpeakers<T extends GroupMemberLite>({
 
   const result = [ranked[0]];
   const isLongOrQuestion = text.trim().length > 14 || /[?？吗呢么]$/.test(text.trim());
-  if (cap >= 2 && ranked[1] && random() < (isLongOrQuestion ? 0.6 : 0.35)) {
-    result.push(ranked[1]);
+  const second = ranked[1];
+  if (
+    cap >= 2 &&
+    second &&
+    (sulkingLevelOf?.(second.slug) ?? 0) < 3 &&
+    random() < (isLongOrQuestion ? 0.6 : 0.35)
+  ) {
+    result.push(second);
   }
   return result;
 }

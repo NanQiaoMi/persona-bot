@@ -261,7 +261,11 @@ export async function consolidatePersonaEvolution(
       const currentTagsText = (persona.profile.personalityTags || []).join('、') || '暂无';
       const currentAppearanceText = persona.profile.appearanceAnchor || '未设定';
 
-      const prompt = `请分析以下最近对话与用户纠偏，同时完成「长期记忆提取」「相处习惯」「对话风格自省改进（去除 AI 味与多余 emoji，贴近当代年轻人微信聊天方式）」「温和人格演进与外貌约定提炼」。
+      const styleTargetHint = persona.spec?.fingerprint
+        ? '贴合 TA 本人已有的真实口吻特征'
+        : '贴近当代年轻人微信聊天方式';
+
+      const prompt = `请分析以下最近对话与用户纠偏，同时完成「长期记忆提取」「相处习惯」「对话风格自省改进（去除 AI 味与多余 emoji，${styleTargetHint}）」「温和人格演进与外貌约定提炼」。
 只输出严格 JSON，不要额外解释：
 {
   "memories": ["简短长期事实或用户偏好（最多 4 条，不要一次性寒暄）"],
@@ -445,14 +449,16 @@ ${transcript}`;
       }
     }
 
-    // 2) 平滑微调大五性格特质（单次 ±0.08 护栏）
+    // 2) 平滑微调大五性格特质（单次 ±0.08 且受初始锚点 ±0.20 护栏约束，防止长期聊天洗白原性格）
     const baseTraits =
       learnedMerge.spec.traits || heuristicTraits(fresh.personaMd, fresh.profile);
-    const traitUpdate = applySmoothTraitDeltas(baseTraits, candidateTraitDeltas);
-    if (traitUpdate.updated) {
+    const baselineTraits = learnedMerge.spec.baselineTraits ?? { ...baseTraits };
+    const traitUpdate = applySmoothTraitDeltas(baseTraits, candidateTraitDeltas, baselineTraits);
+    if (traitUpdate.updated || !learnedMerge.spec.baselineTraits) {
       learnedMerge.spec = {
         ...learnedMerge.spec,
-        traits: traitUpdate.traits,
+        baselineTraits,
+        traits: traitUpdate.updated ? traitUpdate.traits : baseTraits,
       };
     }
 

@@ -18,8 +18,10 @@ export interface OutreachCandidate {
   intimacy: number;
   /** PAD 的激活度 0–1，越高越想说话 */
   arousal?: number;
-  /** PAD 的愉悦度 0–1 */
+  /** PAD 的愉悦度 -1～1 */
   pleasure?: number;
+  /** 当前闹别扭等级 (0~3)；>=2 时暂不主动寒暄打扰 */
+  sulkingLevel?: number;
   availability: Availability;
   /** 补发时按那个时刻的作息判断（不传就用 availability） */
   availabilityAt?: (d: Date) => Availability;
@@ -88,6 +90,7 @@ export function blockReason(
   const { now, log } = ctx;
   if (c.optedOut) return '你关掉了 TA 的主动消息';
   if (c.slug === 'master-bot') return '主控 bot 不主动闲聊';
+  if ((c.sulkingLevel ?? 0) >= 2) return 'TA 还在闹别扭';
   if (c.slug === ctx.activeSlug) return '你正在和 TA 聊';
   const availability = c.availabilityAt ? c.availabilityAt(now) : c.availability;
   if (availability === 'asleep') return 'TA 在睡觉';
@@ -105,13 +108,15 @@ export function blockReason(
 /** 谁更想来找你（越大越优先） */
 export function outreachScore(c: OutreachCandidate, now: Date, random: () => number): number {
   const hours = c.lastMessageAt ? (now.getTime() - new Date(c.lastMessageAt).getTime()) / 3600_000 : 24;
+  const normalizedPleasure = Math.max(0, Math.min(1, ((c.pleasure ?? 0) + 1) / 2));
   return (
     (c.intimacy / 100) * 1.0 +
     (Math.min(hours, 36) / 36) * 0.7 +
     (c.hasDueTopic ? 0.8 : 0) +
     (c.arousal ?? 0.5) * 0.3 +
-    (c.pleasure ?? 0.5) * 0.15 +
+    normalizedPleasure * 0.15 +
     (c.availability === 'busy' ? -0.35 : 0) +
+    (c.sulkingLevel === 1 ? -0.25 : 0) +
     random() * 0.6
   );
 }

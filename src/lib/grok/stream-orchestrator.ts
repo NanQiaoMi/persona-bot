@@ -667,12 +667,52 @@ export function synthesizePersonaAwareFallback(
       );
       bursts.push('如果你愿意把前提条件补全两句，我们可以直接推演出最省力的破局方案。');
     } else {
-      thought =
-        persona.slug === 'xia-you'
-          ? `他怎么又发「${userMessage.slice(0, 16)}」过来……明明挺在意他的下文，但回太热情好像又显得我一直在等他上线似的。\n算了，照旧先嘴硬撇清一句，再悄悄留个话口给他吧。`
-          : `看到他发来「${userMessage.slice(0, 18)}」，手里的事刚好也忙得差不多了。\n顺口接上话茬聊聊，看看他后面还憋着什么乐子。`;
-      mood = persona.slug === 'xia-you' ? '嘴硬心软' : '自然在线';
-      if (persona.slug === 'xia-you') {
+      const mind = persona.spec?.mind;
+      const temp = persona.spec?.temperament;
+      if (sulkingLevel >= 1 && temp) {
+        if (temp.archetype === 'hurt') {
+          thought = `他怎么还说「${userMessage.slice(0, 14)}」……心里一下子有点闷，不想硬挤笑脸了。`;
+          mood = '悄悄委屈中';
+          bursts.push('……嗯，我听到了。');
+          bursts.push('我现在没太想多聊，等缓一缓再说吧。');
+        } else if (temp.archetype === 'snappy') {
+          thought = `还提「${userMessage.slice(0, 14)}」？火气又冒上来半截，懒得绕弯子哄着说了。`;
+          mood = '炸毛上头中';
+          bursts.push('你先别扯别的，刚才那事我还堵着呢。');
+          bursts.push('自己说吧，是不是真觉得无所谓？');
+        } else if (temp.archetype === 'cold') {
+          thought = `刚才那点边界还没理顺，不想轻易把热情放回来。`;
+          mood = '冷处理中';
+          bursts.push('先这样吧，我现在没太有心情接着聊。');
+        } else if (temp.archetype === 'jealous') {
+          thought = `嘴上说没事，其实心里酸得不行，看他怎么哄。`;
+          mood = '阴阳吃醋中';
+          bursts.push('挺好呀，你看着办就行。');
+          bursts.push('反正我也就随口一问。');
+        } else {
+          thought = `他发「${userMessage.slice(0, 14)}」过来，但我这口气还没顺下来，先嘴硬晾两句。`;
+          mood = '哼着气傲娇中';
+          bursts.push('哦，现在想起找我说话啦？');
+          bursts.push('……哼，自己好好想想刚才哪里不对。');
+        }
+      } else if (mind?.cognitiveStyle === 'analytical-logic') {
+        thought = `看到「${userMessage.slice(0, 16)}」，先顺着关键点捋一遍，有话直说最痛快。`;
+        mood = '清醒在线';
+        bursts.push(`刚看到你说「${userMessage.slice(0, 16)}」，我先把最关键那半句接住了。`);
+        bursts.push('你怎么看这事背后的关键点？');
+      } else if (mind?.cognitiveStyle === 'pragmatic-action') {
+        thought = `「${userMessage.slice(0, 16)}」这事不用兜圈子，直接给个痛快反应最实在。`;
+        mood = '直爽在线';
+        bursts.push(`行啊，聊「${userMessage.slice(0, 16)}」我可太有发言权了。`);
+        bursts.push('别光说，你下一步打算怎么整？');
+      } else if (mind?.cognitiveStyle === 'observant-guarded' || mind?.defenseStyle === 'withdraw-quiet') {
+        thought = `看到他发「${userMessage.slice(0, 16)}」，脑子里先浮现出一点画面，慢半拍温柔接住他吧。`;
+        mood = '安静听你说';
+        bursts.push(`刚看见你发「${userMessage.slice(0, 16)}」，我正好也空下来了。`);
+        bursts.push('慢慢说，我在听呢。');
+      } else if (persona.slug === 'xia-you' || mind?.defenseStyle === 'tsundere-mask') {
+        thought = `他怎么又发「${userMessage.slice(0, 16)}」过来……明明挺在意他的下文，但回太热情好像又显得我一直在等他上线似的。\n算了，照旧先嘴硬撇清一句，再悄悄留个话口给他吧。`;
+        mood = '嘴硬心软';
         bursts.push(
           isEmotional
             ? '大晚上的说这些干嘛……不过你要是真觉得累了，歇一会儿也没人会笑话你。'
@@ -680,6 +720,8 @@ export function synthesizePersonaAwareFallback(
         );
         bursts.push('……好啦，我正好也没睡，你想说就接着说呗。');
       } else {
+        thought = `看到他发来「${userMessage.slice(0, 18)}」，手里的事刚好也忙得差不多了。\n顺口接上话茬聊聊，看看他后面还憋着什么乐子。`;
+        mood = '自然在线';
         bursts.push(`刚看到你发「${userMessage.slice(0, 18)}」，我一下就被拉进这个话题了。`);
         bursts.push('你接着往下说，我手头的事刚好告一段落。');
       }
@@ -1093,6 +1135,7 @@ export async function executeGrokChatTurn(
   const traitsDirective = isMasterBot
     ? ''
     : buildTraitsBehaviorDirective(turnEmotion.traits);
+  const personaTemperament = persona.spec?.temperament;
   const sulkingLevel = turnEmotion.snapshot.sulking?.level ?? 0;
   const sulkingDirective = isMasterBot
     ? ''
@@ -1100,10 +1143,10 @@ export async function executeGrokChatTurn(
         turnEmotion.snapshot.sulking,
         turnEmotion.traits,
         turnEmotion.sulkingTransition.justResolved,
-        persona.personaMd
+        persona.personaMd,
+        personaTemperament
       );
   const personaMind = resolvePersonaMind(persona);
-  const personaTemperament = persona.spec?.temperament;
   const mindDirective = isMasterBot
     ? ''
     : buildMindCognitiveDirective(personaMind, personaTemperament);
@@ -1324,6 +1367,7 @@ export async function executeGrokChatTurn(
       basePleasantness: turnEmotion.pleasantness,
       mode: activeMode,
       traits: turnEmotion.traits,
+      temperament: personaTemperament,
     });
     updatedEmotion = mergedAffect.snapshot;
     newIntimacy = mergedAffect.intimacy;
