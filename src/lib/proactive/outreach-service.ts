@@ -3,6 +3,7 @@
  * - tick：应用开着时的例行检查，最多一个人来找你
  * - catchup：离开几小时后打开，补上「你不在时」最多两条（时间落在空档里）
  */
+import { computeIntimacyUpdate } from '@/lib/emotion/turn';
 import { generateProactiveMessage } from '@/lib/grok/proactive-engine';
 import { resolveLlmConfig } from '@/lib/llm/client';
 import { getPresenceState } from '@/lib/persona/daily-rhythm';
@@ -49,6 +50,7 @@ async function buildCandidate(persona: PersonaRecord, now: Date): Promise<Outrea
     intimacy: persona.intimacy,
     arousal: persona.emotionState?.arousal,
     pleasure: persona.emotionState?.pleasure,
+    sulkingLevel: persona.emotionState?.sulking?.level ?? 0,
     availability: getPresenceState(persona, now).availability,
     availabilityAt: (d: Date) => getPresenceState(persona, d).availability,
     lastMessageAt: last?.timestamp,
@@ -153,8 +155,22 @@ async function composeAndSave(
     proactive: mode,
   };
 
-  const newIntimacy = Math.max(0, Math.min(100, persona.intimacy + result.intimacyChange));
-  await storageRepo.updateEmotionAndIntimacy(persona.slug, result.emotionState, newIntimacy);
+  const updatedIntimacy = computeIntimacyUpdate({
+    current: persona.intimacy,
+    pleasantness: result.intimacyChange > 0 ? 0.25 : 0,
+    mode: persona.defaultMode,
+    relationship: persona.relationship,
+    lastChatAt: persona.emotionState?.lastUpdated,
+    now: at,
+  });
+  message.intimacyChange = updatedIntimacy.delta;
+
+  await storageRepo.updateEmotionAndIntimacy(
+    persona.slug,
+    result.emotionState,
+    updatedIntimacy.intimacy,
+    updatedIntimacy.relationship
+  );
   await storageRepo.appendMessages(persona.slug, [message]);
   if (dueTopics.length > 0) {
     await storageRepo.updateMemoryState(persona.slug, (s) => ({

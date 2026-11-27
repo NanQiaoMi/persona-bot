@@ -118,7 +118,12 @@ export async function executeAmbientScene(params: {
 
   const members = (
     await Promise.all(group.memberSlugs.map((slug) => storageRepo.getPersona(slug)))
-  ).filter((p): p is PersonaRecord => Boolean(p));
+  )
+    .filter((p): p is PersonaRecord => Boolean(p))
+    .map((p) => ({
+      ...p,
+      sulkingLevel: p.emotionState?.sulking?.level ?? 0,
+    }));
   const history = await storageRepo.getGroupConversation(group.id, 0);
 
   const decision = decideAmbient({

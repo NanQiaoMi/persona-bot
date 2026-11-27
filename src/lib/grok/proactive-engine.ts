@@ -4,10 +4,15 @@
  * - 没模型或调用失败时：按角色的聊天模式 × 场景从离线话术库里挑，按「角色 + 日期 + 时段」稳定挑选，
  *   不同角色、不同日子说的不一样
  */
+import { buildSulkingDirective } from '@/lib/emotion/sulking';
 import { PROACTIVE_LINES } from '@/lib/grok/proactive-lines';
 import type { ProactiveLine, ProactiveSituation } from '@/lib/grok/proactive-types';
 import { parseStructuredModelOutput } from '@/lib/grok/stream-orchestrator';
 import { chatCompletion, LlmConfig } from '@/lib/llm/client';
+import { fingerprintFromPersonaMd } from '@/lib/persona/fingerprint';
+import { buildMindCognitiveDirective, resolvePersonaMind } from '@/lib/persona/mind';
+import { blendStyle } from '@/lib/persona/style-blend';
+import { buildTraitsBehaviorDirective, resolvePersonalityTraits } from '@/lib/persona/traits';
 import { PromptAssembler } from '@/lib/prompt-assembler';
 import {
   ConversationMessage,
@@ -192,10 +197,30 @@ export async function generateProactiveMessage(
 
   try {
     const recent = (req.recentMessages || []).slice(-6);
+    const traits = resolvePersonalityTraits(persona);
+    const temperament = persona.spec?.temperament;
+    const mind = resolvePersonaMind(persona);
+    const sulkingLevel = persona.emotionState?.sulking?.level ?? 0;
+    const blendedStyle = blendStyle(
+      persona.spec?.fingerprint ?? fingerprintFromPersonaMd(persona.personaMd),
+      recent.filter((m) => m.role === 'user').map((m) => m.content),
+      persona.defaultMode
+    );
     const systemPrompt = new PromptAssembler().assembleFromRecord(persona, {
       mode: persona.defaultMode,
       thinkMode: false,
       lastUserMessage: recent[recent.length - 1]?.content || '',
+      blendedStyle,
+      traitsDirective: buildTraitsBehaviorDirective(traits),
+      mindDirective: buildMindCognitiveDirective(mind, temperament),
+      sulkingDirective: buildSulkingDirective(
+        persona.emotionState?.sulking,
+        traits,
+        false,
+        persona.personaMd,
+        temperament
+      ),
+      sulkingLevel,
     });
     const raw = await chatCompletion(
       llm,
@@ -213,7 +238,8 @@ export async function generateProactiveMessage(
     const moodLabel = parsed.mood || offline.moodLabel;
     return {
       ...offline,
-      thought: parsed.thought || offline.thought,
+      // 在线模型生成主动消息时禁止拼装无关的离线模板内心戏
+      thought: parsed.thought || '',
       bursts,
       content: bursts.join('\n'),
       moodLabel,

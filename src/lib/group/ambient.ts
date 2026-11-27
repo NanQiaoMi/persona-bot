@@ -91,6 +91,8 @@ export function appendAmbientLog(log: string[] | undefined, now: Date): string[]
 export interface AmbientMember extends PresenceSubject {
   slug: string;
   name: string;
+  /** 闹别扭等级 (0~3)；>=2 时不在群聊主动 @群主 撒娇/求关注 */
+  sulkingLevel?: number;
 }
 
 export interface SeedContext {
@@ -178,7 +180,9 @@ export function chooseSeed(params: {
       }),
     });
   }
-  if (params.allowPingOwner) options.push({ w: 1, seed: () => ({ kind: 'ping_owner' }) });
+  if (params.allowPingOwner && (starter.sulkingLevel ?? 0) < 2) {
+    options.push({ w: 1, seed: () => ({ kind: 'ping_owner' }) });
+  }
 
   const total = options.reduce((acc, o) => acc + o.w, 0);
   let r = random() * total;

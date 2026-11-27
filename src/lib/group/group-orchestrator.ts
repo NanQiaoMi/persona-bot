@@ -30,6 +30,7 @@ import {
 } from '@/lib/grok/stream-orchestrator';
 import { messagePreviewText } from '@/lib/chat/preview';
 import { QUICK_REACTIONS } from '@/lib/group/ambient-lines';
+import { evolveTurnEmotion } from '@/lib/emotion/turn';
 import { resolveLlmConfig } from '@/lib/llm/client';
 import { getPresenceState } from '@/lib/persona/daily-rhythm';
 import { storageRepo } from '@/lib/storage/repository';
@@ -277,9 +278,35 @@ export async function executeGroupTurn(
   );
   const availabilityOf = (slug: string) => availability.get(slug) || 'free';
 
+  const sulkingLevelOf = (slug: string) =>
+    members.find((m) => m.slug === slug)?.emotionState?.sulking?.level ?? 0;
+  const mentionedDirect = !req.kickoff ? findMentionedMembers(triggerText, members) : [];
+
+  // 群主直接 @ 某成员且语气明显踩雷或诚恳顺毛时，轻度回写该角色情绪与好感度，让群聊与单聊心情保持连贯
+  if (mentionedDirect.length > 0 && triggerText.trim()) {
+    for (const mentioned of mentionedDirect) {
+      const turnRes = evolveTurnEmotion(mentioned, triggerText, mentioned.defaultMode, nowForPresence);
+      const changedSulking =
+        Boolean(turnRes.snapshot.sulking) !== Boolean(mentioned.emotionState?.sulking) ||
+        turnRes.sulkingTransition.justResolved ||
+        Boolean(turnRes.sulkingTransition.boundaryHitReason);
+      if (changedSulking) {
+        mentioned.emotionState = turnRes.snapshot;
+        mentioned.intimacy = turnRes.intimacy.intimacy;
+        mentioned.relationship = turnRes.intimacy.relationship;
+        await storageRepo.updateEmotionAndIntimacy(
+          mentioned.slug,
+          turnRes.snapshot,
+          turnRes.intimacy.intimacy,
+          turnRes.intimacy.relationship
+        );
+      }
+    }
+  }
+
   const speakers = req.kickoff
     ? pickSpeakers({ text: '大家', members, history, maxSpeakers: Math.min(3, members.length) })
-    : pickSpeakers({ text: triggerText, members, history, availabilityOf });
+    : pickSpeakers({ text: triggerText, members, history, availabilityOf, sulkingLevelOf });
 
   // 喊了所有人、却有人睡着没回：在群里留一条灰色提示，免得像被无视（近期已提示过就不重复）
   // 点名了具体的人（@夏柚 @鹿汐 你们两个呢）就不算喊所有人，不提示
