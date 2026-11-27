@@ -1,4 +1,4 @@
-import type { PersonaSpec } from '@/lib/persona/spec';
+import type { PersonaSpec, TemperamentArchetype } from '@/lib/persona/spec';
 
 export type PersonaMode = 'authentic' | 'fun' | 'companion' | 'analytical';
 
@@ -31,6 +31,10 @@ export interface SulkingState {
   reason: string;
   remainingTurns: number;
   since: string;
+  /** 本次闹别扭对应的脾气原型 */
+  archetype?: TemperamentArchetype;
+  /** spicy 档下保留的最近 1~2 条未翻篇旧疙瘩 */
+  grudges?: string[];
 }
 
 export interface PersonaEmotionSnapshot {
@@ -43,6 +47,8 @@ export interface PersonaEmotionSnapshot {
   lastUpdated: string;
   decayRate: number;
   sulking?: SulkingState;
+  /** 最近若干轮 PAD 向量（最多 5 条），用于跨轮计算情绪新颖度与走势 */
+  recentPad?: Array<{ p: number; a: number; d: number }>;
 }
 
 export interface CorrectionItem {

@@ -14,15 +14,21 @@ export function naturalDecay(
   const hourOfDay = new Date().getHours();
   const circadianFactor = 0.05 * Math.sin((2 * Math.PI * hourOfDay) / 24);
 
-  const neuroticismFactor = personality.neuroticism * 0.2;
-  const stabilityFactor = personality.emotionalStability * 0.3;
+  // 高神经质情绪消散更慢，高情绪稳定度消散更快更平稳；且正时间间隔下绝不反向放大强度
+  const lingerFactor = Math.max(
+    0.65,
+    Math.min(1.25, 1 + personality.neuroticism * 0.22 - personality.emotionalStability * 0.22)
+  );
 
-  const finalIntensity =
+  const rawIntensity =
     (exponentialDecay * 0.6 + linearDecay * 0.4) *
     (1 + circadianFactor) *
-    (1 - neuroticismFactor + stabilityFactor);
+    lingerFactor;
 
-  decayed.intensity = Math.max(0, Math.min(1, finalIntensity));
+  decayed.intensity =
+    timeDelta > 0
+      ? Math.max(0, Math.min(current.intensity, rawIntensity))
+      : Math.max(0, Math.min(1, rawIntensity));
   decayed.duration = current.duration + timeDelta * 60;
 
   const pleasureDecayRate = 0.1 * timeDelta;
@@ -84,19 +90,30 @@ export function applyFluctuation(
 
 export function applyRecovery(
   emotion: EmotionVector,
-  personality: PersonalityTraits
+  personality: PersonalityTraits,
+  options?: { isSulking?: boolean }
 ): EmotionVector {
   const recoveryRate = personality.recoveryRate * 0.1;
 
+  // 中性基线由角色外向度与神经质决定（不再硬编码 +0.2 强制拉正负情绪）
+  const baselinePleasure = Number(
+    ((personality.extraversion - 0.5) * 0.12 - (personality.neuroticism - 0.5) * 0.12).toFixed(3)
+  );
   const baseline = {
-    pleasure: 0.2,
+    pleasure: baselinePleasure,
     arousal: 0.3,
     dominance: 0.5,
   };
 
+  // 闹别扭期间暂停把负向愉悦度往正向拉，恢复权交给哄好状态机
+  const nextPleasure =
+    options?.isSulking && emotion.pleasure < 0
+      ? emotion.pleasure
+      : emotion.pleasure + (baseline.pleasure - emotion.pleasure) * recoveryRate;
+
   return {
     ...emotion,
-    pleasure: emotion.pleasure + (baseline.pleasure - emotion.pleasure) * recoveryRate,
+    pleasure: nextPleasure,
     arousal: emotion.arousal + (baseline.arousal - emotion.arousal) * recoveryRate,
     dominance: emotion.dominance + (baseline.dominance - emotion.dominance) * recoveryRate,
   };
@@ -105,12 +122,13 @@ export function applyRecovery(
 export function evolveEmotion(
   current: EmotionVector,
   timeDelta: number,
-  personality: PersonalityTraits
+  personality: PersonalityTraits,
+  options?: { isSulking?: boolean }
 ): EmotionVector {
   let evolved = naturalDecay(current, timeDelta, personality);
   evolved = applyInertia(current, evolved, personality);
   evolved = applyFluctuation(evolved, personality);
-  evolved = applyRecovery(evolved, personality);
+  evolved = applyRecovery(evolved, personality, options);
   evolved.primary = mapPADToEmotion(evolved.pleasure, evolved.arousal, evolved.dominance);
   return clampEmotionVector(evolved);
 }

@@ -4,9 +4,10 @@ import {
   detectBoundaryHit,
   detectCoaxingSignal,
 } from './sulking';
+import { getTemperamentMoodLabel, matchTemperamentCoaxMethod } from './temperament';
 import { resolvePersonalityTraits } from '@/lib/persona/traits';
 import { EmotionVector, PersonalityTraits } from './types';
-import { createDefaultEmotionVector } from './vector';
+import { createDefaultEmotionVector, mapPADToEmotion } from './vector';
 import {
   PersonaEmotionSnapshot,
   PersonaMode,
@@ -145,7 +146,20 @@ export function evolveTurnEmotion(
   now: Date = new Date()
 ): TurnEmotionResult {
   const traits = resolvePersonalityTraits(persona);
-  const engine = new EmotionEngine(traits, snapshotToVector(persona.emotionState));
+  const temperament = persona.spec?.temperament;
+  const initialHistory = Array.isArray(persona.emotionState?.recentPad)
+    ? persona.emotionState.recentPad.slice(-5).map((pad) => ({
+        ...createDefaultEmotionVector(),
+        pleasure: pad.p,
+        arousal: pad.a,
+        dominance: pad.d,
+      }))
+    : undefined;
+  const engine = new EmotionEngine(
+    traits,
+    snapshotToVector(persona.emotionState),
+    initialHistory
+  );
 
   const lastUpdatedMs = persona.emotionState?.lastUpdated
     ? new Date(persona.emotionState.lastUpdated).getTime()
@@ -154,11 +168,12 @@ export function evolveTurnEmotion(
     ? Math.max(0, Math.min(MAX_DECAY_HOURS, (now.getTime() - lastUpdatedMs) / 3_600_000))
     : 0;
   if (hoursSinceLast >= 0.05) {
-    engine.evolveByTime(hoursSinceLast);
+    engine.evolveByTime(hoursSinceLast, { isSulking: Boolean(persona.emotionState?.sulking) });
   }
 
-  const boundaryHitReason = detectBoundaryHit(userText, persona.personaMd);
-  const coaxSignal = detectCoaxingSignal(userText, traits, persona.personaMd);
+  const boundaryHitReason = detectBoundaryHit(userText, persona.personaMd, temperament);
+  const coaxSignal = detectCoaxingSignal(userText, traits, persona.personaMd, temperament);
+  const matchedCoaxMethod = matchTemperamentCoaxMethod(userText, temperament);
 
   const vector = engine.processEvent({
     type: 'message',
@@ -175,6 +190,8 @@ export function evolveTurnEmotion(
     boundaryHitReason,
     coaxSignal,
     traits,
+    temperament,
+    matchedCoaxMethod,
     now,
   });
 
@@ -182,6 +199,10 @@ export function evolveTurnEmotion(
     -1,
     Math.min(1, vector.pleasure + sulkingRes.pleasureRebound)
   );
+  const finalPrimary =
+    sulkingRes.pleasureRebound !== 0
+      ? mapPADToEmotion(adjustedPleasure, vector.arousal, vector.dominance)
+      : vector.primary;
 
   const intimacy = computeIntimacyUpdate({
     current: persona.intimacy,
@@ -193,19 +214,27 @@ export function evolveTurnEmotion(
   });
 
   const resolvedMoodLabel = sulkingRes.sulking
-    ? sulkingRes.sulking.level >= 3
-      ? '有点火大'
-      : sulkingRes.sulking.level === 2
-        ? '赌气别扭中'
-        : '微微介意'
+    ? getTemperamentMoodLabel(
+        sulkingRes.sulking.level,
+        sulkingRes.sulking.archetype || temperament?.archetype
+      )
     : sulkingRes.justResolved
       ? '姑且消气了'
       : persona.emotionState?.sulking
-        ? vector.primary
-        : persona.emotionState?.moodLabel || vector.primary;
+        ? finalPrimary
+        : persona.emotionState?.moodLabel || finalPrimary;
+
+  const nextRecentPad = [
+    ...(persona.emotionState?.recentPad || []),
+    {
+      p: Number(adjustedPleasure.toFixed(2)),
+      a: Number(vector.arousal.toFixed(2)),
+      d: Number(vector.dominance.toFixed(2)),
+    },
+  ].slice(-5);
 
   const snapshot: PersonaEmotionSnapshot = {
-    primary: vector.primary,
+    primary: finalPrimary,
     pleasure: Number(adjustedPleasure.toFixed(2)),
     arousal: Number(vector.arousal.toFixed(2)),
     dominance: Number(vector.dominance.toFixed(2)),
@@ -214,6 +243,7 @@ export function evolveTurnEmotion(
     lastUpdated: now.toISOString(),
     decayRate: vector.decayRate,
     ...(sulkingRes.sulking ? { sulking: sulkingRes.sulking } : {}),
+    recentPad: nextRecentPad,
   };
 
   return {

@@ -1,10 +1,19 @@
+import type { PersonaTemperamentSpec } from '@/lib/persona/spec';
 import type {
   PersonaEmotionSnapshot,
   PersonaMode,
   PersonaRelationshipState,
   SulkingState,
 } from '@/lib/storage/types';
+import {
+  buildTemperamentSulkingDirective,
+  getTemperamentMoodLabel,
+  getTemperamentTierConfig,
+  matchTemperamentCoaxMethod,
+  matchTemperamentTrigger,
+} from './temperament';
 import type { PersonalityTraits } from './types';
+import { mapPADToEmotion } from './vector';
 import { computeIntimacyUpdate } from './turn';
 
 export type AffectTrigger = 'none' | 'boundary' | 'cold' | 'coaxed';
@@ -157,13 +166,22 @@ export function extractPersonaBoundaryHints(personaMd?: string): string[] {
   return Array.from(hints).slice(0, 12);
 }
 
-/** 检测用户消息是否明显冒犯或踩中角色 `Layer 5` 雷区 */
-export function detectBoundaryHit(userText: string, personaMd?: string): string | null {
+/** 检测用户消息是否明显冒犯或踩中角色专属雷区 / Layer 5 边界 */
+export function detectBoundaryHit(
+  userText: string,
+  personaMd?: string,
+  temperament?: PersonaTemperamentSpec
+): string | null {
   const text = (userText || '').trim();
   if (!text) return null;
 
   if (DIRECT_OFFENSE_RE.test(text)) {
     return '说话太冲了，直接踩到情绪红线';
+  }
+
+  const customTrigger = matchTemperamentTrigger(text, temperament);
+  if (customTrigger) {
+    return customTrigger;
   }
 
   const hints = extractPersonaBoundaryHints(personaMd);
@@ -178,16 +196,23 @@ export function detectBoundaryHit(userText: string, personaMd?: string): string 
   return null;
 }
 
-/** 检测是否在道歉或顺毛，真正接入 `traits.recoveryPatterns` 与 Layer 3 哄法 */
+/** 检测是否在道歉或顺毛，接入 `temperament.coaxMethods`、`traits.recoveryPatterns` 与 Layer 3 哄法 */
 export function detectCoaxingSignal(
   userText: string,
   traits: PersonalityTraits,
-  personaMd?: string
+  personaMd?: string,
+  temperament?: PersonaTemperamentSpec
 ): 'strong' | 'mild' | null {
   const text = (userText || '').trim();
   if (!text) return null;
 
   if (STRONG_COAX_RE.test(text)) return 'strong';
+
+  const matchedCoax = matchTemperamentCoaxMethod(text, temperament);
+  if (matchedCoax) {
+    return /(道歉|认错|解释|偏爱|站队)/.test(matchedCoax) ? 'strong' : 'mild';
+  }
+
   if (MILD_COAX_RE.test(text)) return 'mild';
 
   const patternTriggers = Object.values(traits.recoveryPatterns || {}).flatMap(
@@ -210,10 +235,15 @@ export function detectCoaxingSignal(
   return null;
 }
 
-function initialTurnsForRecovery(recoveryRate: number, level: 1 | 2 | 3): number {
+function initialTurnsForRecovery(
+  recoveryRate: number,
+  level: 1 | 2 | 3,
+  maxTurns = 3
+): number {
   if (level === 1) return 1;
-  if (level === 2) return recoveryRate >= 0.65 ? 1 : 2;
-  return recoveryRate >= 0.7 ? 2 : 3;
+  if (level === 2) return recoveryRate >= 0.65 ? 1 : Math.min(maxTurns, 2);
+  const base = recoveryRate >= 0.7 ? 2 : 3;
+  return Math.min(maxTurns, maxTurns >= 4 && recoveryRate < 0.35 ? 4 : base);
 }
 
 export interface SulkingTransition {
@@ -222,8 +252,22 @@ export interface SulkingTransition {
   pleasureRebound: number;
 }
 
+function mergeGrudges(
+  prevGrudges: string[] | undefined,
+  newReason: string | undefined,
+  allowGrudge: boolean
+): string[] | undefined {
+  if (!allowGrudge) return undefined;
+  const list = [...(prevGrudges || [])];
+  if (newReason && !list.includes(newReason)) {
+    list.push(newReason);
+  }
+  const trimmed = list.slice(-2);
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 /**
- * 闹别扭 / 冷处理 / 哄好状态机（1~3 轮有界演化，12 小时自动消气）
+ * 多原型闹别扭 / 冷处理 / 哄好状态机（1~4 轮有界演化，12 小时自动消气）
  */
 export function advanceSulkingState(params: {
   prevSulking?: SulkingState;
@@ -231,10 +275,14 @@ export function advanceSulkingState(params: {
   boundaryHitReason: string | null;
   coaxSignal: 'strong' | 'mild' | null;
   traits: PersonalityTraits;
+  temperament?: PersonaTemperamentSpec;
+  matchedCoaxMethod?: string | null;
   now?: Date;
 }): SulkingTransition {
   const now = params.now ?? new Date();
   const nowIso = now.toISOString();
+  const tierCfg = getTemperamentTierConfig(params.temperament?.intensityTier);
+  const archetype = params.temperament?.archetype ?? params.prevSulking?.archetype;
 
   let active = params.prevSulking;
   if (active) {
@@ -246,9 +294,11 @@ export function advanceSulkingState(params: {
   }
 
   if (active) {
+    const canMildResolveLevel2 = tierCfg.mildCoaxResolvesLevel2 || Boolean(params.matchedCoaxMethod);
     if (
       params.coaxSignal === 'strong' ||
-      (params.coaxSignal === 'mild' && active.level <= 2) ||
+      (params.coaxSignal === 'mild' && active.level === 1) ||
+      (params.coaxSignal === 'mild' && active.level === 2 && canMildResolveLevel2) ||
       params.pleasantness >= 0.35
     ) {
       return {
@@ -258,30 +308,38 @@ export function advanceSulkingState(params: {
       };
     }
 
-    if (active.level === 3 && params.coaxSignal === 'mild') {
+    if (params.coaxSignal === 'mild' && (active.level === 3 || (active.level === 2 && !canMildResolveLevel2))) {
       return {
         sulking: {
           ...active,
           level: 1,
           remainingTurns: 1,
+          ...(archetype ? { archetype } : {}),
         },
         justResolved: false,
         pleasureRebound: 0.1,
       };
     }
 
-    if (params.boundaryHitReason || params.pleasantness <= -0.35) {
+    if (params.boundaryHitReason || params.pleasantness <= tierCfg.sulkingThreshold) {
       const nextLevel = Math.min(
         3,
         Math.max(active.level, params.boundaryHitReason ? 3 : 2)
       ) as 1 | 2 | 3;
-      const turns = initialTurnsForRecovery(params.traits.recoveryRate, nextLevel);
+      const turns = initialTurnsForRecovery(params.traits.recoveryRate, nextLevel, tierCfg.maxTurns);
+      const grudges = mergeGrudges(
+        active.grudges,
+        params.boundaryHitReason || active.reason,
+        tierCfg.allowGrudge
+      );
       return {
         sulking: {
           level: nextLevel,
           reason: params.boundaryHitReason || active.reason || '语气冷淡带刺',
-          remainingTurns: Math.min(3, Math.max(active.remainingTurns, turns)),
+          remainingTurns: Math.min(tierCfg.maxTurns, Math.max(active.remainingTurns, turns)),
           since: nowIso,
+          ...(archetype ? { archetype } : {}),
+          ...(grudges ? { grudges } : {}),
         },
         justResolved: false,
         pleasureRebound: 0,
@@ -301,6 +359,7 @@ export function advanceSulkingState(params: {
       sulking: {
         ...active,
         remainingTurns: nextTurns,
+        ...(archetype ? { archetype } : {}),
       },
       justResolved: false,
       pleasureRebound: 0,
@@ -309,27 +368,34 @@ export function advanceSulkingState(params: {
 
   // 未处于别扭态时的触发条件
   if (params.boundaryHitReason) {
-    const level: 1 | 2 | 3 = params.traits.agreeableness >= 0.75 ? 2 : 3;
+    const level: 1 | 2 | 3 =
+      params.traits.agreeableness >= 0.75 && tierCfg.tier !== 'spicy' ? 2 : 3;
+    const grudges = mergeGrudges(undefined, params.boundaryHitReason, tierCfg.allowGrudge);
     return {
       sulking: {
         level,
         reason: params.boundaryHitReason,
-        remainingTurns: initialTurnsForRecovery(params.traits.recoveryRate, level),
+        remainingTurns: initialTurnsForRecovery(params.traits.recoveryRate, level, tierCfg.maxTurns),
         since: nowIso,
+        ...(archetype ? { archetype } : {}),
+        ...(grudges ? { grudges } : {}),
       },
       justResolved: false,
       pleasureRebound: 0,
     };
   }
 
-  if (params.pleasantness <= -0.35) {
+  if (params.pleasantness <= tierCfg.sulkingThreshold) {
     const level: 1 | 2 | 3 = 2;
+    const grudges = mergeGrudges(undefined, '被这话刺到情绪了', tierCfg.allowGrudge);
     return {
       sulking: {
         level,
         reason: '被这话刺到情绪了',
-        remainingTurns: initialTurnsForRecovery(params.traits.recoveryRate, level),
+        remainingTurns: initialTurnsForRecovery(params.traits.recoveryRate, level, tierCfg.maxTurns),
         since: nowIso,
+        ...(archetype ? { archetype } : {}),
+        ...(grudges ? { grudges } : {}),
       },
       justResolved: false,
       pleasureRebound: 0,
@@ -337,8 +403,10 @@ export function advanceSulkingState(params: {
   }
 
   if (
-    params.pleasantness <= -0.15 &&
-    (params.traits.neuroticism >= 0.6 || params.traits.agreeableness <= 0.45)
+    params.pleasantness <= tierCfg.mildThreshold &&
+    (tierCfg.tier === 'spicy' ||
+      params.traits.neuroticism >= 0.6 ||
+      params.traits.agreeableness <= 0.45)
   ) {
     return {
       sulking: {
@@ -346,6 +414,7 @@ export function advanceSulkingState(params: {
         reason: '觉得你在敷衍',
         remainingTurns: 1,
         since: nowIso,
+        ...(archetype ? { archetype } : {}),
       },
       justResolved: false,
       pleasureRebound: 0,
@@ -374,6 +443,7 @@ export function applyLlmAffectSignal(params: {
   basePleasantness: number;
   mode: PersonaMode;
   traits: PersonalityTraits;
+  temperament?: PersonaTemperamentSpec;
   now?: Date;
 }): {
   snapshot: PersonaEmotionSnapshot;
@@ -394,6 +464,8 @@ export function applyLlmAffectSignal(params: {
   const now = params.now ?? new Date();
   const nowIso = now.toISOString();
   const nextSnapshot: PersonaEmotionSnapshot = { ...params.currentSnapshot };
+  const tierCfg = getTemperamentTierConfig(params.temperament?.intensityTier);
+  const archetype = params.temperament?.archetype ?? params.currentSnapshot.sulking?.archetype;
 
   if (affect.mood) {
     nextSnapshot.moodLabel = affect.mood;
@@ -404,35 +476,73 @@ export function applyLlmAffectSignal(params: {
     nextSnapshot.pleasure = Number(
       clamp(nextSnapshot.pleasure + llmDelta * 0.6, -1, 1).toFixed(2)
     );
+    nextSnapshot.intensity = Number(
+      clamp(nextSnapshot.intensity + Math.abs(llmDelta) * 0.35, 0.1, 1).toFixed(2)
+    );
   }
 
   const trigger = affect.trigger ?? 'none';
   if (trigger === 'boundary') {
-    const level: 1 | 2 | 3 = params.traits.agreeableness >= 0.75 ? 2 : 3;
+    const level: 1 | 2 | 3 =
+      params.traits.agreeableness >= 0.75 && tierCfg.tier !== 'spicy' ? 2 : 3;
+    const reason = affect.reason || nextSnapshot.sulking?.reason || '说话踩中雷区了';
+    const grudges = mergeGrudges(nextSnapshot.sulking?.grudges, reason, tierCfg.allowGrudge);
     nextSnapshot.sulking = {
       level,
-      reason: affect.reason || nextSnapshot.sulking?.reason || '说话踩中雷区了',
-      remainingTurns: initialTurnsForRecovery(params.traits.recoveryRate, level),
+      reason,
+      remainingTurns: initialTurnsForRecovery(params.traits.recoveryRate, level, tierCfg.maxTurns),
       since: nowIso,
+      ...(archetype ? { archetype } : {}),
+      ...(grudges ? { grudges } : {}),
     };
     nextSnapshot.pleasure = Math.min(nextSnapshot.pleasure, -0.35);
-    if (!affect.mood) nextSnapshot.moodLabel = '有点火大';
+    nextSnapshot.arousal = Number(clamp(Math.max(nextSnapshot.arousal, 0.62), 0, 1).toFixed(2));
+    nextSnapshot.intensity = Number(clamp(Math.max(nextSnapshot.intensity, 0.72), 0, 1).toFixed(2));
+    if (!affect.mood) {
+      nextSnapshot.moodLabel = getTemperamentMoodLabel(level, archetype);
+    }
   } else if (trigger === 'cold') {
-    const curLevel = params.prevSnapshot?.sulking?.level ?? 0;
-    const level = Math.min(3, Math.max(1, curLevel || 1)) as 1 | 2 | 3;
+    // 基于本轮 currentSnapshot 演算连续冷淡升级（1 -> 2 -> 3），避免复活本轮已被哄好的旧状态
+    const curLevel = params.currentSnapshot.sulking?.level ?? 0;
+    const level = (
+      curLevel >= 1
+        ? Math.min(3, curLevel + 1)
+        : tierCfg.tier === 'spicy'
+          ? 2
+          : 1
+    ) as 1 | 2 | 3;
+    const reason = affect.reason || nextSnapshot.sulking?.reason || '觉得被敷衍冷落';
+    const grudges = mergeGrudges(nextSnapshot.sulking?.grudges, reason, tierCfg.allowGrudge);
     nextSnapshot.sulking = {
       level,
-      reason: affect.reason || nextSnapshot.sulking?.reason || '觉得被敷衍冷落',
-      remainingTurns: Math.min(3, Math.max(nextSnapshot.sulking?.remainingTurns ?? 1, level >= 2 ? 2 : 1)),
-      since: params.prevSnapshot?.sulking?.since || nowIso,
+      reason,
+      remainingTurns: Math.min(
+        tierCfg.maxTurns,
+        Math.max(nextSnapshot.sulking?.remainingTurns ?? 1, level >= 2 ? 2 : 1)
+      ),
+      since: params.currentSnapshot.sulking?.since || nowIso,
+      ...(archetype ? { archetype } : {}),
+      ...(grudges ? { grudges } : {}),
     };
-    nextSnapshot.pleasure = Math.min(nextSnapshot.pleasure, -0.18);
-    if (!affect.mood) nextSnapshot.moodLabel = '淡淡别扭中';
+    nextSnapshot.pleasure = Math.min(nextSnapshot.pleasure, level >= 2 ? -0.28 : -0.18);
+    nextSnapshot.intensity = Number(
+      clamp(Math.max(nextSnapshot.intensity, level >= 2 ? 0.58 : 0.45), 0, 1).toFixed(2)
+    );
+    if (!affect.mood) {
+      nextSnapshot.moodLabel = getTemperamentMoodLabel(level, archetype);
+    }
   } else if (trigger === 'coaxed') {
     delete nextSnapshot.sulking;
     nextSnapshot.pleasure = Number(clamp(Math.max(nextSnapshot.pleasure, 0.15), -1, 1).toFixed(2));
     if (!affect.mood) nextSnapshot.moodLabel = '姑且消气啦';
   }
+
+  // 融合后同步重算主情绪，避免 pleasure=-0.35 时 primary 仍残留旧的「开心」
+  nextSnapshot.primary = mapPADToEmotion(
+    nextSnapshot.pleasure,
+    nextSnapshot.arousal,
+    nextSnapshot.dominance
+  );
 
   // 根据融合后的主观情感重新计算有界好感度（避免与本地规则叠加超出日上限）
   let effectivePleasantness = params.basePleasantness;
@@ -468,49 +578,18 @@ export function buildSulkingDirective(
   sulking: SulkingState | undefined,
   traits: PersonalityTraits,
   justResolved: boolean,
-  personaMd?: string
+  personaMd?: string,
+  temperament?: PersonaTemperamentSpec
 ): string {
-  if (sulking) {
-    const triggers = Object.values(traits.recoveryPatterns || {})
-      .flatMap((p) => p?.triggers || [])
-      .filter(Boolean);
-    const layer3 = extractLayerSection(personaMd, 3);
-    const coaxHint =
-      triggers.length > 0
-        ? `（心里其实需要「${Array.from(new Set(triggers)).slice(0, 3).join(' / ')}」才会真正顺毛）`
-        : '';
-
-    if (sulking.level >= 3) {
-      return [
-        `## 当前情绪余波：明显踩雷，冷处理中（${sulking.reason}）`,
-        `- 这是真实熟人之间被惹毛了的冷处理：短句回、态度疏离、别立刻挂回笑脸或热情捧场，但也绝对不要恶毒辱骂对方${coaxHint}。`,
-        '- 如果对方现在让你拍讨好向自拍或撒娇，可以直接冷淡推辞（说“现在没心情拍”），等对方认真道歉或把你哄好再说。',
-        layer3 ? '- 具体赌气口吻贴合你「Layer 3 情感逻辑」里写过的样子。' : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-    }
-
-    if (sulking.level === 2) {
-      return [
-        `## 当前情绪余波：有点闹别扭（${sulking.reason}）`,
-        `- 说话带着一点真憋屈或嘴硬嘲讽，句子比平时短，不主动热情接话茬；不恶毒攻击对方，但也别一秒原谅${coaxHint}。`,
-        '- 要是对方主动要照片，嘴上可以傲娇抱怨或哼两句“刚烦着呢，凑合看看吧”，仍把图拍出来。',
-      ].join('\n');
-    }
-
-    return [
-      `## 当前情绪余波：微微介意（${sulking.reason}）`,
-      '- 语气略平、带点小别扭或阴阳怪气吐槽，顺毛一两句就会自己好，不要硬凹开心表情。',
-    ].join('\n');
-  }
-
-  if (justResolved) {
-    return [
-      '## 当前情绪转换：刚被哄好 / 准备翻篇',
-      '- 刚才那点别扭劲儿刚顺过来：虽然嘴上可能还会象征性哼一声或找个台阶下，但语气明显软下来，别揪着旧账不放。',
-    ].join('\n');
-  }
-
-  return '';
+  const recoveryTriggers = Object.values(traits.recoveryPatterns || {})
+    .flatMap((p) => p?.triggers || [])
+    .filter(Boolean);
+  const layer3 = extractLayerSection(personaMd, 3);
+  return buildTemperamentSulkingDirective({
+    sulking,
+    justResolved,
+    recoveryTriggers,
+    temperament,
+    hasLayer3: Boolean(layer3),
+  });
 }
