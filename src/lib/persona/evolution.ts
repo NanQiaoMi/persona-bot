@@ -20,11 +20,16 @@ import {
   heuristicTraits,
   NumericTraitKey,
 } from '@/lib/persona/traits';
+import {
+  extractHeuristicUserImpression,
+  mergeUserImpression,
+} from '@/lib/persona/user-impression';
 import { admitCandidates, applyTurnQuality, TrialTransition } from '@/lib/persona/trial';
 import {
   ensurePersonaSpec,
   LEARNED_HABITS_HEADING,
   STYLE_LOOP_HEADING,
+  type UserImpression,
 } from '@/lib/persona/spec';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaRecord, SnapshotKind } from '@/lib/storage/types';
@@ -243,6 +248,7 @@ export async function consolidatePersonaEvolution(
   let candidatePersonalityTags: string[] = [];
   let candidateTraitDeltas: Partial<Record<NumericTraitKey, number>> | undefined;
   let candidateAppearanceUpdate = '';
+  let candidateUserImpression: Partial<UserImpression> | undefined;
   let llmSummary = '';
   let usedLLM = false;
 
@@ -282,6 +288,12 @@ export async function consolidatePersonaEvolution(
     "recoveryRate": 0
   },
   "appearanceUpdate": "若对话中明确约定或提及角色的新外貌/发型/穿搭特征则给1句简短描述，否则空字符串",
+  "userImpression": {
+    "nickname": "若对话中形成或约定了对用户的专属称呼则填，否则空串",
+    "summary": "25字以内你此刻对用户的主观印象更新，无变化填空串",
+    "observedHabits": ["近期观察到的用户习惯/偏好/软肋（最多2条）"],
+    "recentVibe": "15字以内近期相处感受，无变化填空串"
+  },
   "summary": "20字以内的本次整理摘要"
 }
 注意：traitDeltas 仅对本次对话明显体现变化趋势的维度给 [-0.08, 0.08] 之间的微调值，未体现变化填 0 即可。
@@ -316,6 +328,7 @@ ${transcript}`;
         newPersonalityTags?: unknown[];
         traitDeltas?: Record<string, unknown>;
         appearanceUpdate?: unknown;
+        userImpression?: Partial<UserImpression>;
         summary?: unknown;
       }>(content);
       if (parsed) {
@@ -359,6 +372,9 @@ ${transcript}`;
         if (typeof parsed.appearanceUpdate === 'string') {
           candidateAppearanceUpdate = parsed.appearanceUpdate.trim();
         }
+        if (parsed.userImpression && typeof parsed.userImpression === 'object') {
+          candidateUserImpression = parsed.userImpression;
+        }
         if (typeof parsed.summary === 'string') {
           llmSummary = parsed.summary.trim();
         }
@@ -379,6 +395,19 @@ ${transcript}`;
   }
   if (!candidateAppearanceUpdate) {
     candidateAppearanceUpdate = extractAppearanceHintFromConversation(recentMessages) || '';
+  }
+  const heuristicImpression = extractHeuristicUserImpression(recentMessages);
+  if (heuristicImpression) {
+    candidateUserImpression = {
+      ...heuristicImpression,
+      ...candidateUserImpression,
+      observedHabits: [
+        ...(heuristicImpression.observedHabits || []),
+        ...(Array.isArray(candidateUserImpression?.observedHabits)
+          ? candidateUserImpression.observedHabits
+          : []),
+      ],
+    };
   }
   // 纠偏已作为 locked 条目渲染在 Correction 节，不再复制成「互动风格调整」习惯重复占用 Prompt
 
@@ -469,6 +498,18 @@ ${transcript}`;
       fresh.profile.appearanceAnchorLocked
     );
 
+    // 4) 沉淀按角色隔离的「TA 眼中的你」认知档案
+    const impressionMerge = mergeUserImpression(
+      learnedMerge.spec.userImpression,
+      candidateUserImpression
+    );
+    if (impressionMerge.updated) {
+      learnedMerge.spec = {
+        ...learnedMerge.spec,
+        userImpression: impressionMerge.impression,
+      };
+    }
+
     const hasChanges =
       addedMemories.length > 0 ||
       addedHabits.length > 0 ||
@@ -476,6 +517,7 @@ ${transcript}`;
       addedPersonalityTags.length > 0 ||
       traitUpdate.updated ||
       appearanceMerge.updated ||
+      impressionMerge.updated ||
       pruned.prunedCount > 0;
 
     const evolutionState =
@@ -498,6 +540,9 @@ ${transcript}`;
     }
     if (appearanceMerge.updated) {
       growthNotes.push('更新外貌锚点');
+    }
+    if (impressionMerge.updated) {
+      growthNotes.push('更新了对你的印象');
     }
 
     const baseSummary =
