@@ -29,9 +29,9 @@
 ## 性格深化、真实思考与多原型脾气 5 PR 蓝图（2026-11 迭代）
 1. **PR 1 (`feat/persona-mind-and-autonomy`) — 人格思考内核、混合自适应思考与建人收口**（已合入 `#70`）
 2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**（已合入 `#71`）
-3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**（进行中）
-   - 扩展 `rhythm-templates.ts` 与 `daily-rhythm.ts` 支持细分职业/兴趣作息词表覆盖与 `spec.dailyRhythmOverride`，解决 4 位预设“画稿/改稿”错配。
-   - 新增 `daily-life.ts`（`exes/{slug}/daily-life.json` 按日持久化今日主线、心境底色与朋友圈摘要），统一串联单聊、朋友圈、主动破冰与群聊。
-   - 为 `moments.ts` 自动发布增加睡眠与冷战（`sulkingLevel >= 2`）门控，并在群聊注入仅面向在场成员的轻量 `peerRelations`。
-4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**
+3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**（已合入 `#72`）
+4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**（进行中）
+   - 新增 `relation-stage.ts`：将 0~100 亲密度映射为「初识边界 / 熟人互损 / 密友偏爱 / 挚交默契」4 档行为指令。
+   - 新增 `user-impression.ts` 与 `PersonaSpec.userImpression`：按角色完全隔离沉淀「TA 眼中的你」（专属称呼、主观印象、观察到的习惯/软肋、近期相处感受），接入 `evolution.ts` 自进化与 `PromptAssembler`。
+   - 增强 `memory-retrieval.ts`：引入 12 组中文日常同义词簇扩展查询，并融合 `spec.memoryStats`（重要度与召回次数）重排召回结果及预算裁剪优先级。
 5. **PR 5 (`feat/persona-tuning-ui-and-soul-eval`) — 蒸馏深化、性格脾气调音台 UI 与真模型对抗剧本评测**
