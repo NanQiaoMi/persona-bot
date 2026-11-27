@@ -27,12 +27,12 @@
 1. **阶段 1 (`feat/emotion-traits-and-sulking`)**：升级语义情绪评估与消除正向偏置、接入搭便车 `[AFFECT]` 判定、将大五性格参数转译为 Prompt 行为准则、实现 1~3 轮「闹别扭 / 冷处理 → 哄好解除」状态机，并在右侧情绪雷达提供状态展示与一键翻篇。（已完成）
 
 ## 性格深化、真实思考与多原型脾气 5 PR 蓝图（2026-11 迭代）
-1. **PR 1 (`feat/persona-mind-and-autonomy`) — 人格思考内核、混合自适应思考与建人收口**（进行中）
-   - 扩展 `PersonaSpec` v2（`PersonaMindSpec` / `PersonaTemperamentSpec` / `baselineTraits`）。
-   - 落地动态 Few-Shot 检索（`few-shot.ts`）与混合自适应性格思考（`cognitive-loop.ts`，高张力轻量二段推演 + 2.5s 超时降级）。
-   - 重构 `PromptAssembler` 四级优先级仲裁、加入真实熟人分歧权，并实现冷战 Level 3 拍照/贴纸三处联动门控。
-   - 修复 `<thought>` 与 `[EARLY]` 冲突、主输出 AI 分析腔泄漏、补写上下文残缺，并统一收口 3 条建人链路与 `distiller.ts` 默认偏置。
-2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**
+1. **PR 1 (`feat/persona-mind-and-autonomy`) — 人格思考内核、混合自适应思考与建人收口**（已合入 `#70`）
+2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**（进行中）
+   - 根治 PAD 引擎 5 处数学与状态缺陷（动态 `novelty`/`arousal`/`dominance`/`intensity`、修复衰减正负号反转、惯性混合后重算 `primary`、`applyLlmAffectSignal` 基于 `currentSnapshot` 升级连续 `cold` 并重算主情绪、去除强制拉正基线）。
+   - 落地 `temperament.ts`：6 种脾气原型（`snappy`/`tsundere`/`hurt`/`cold`/`avoidant`/`jealous`）× 3 档烈度（`gentle`/`realistic`/`spicy`）+ 专属雷区/哄法与 `spicy` 轻度旧账。
+   - 升级 4 款内置角色预设（中文 `primary`、完整 `spec.mind`/`temperament`/`traits`/`baselineTraits`）与离线兜底区分度；`evolution.ts` 加入 ±0.20 初始锚点护栏。
+   - 打通主动破冰（`sulkingLevel >= 2` 门控、有界好感、`proactive-engine.ts` 去错拼模板内心戏）与群聊情绪联动。
 3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**
 4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**
 5. **PR 5 (`feat/persona-tuning-ui-and-soul-eval`) — 蒸馏深化、性格脾气调音台 UI 与真模型对抗剧本评测**
