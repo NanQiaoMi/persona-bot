@@ -127,7 +127,9 @@ describe('主动消息服务（离线，隔离数据目录）', () => {
     }
     await storageRepo.updateOutreachState(() => ({ log: [] }));
     const sent = await runOutreach({ mode: 'tick', now: new Date(2026, 10, 24, 16, 0), random: () => 0 });
-    expect(sent).toHaveLength(0);
+    // 只断言「关掉的这些角色」都没来：其它测试文件会并行往共享的临时数据目录里新建角色，不能要求总数为 0
+    const disabled = new Set(personas.map((p) => p.slug));
+    expect(sent.filter((s) => disabled.has(s.slug))).toHaveLength(0);
     for (const p of personas) {
       await storageRepo.updatePersona(p.slug, (cur) => ({ ...cur, profile: { ...cur.profile, allowProactive: undefined } }));
     }

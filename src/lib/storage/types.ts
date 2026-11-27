@@ -163,6 +163,18 @@ export interface PageArtifactCardData {
   footerLabel: string;
   fullContent?: string;
   sources?: SearchResultItem[];
+  /** 'search'：新版搜索总结卡片（标题 + 导语 + 要点 + 来源）；没有此字段的是旧版卡片 */
+  kind?: 'search';
+  /** 一句话导语 */
+  lede?: string;
+  /** 3–5 条要点，sources 为引用的来源编号（从 1 开始，对应 sources 数组） */
+  highlights?: { title: string; detail: string; sources: number[] }[];
+  /** 生成时间（ISO） */
+  generatedAt?: string;
+  /** 角色对这次搜索的回复全文，展开阅读时显示为「TA 的看法」 */
+  personaTake?: string;
+  /** 角色名 */
+  personaName?: string;
 }
 
 export interface PendingFollowup {

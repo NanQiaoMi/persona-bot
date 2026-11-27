@@ -12,8 +12,13 @@ import {
   performDeepSearch,
   shouldAutoTriggerSearch,
 } from '@/lib/grok/deep-search';
+import {
+  buildSearchDigest,
+  digestSources,
+  heuristicDigest,
+  type SearchDigest,
+} from '@/lib/grok/search-digest';
 import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette';
-import { getPersonaModeSpec } from '@/lib/grok/persona-modes';
 import { runPostTurnPipeline } from '@/lib/persona/evolution';
 import { retrieveRelevantMemories } from '@/lib/persona/memory-retrieval';
 import { scoreReply, toMessageStyleMetrics } from '@/lib/persona/eval/scorer';
@@ -678,94 +683,31 @@ export function synthesizePersonaAwareFallback(
 }
 
 /**
- * 在 DeepSearch 检索或结构化清单/汇总/档案场景下，自动生成可交互的 Grok Bot「页面」卡片
+ * 联网搜索真的搜到结果时，生成「搜索总结」卡片：短标题 + 一句话导语 + 3–5 条要点（标注来源）+ 来源列表。
+ * 没搜索或没搜到就不出卡片（不再按「清单 / 总结」等关键词凑一张空卡）。
  */
 function buildPageCardIfRelevant(
   persona: PersonaRecord,
-  userMessage: string,
   searchResp: DeepSearchResponse | null,
-  cleanReply: string,
-  mode: PersonaMode
+  digest: SearchDigest | null,
+  cleanReply: string
 ): PageArtifactCardData | undefined {
-  const isStructuredIntent =
-    Boolean(searchResp && searchResp.results.length > 0) ||
-    /清单|汇总|总结|对比|机会|计划|分析|档案|报告|热搜|攻略|盘点/.test(userMessage);
-
-  if (!isStructuredIntent) return undefined;
-
-  const queryTitle = searchResp?.query
-    ? `${searchResp.query} · 实时情报清单`
-    : `${persona.name} 的结构化整理页面`;
-
-  const sourceCount = searchResp?.results.length || 0;
-  const nowStr = new Date().toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const firstSource = searchResp?.results[0];
-  const secondSource = searchResp?.results[1];
-
+  if (!searchResp || searchResp.results.length === 0 || !digest) return undefined;
+  const sources = digestSources(searchResp.results);
   return {
     id: `page_${Date.now()}`,
-    title: queryTitle,
-    subtitle: firstSource
-      ? `${firstSource.snippet.slice(0, 110)}（由 ${persona.name} 结合实时信息与人设视角整理，点击底部可展开完整档案）`
-      : `基于当前对话上下文由 ${persona.name} 为你整理的可续查结构化页面，支持展开阅读全文与来源核验。`,
-    metrics: [
-      {
-        value: sourceCount > 0 ? `${sourceCount}` : `${cleanReply.length}`,
-        label: sourceCount > 0 ? '实时来源' : '正文字符',
-        detail: firstSource
-          ? `主信源：${firstSource.source}`
-          : `人格尺度：${getPersonaModeSpec(mode).shortLabel}`,
-        tone: 'neutral',
-      },
-      {
-        value: `${persona.intimacy}%`,
-        label: '当前亲密度',
-        detail: `心情：${persona.emotionState.moodLabel || persona.emotionState.primary}`,
-        tone: 'teal',
-      },
-      {
-        value: searchResp ? searchResp.provider.toUpperCase() : persona.profile.mbti || 'GROK',
-        label: searchResp ? '检索引擎' : '人格基底',
-        detail: secondSource
-          ? `交叉参考：${secondSource.title.slice(0, 22)}`
-          : '支持上下文实时续写更新',
-        tone: 'amber',
-      },
-      {
-        value: 'LIVE',
-        label: '实时状态',
-        detail: `更新于 ${nowStr} (Asia/Shanghai)`,
-        tone: 'rose',
-      },
-    ],
-    statusNotice: searchResp
-      ? `阶段: deepsearch-${searchResp.provider} · 已抓取 ${sourceCount} 条公开网页摘要并注入角色记忆 (${nowStr})`
-      : `阶段: persona-synthesis · 已按 ${persona.name} 五层人格与当前对话上下文生成页面 (${nowStr})`,
-    footerLabel: '页面',
-    fullContent: [
-      `# ${queryTitle}`,
-      '',
-      `> 生成角色：${persona.name} (${persona.profile.mbti || 'Persona'}) · 模式：${getPersonaModeSpec(mode).label}`,
-      '',
-      '## 核心整理内容',
-      cleanReply,
-      '',
-      ...(searchResp && searchResp.results.length > 0
-        ? [
-            '## DeepSearch 实时参考来源',
-            ...searchResp.results.map(
-              (r, i) => `${i + 1}. **${r.title}** (${r.source})\n   ${r.snippet}${r.url ? `\n   链接：${r.url}` : ''}`
-            ),
-          ]
-        : []),
-    ].join('\n'),
-    sources: searchResp?.results,
+    kind: 'search',
+    title: digest.title,
+    subtitle: digest.lede,
+    lede: digest.lede,
+    highlights: digest.highlights,
+    metrics: [],
+    statusNotice: '',
+    footerLabel: '搜索总结',
+    generatedAt: new Date().toISOString(),
+    personaTake: cleanReply,
+    personaName: persona.name,
+    sources,
   };
 }
 
@@ -1040,6 +982,7 @@ export async function executeGrokChatTurn(
 
   // Stage 1: DeepSearch
   let searchResp: DeepSearchResponse | null = null;
+  let digestPromise: Promise<SearchDigest> | null = null;
   const shouldSearch =
     Boolean(req.deepSearch) ||
     (req.deepSearch === undefined &&
@@ -1054,6 +997,13 @@ export async function executeGrokChatTurn(
       results: [],
     });
     searchResp = await performDeepSearch(lastUserText, settings);
+    // 搜到结果就立刻开始整理总结卡片，和角色回复并行，不额外拖慢回复
+    if (searchResp.results.length > 0) {
+      const resp = searchResp;
+      digestPromise = buildSearchDigest(resp, lastUserText, settings).catch(() =>
+        heuristicDigest(resp, lastUserText)
+      );
+    }
     onEvent?.({
       type: 'search',
       status: 'done',
@@ -1334,13 +1284,19 @@ export async function executeGrokChatTurn(
     parsed.cleanReply = segments.join('\n\n');
   }
 
-  const pageCard = buildPageCardIfRelevant(
-    persona,
-    lastUserText,
-    searchResp,
-    parsed.cleanReply,
-    activeMode
-  );
+  // 回复写完时总结若还没整理好，最多再等 8 秒，超时就用规则整理，不让卡片拖住整条回复
+  const digestResp = searchResp;
+  let digestTimer: ReturnType<typeof setTimeout> | undefined;
+  const digest =
+    digestPromise && digestResp
+      ? await Promise.race([
+          digestPromise,
+          new Promise<SearchDigest>((resolve) => {
+            digestTimer = setTimeout(() => resolve(heuristicDigest(digestResp, lastUserText)), 8_000);
+          }),
+        ]).finally(() => clearTimeout(digestTimer))
+      : null;
+  const pageCard = buildPageCardIfRelevant(persona, searchResp, digest, parsed.cleanReply);
 
   // Mark all visual media cards without imageUrl as 'generating' when upstream gateway is reachable;
   // server/frontend trigger sequential /api/media/generate & enqueueNewMediaCards
