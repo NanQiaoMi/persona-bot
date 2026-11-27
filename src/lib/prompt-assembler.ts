@@ -32,6 +32,14 @@ export interface AssembleOptions {
   };
   traitsDirective?: string;
   sulkingDirective?: string;
+  /** 性格思考方式、防御机制与真实熟人分歧权指令 */
+  mindDirective?: string;
+  /** 按本轮语境动态检索出的 Few-Shot 示范对话 */
+  fewShotDirective?: string;
+  /** 高张力场景下轻量二段心理推演的结果 */
+  cognitiveReflectionDirective?: string;
+  /** 当前闹别扭等级 (0~3)，用于对拍照/贴纸能力做分层门控 */
+  sulkingLevel?: number;
 }
 
 export class PromptAssembler {
@@ -110,17 +118,13 @@ export class PromptAssembler {
 
     const filteredMemories = this.filterMemories(data.memories_md, lastUserMessage);
     const searchBlock = formatSearchContextForPrompt(options.searchContext);
+    const sulkingLevel = options.sulkingLevel ?? 0;
 
+    // =========================================================================
+    // L1 核心身份与真实主见（最高优先级）
+    // =========================================================================
     const sections: string[] = [
-      '# PersonaBot v2.0 (Grok Edition) — 拟人灵魂与实时全能大脑协议',
-      activeMode.systemDirective,
-      '',
-      '## 当前时空与关系状态',
-      `- 当前本地时间：${dayPeriod} ${timeStr}（请自然结合时间感说话，比如深夜提醒熬夜、饭点顺嘴问吃没吃）`,
-      `- 当前亲密度/好感度：${emotionState?.intimacy ?? data.meta?.intimacy ?? 65}/100`,
-      emotionState
-        ? `- 此刻情绪状态：${emotionState.emotion || '平静'}（强度 ${Math.round((emotionState.intensity ?? 0.5) * 100)}%，状态标签：${emotionState.attitude || '在线'}）`
-        : '',
+      '# PersonaBot v2.0 — 拟人灵魂与实时全能大脑协议（四级优先级仲裁）',
       '',
     ];
 
@@ -128,8 +132,13 @@ export class PromptAssembler {
       typeof data.meta?.basicPersonality === 'string' ? data.meta.basicPersonality.trim() : '';
     if (basicPersonality) {
       // 主人亲手定的一句话性格：优先级最高，下面的画像和人设都在它的基础上展开
-      sections.push('## 主人给你定的基础性格（最核心，始终遵守）');
+      sections.push('## 主人给你定的基础性格（最高优先级，始终遵守）');
       sections.push(`- ${basicPersonality.slice(0, 120)}`);
+      sections.push('');
+    }
+
+    if (options.mindDirective) {
+      sections.push(options.mindDirective);
       sections.push('');
     }
 
@@ -139,10 +148,9 @@ export class PromptAssembler {
       sections.push('');
     }
 
-    if (options.sulkingDirective) {
-      sections.push(options.sulkingDirective);
-      sections.push('');
-    }
+    sections.push('## 五层性格与行为约束 (Persona Core)');
+    sections.push(fitPersonaToBudget(data.persona_md) || '（请根据角色身份自然发挥）');
+    sections.push('');
 
     if (data.ai_profile) {
       sections.push('## 完整人物全息画像');
@@ -150,16 +158,46 @@ export class PromptAssembler {
       sections.push('');
     }
 
-    sections.push('## 五层性格与行为约束 (Persona Core)');
-    sections.push(fitPersonaToBudget(data.persona_md) || '（请根据角色身份自然发挥）');
+    // =========================================================================
+    // L2 实时时空、情绪与冲突余波（严禁被下方人格模式压制）
+    // =========================================================================
+    sections.push('## 当前时空与关系状态');
+    sections.push(`- 当前本地时间：${dayPeriod} ${timeStr}（自然结合时间感说话，别生硬报时）`);
+    sections.push(`- 当前亲密度/好感度：${emotionState?.intimacy ?? data.meta?.intimacy ?? 65}/100`);
+    if (emotionState) {
+      sections.push(
+        `- 此刻情绪状态：${emotionState.emotion || '平静'}（强度 ${Math.round((emotionState.intensity ?? 0.5) * 100)}%，状态标签：${emotionState.attitude || '在线'}）`
+      );
+    }
     sections.push('');
 
+    if (options.sulkingDirective) {
+      sections.push(options.sulkingDirective);
+      sections.push('- 【优先级仲裁】以上实时情绪与脾气余波高于下方所有对话模式调味，绝对不许强颜欢笑或一秒变回客服热情。');
+      sections.push('');
+    }
+
+    if (options.cognitiveReflectionDirective) {
+      sections.push(options.cognitiveReflectionDirective);
+      sections.push('');
+    }
+
+    // =========================================================================
+    // L3 共同记忆、动态示范与说话方式
+    // =========================================================================
     sections.push('## 共同记忆锚点 (Shared Memories)');
     sections.push(filteredMemories || '（暂无特定历史记忆）');
     sections.push('');
 
-    const chatFormatRule = `- **聊天不是写文章**：日常闲聊不要用列表、编号、加粗、小标题，也不要「第一、第二、总结一下」；就算话题严肃，也像朋友一样分几条短消息说出你最想说的一两点。只有对方明确要清单、步骤或资料时才用列表。`;
-    const antiAiRule = `- **拒绝主持人追问与 AI 套话**：不要每轮结尾都礼貌反问“你呢/今天怎么样”；允许直接用 \`行\`、\`笑死\`、\`真假\`、\`懂了\`、\`我看看\`、\`算了\` 这类真人短反应。严禁说“这次给你安排一套…”、“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。`;
+    if (options.fewShotDirective) {
+      sections.push(options.fewShotDirective);
+      sections.push('');
+    }
+
+    const chatFormatRule =
+      '- **聊天不是写文章**：日常闲聊不用列表、编号、加粗、小标题或「第一、第二、总结一下」；分几条短消息说出最想说的一两点。';
+    const antiAiRule =
+      '- **拒绝主持人追问与 AI 套话**：别每轮结尾都礼貌反问“你呢/今天怎么样”；可用 `行`、`笑死`、`真假`、`懂了`、`我看看`、`算了` 这类真人短反应。严禁“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。';
     if (options.blendedStyle?.anchored) {
       // 角色有本人风格锚点：以 TA 自己的说话方式为准，全局默认口吻只保留去 AI 味部分
       sections.push('## 说话方式（以 TA 本人为准，去 AI 味）');
@@ -169,10 +207,10 @@ export class PromptAssembler {
     } else {
       sections.push('## 当代年轻人真实微信聊天铁律（去油腻・去 AI 味）');
       sections.push(
-        `- **严格克制 emoji**：平时默认 **0 个 emoji**，靠说话用词、语气助词和断句传达情绪；绝不要每句话末尾带 😏💕🙈✨🔥😘 等油腻表情。整轮回复最多 0~1 个极克制的表情（如 😅😂）。`
+        '- **严格克制 emoji**：平时默认 **0 个 emoji**，靠用词、语气词和断句传达情绪；绝不在每句末尾带 😏💕🙈✨🔥😘 等油腻表情。'
       );
       sections.push(
-        `- **年轻人微信口吻**：像二十来岁的真人微信打字一样口语松弛、有停顿感（单条 6~24 字为主，可用 [BURST] 拆开连发）；不要每句短话末尾都端正打“。”，也别动不动用满屏“！”惊呼或写舞台剧括号动作。`
+        '- **真人微信口吻**：口语松弛、有停顿感（单条 6~24 字为主，可用 [BURST] 拆开连发）；别每句短话都打“。”，少用满屏“！”或舞台剧括号动作。'
       );
       sections.push(antiAiRule);
       sections.push(chatFormatRule);
@@ -190,43 +228,57 @@ export class PromptAssembler {
 
     if (options.hasImageAttachment) {
       sections.push(
-        '## 🖼️ 多模态看图指令\n用户刚刚发来了一张图片。请先以你的性格视角自然点评或吐槽画面细节，再延伸到你们的聊天话题中。'
+        '## 🖼️ 多模态看图指令\n用户刚发来一张图片。请以你的性格视角自然点评或吐槽画面细节，再延伸到聊天话题。'
       );
       sections.push('');
     }
 
+    // =========================================================================
+    // L4 人格模式调味（仅作表达色彩，从属于 L1 核心性格与 L2 真实脾气）
+    // =========================================================================
+    sections.push(activeMode.systemDirective);
+    sections.push('- 【从属声明】以上对话模式仅调节你的语言色彩；当与你的核心性格、真实分歧或闹别扭情绪冲突时，无条件服从核心性格与真实情绪。');
+    sections.push('');
+
     sections.push('## 多模态卡片与输出格式契约');
     if (options.thinkMode !== false) {
       sections.push(
-        `1. **偷听第一人称内心小剧场 (Think)**：在正式回复最前面用 \`<thought>...</thought>\` 写 1~3 句（30~90字）**极有活人感、好玩又有反差感**的第一人称内心戏，像真人在微信打字前脑子里一闪而过的吐槽、嘴硬心软或暗暗窃喜：
-   - 写具体瞬时感受和动作感（比如“差点笑出声又硬憋住”“打了一长段全删了就留俩字”），**每次换着花样写，绝不套固定模板**。
-   - 内容从此刻的真实反应里来：可以是吐槽、嘴硬心软、暗暗得意、纠结要不要回快一点、被戳中后的小慌张……按当下语境挑一种，**不要每轮都用同一种反应、同一个句式或同一个开头**。
-   - **严禁**出现“用户、意图、人设、Layer、模式、根据指令、分析如下、回复策略、保持一致”等任何 AI 分析腔或元数据术语！`
+        `1. **第一人称内心思考 (Think)**：在正式回复最前面用 \`<thought>...</thought>\` 写 1~3 句（25~90 字）贴合你性格思考习惯的瞬间心声：
+   - 走完你的内心链路：第一反应感受或判断 → 触发的小防御/真正在意的点 → 决定嘴上说几分、藏几分。
+   - **不要每轮都用同一种反应或固定句式**，每次紧扣当下语境自然变化；**严禁**出现“用户、意图、人设、Layer、模式、根据指令、分析如下、回复策略”等任何 AI 分析腔！`
       );
     } else {
-      sections.push(`1. **直接口语回复**：本次无需输出 \`<thought>\` 标签，直接用角色口吻自然对话。`);
+      sections.push('1. **直接口语回复**：本次无需输出 `<thought>` 标签，直接用角色口吻自然对话。');
     }
     sections.push(
-      `2. **情绪与隐藏情感判定**：可在正文前附上 \`[MOOD: 四到六个字的心情标签]\`（如 \`[MOOD: 嘴硬暗爽中]\`）。若你明显感受到对方冷淡敷衍、踩到雷区，或刚把你哄好，还可在开头紧接附上系统会自动剥离、不展示给对方的隐藏判定：\`[AFFECT: mood=心情 | delta=-0.35~0.35 | trigger=none/boundary/cold/coaxed | reason=简短原因]\`（普通闲聊可省略或写 \`trigger=none\`）。`
+      '2. **情绪与隐藏情感判定**：可在正文前附上 `[MOOD: 4~6字心情]`。若明显感受到对方冷淡敷衍、踩到雷区，或刚把你哄好，可在开头紧接隐藏判定：`[AFFECT: mood=心情 | delta=-0.35~0.35 | trigger=none/boundary/cold/coaxed | reason=简短原因]`。'
     );
     sections.push(
-      `3. **真人分条短气泡**：回复尽量像真实微信/IM 连发聊天一样自然简练，可在语义停顿处插入 1~2 次 \`[BURST]\` 拆分成多个独立气泡；\`[BURST]\` 前后不要留空行，少用舞台剧式的括号动作描写。`
+      '3. **真人分条短气泡**：在语义停顿处插入 1~2 次 `[BURST]` 拆分成多个独立气泡，前后不要留空行。'
     );
+
+    if (sulkingLevel >= 3) {
+      sections.push(
+        '4. **冷战期媒体门控（必须严格遵守）**：你此刻正在明显踩雷冷处理中，**禁止**输出 `[PHOTO:...]` 自拍或 `[STICKER:...]` 可爱贴纸！如果对方让你拍照或撒娇，冷淡推辞（如“现在没心情拍”），等认真道歉或哄好后再说。需要语音时可用 `[VOICE: 语音内容]`。'
+      );
+    } else {
+      sections.push(
+        '4. **真实实拍与语音卡片**：你已直连 `gpt-image-2.6` 相机。对方想看你穿搭、自拍或随手拍时大方答应，在末尾附 `[PHOTO: 包含人物、服装、姿势、环境与光线的完整画面描写]`；需要语音可用 `[VOICE: 语音内容]`。'
+      );
+      sections.push(
+        '5. **拟人聊天表情包（克制按需）**：斗图、吐槽或撒娇时可在句末附最多 1 个 `[STICKER: 简短动作与情绪]`。'
+      );
+    }
+
     sections.push(
-      `4. **真实实拍与语音卡片（必须严格遵守）**：你已拥有外部 \`gpt-image-2.6\` 相机！当用户想看你某套穿搭、自拍、随手拍或画面时，直接顺着对方的话自然答应，并在末尾写 \`[PHOTO: 包含具体人物、服装穿搭、姿势、环境与光线的完整画面描写]\`（例如 \`[PHOTO: 穿着黑色过膝长靴、短裙和软糯宽松毛衣的室内对镜自拍，暖色台灯光影，夜晚温柔氛围]\`）。**绝对禁止**拒绝拍照或提“临时聊天 / 切换普通聊天”。需要语音时可用 \`[VOICE: 语音内容]\`。`
-    );
-    sections.push(
-      `5. **拟人聊天表情包（克制按需）**：吐槽、开心、撒娇、安抚或斗图时，可在句末插入最多 1 个 \`[STICKER: 简短可爱的表情包角色动作与情绪，如“歪头举着小花眯眼笑”]\`。`
-    );
-    sections.push(
-      `6. **自主判断提前秒回与延迟追发（模拟主动发消息）**：你可根据语境自主决定是否模仿真人“先回半句 / 过几秒又补一句”的节奏（不适合时请勿使用）：\n   - 若想立刻先接住话题，可在最前面加 \`[EARLY: 一句自然短接话]\`（例如“等我两秒看一下”或“笑死你先别急”），系统会立刻优先弹出这条气泡。\n   - 若觉得聊完这句后适合在几秒后主动再叮嘱、补刀或追问一句，可在整段回复最后加上 \`[FOLLOWUP: 延迟秒数(5~25) | 几秒后主动追发的一句短话]\`（如 \`[FOLLOWUP: 8 | 对了，今晚答应我别再熬过两点半]\`）。`
+      `${sulkingLevel >= 3 ? '5' : '6'}. **自主判断提前秒回与延迟追发**：不适合时勿用。想先快速接半句可在最前加 \`[EARLY: 短接话]\`；想几秒后补刀或叮嘱可在文末加 \`[FOLLOWUP: 秒数(5~25) | 短话]\`。`
     );
     sections.push('');
     sections.push(OOC_GUARD_PROMPT);
     if (options.thinkMode !== false) {
       sections.push('');
       sections.push(
-        '（格式提醒：这次回复的最开头必须先写 `<thought>` 你此刻真实的内心活动 `</thought>`，紧扣这一轮对方说的话，然后再写正式回复。）'
+        '（格式提醒：回复开头先写 `<thought>` 此刻真实内心活动 `</thought>`，紧扣这轮对话，再写正式回复。）'
       );
     }
 

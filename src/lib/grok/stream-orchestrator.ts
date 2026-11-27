@@ -28,7 +28,19 @@ import {
   refreshConversationMemory,
 } from '@/lib/persona/conversation-memory';
 import { analyzeRecentRepetition } from '@/lib/persona/repetition-guard';
-import { extractLiveThought, synthesizeInnerThought } from '@/lib/persona/inner-thought';
+import {
+  extractLiveThought,
+  isForbiddenThought,
+  sanitizeInnerThought,
+  synthesizeInnerThought,
+} from '@/lib/persona/inner-thought';
+import { buildMindCognitiveDirective, resolvePersonaMind } from '@/lib/persona/mind';
+import { buildFewShotDirective, selectDynamicFewShots } from '@/lib/persona/few-shot';
+import {
+  formatCognitiveReflectionForPrompt,
+  runDeepCognitivePass,
+  shouldTriggerDeepCognitivePass,
+} from '@/lib/persona/cognitive-loop';
 import { loadLocalImageAsDataUrl } from '@/lib/persona/appearance-evolution';
 import { buildWorldDirective } from '@/lib/persona/world';
 import { refreshWorld } from '@/lib/persona/world-refresh';
@@ -152,7 +164,7 @@ export function parseStructuredModelOutput(rawText: string, fallbackThought = ''
 
   const thoughtMatch = working.match(/<thought>([\s\S]*?)<\/thought>/i);
   if (thoughtMatch) {
-    thought = thoughtMatch[1].trim();
+    thought = sanitizeInnerThought(thoughtMatch[1], { minLength: 1 }) || fallbackThought;
     working = working.replace(thoughtMatch[0], '').trim();
   }
 
@@ -531,7 +543,8 @@ export function synthesizePersonaAwareFallback(
   searchResp: DeepSearchResponse | null,
   hasImage: boolean,
   requestPhoto: boolean,
-  historyCount = 1
+  historyCount = 1,
+  sulkingLevel = 0
 ): string {
   const topSearch = searchResp?.results[0];
   const isDeepFollowUp = historyCount > 2;
@@ -673,7 +686,15 @@ export function synthesizePersonaAwareFallback(
     }
   }
 
-  if (requestPhoto || /自拍|照片|看看你|发张图/.test(userMessage)) {
+  const wantsPhoto = requestPhoto || /自拍|照片|看看你|发张图/.test(userMessage);
+  if (sulkingLevel >= 3) {
+    thought = '这会儿心里还堵着气呢，哪有心情配合拍照或者假装没事人一样笑。';
+    mood = '冷处理中';
+    if (wantsPhoto) {
+      bursts.length = 0;
+      bursts.push('现在没心情拍，晚点再说。');
+    }
+  } else if (wantsPhoto) {
     mediaTag = `\n[PHOTO: ${persona.name}的随手实拍：深空暗调桌面一角，暖色台灯映着半杯饮品与微亮的屏幕，镜头一角掠过一点自然随性的笑意]`;
   } else if (/语音|听你声音|说句话/.test(userMessage)) {
     mediaTag = `\n[VOICE: ${bursts[0] || '听得清吗？专门录一条语音回复你。'}]`;
@@ -1072,6 +1093,7 @@ export async function executeGrokChatTurn(
   const traitsDirective = isMasterBot
     ? ''
     : buildTraitsBehaviorDirective(turnEmotion.traits);
+  const sulkingLevel = turnEmotion.snapshot.sulking?.level ?? 0;
   const sulkingDirective = isMasterBot
     ? ''
     : buildSulkingDirective(
@@ -1080,6 +1102,54 @@ export async function executeGrokChatTurn(
         turnEmotion.sulkingTransition.justResolved,
         persona.personaMd
       );
+  const personaMind = resolvePersonaMind(persona);
+  const personaTemperament = persona.spec?.temperament;
+  const mindDirective = isMasterBot
+    ? ''
+    : buildMindCognitiveDirective(personaMind, personaTemperament);
+  const fewShotDirective = isMasterBot
+    ? ''
+    : buildFewShotDirective(
+        selectDynamicFewShots({
+          personaMd: persona.personaMd,
+          spec: persona.spec,
+          userMessage: lastUserText,
+          sulkingLevel,
+        })
+      );
+
+  const llm = resolveLlmConfig(settings, { model: req.modelId });
+  const { apiKey, model } = llm;
+  const imageModel = settings.imageModel || process.env.IMAGE_MODEL || 'gpt-image-2.6';
+  const canCallUpstream = llm.canCall;
+
+  // 混合自适应思考：日常闲聊零额外延迟；高张力/分歧/踩雷/倾诉场自动触发轻量二段心理推演（2.5s 超时降级）
+  const cognitiveGate = shouldTriggerDeepCognitivePass({
+    userMessage: lastUserText,
+    sulkingLevel,
+    boundaryHitReason: turnEmotion.sulkingTransition.boundaryHitReason,
+    intensityTier: personaTemperament?.intensityTier,
+    pleasantness: turnEmotion.pleasantness,
+    isMasterBot,
+  });
+  const cognitiveReflection =
+    canCallUpstream && thinkEnabled && cognitiveGate.trigger && cognitiveGate.reason
+      ? await runDeepCognitivePass(llm, {
+          personaName: persona.name,
+          basicPersonality: persona.profile.basicPersonality,
+          mind: personaMind,
+          temperament: personaTemperament,
+          sulkingReason: turnEmotion.snapshot.sulking?.reason,
+          sulkingLevel,
+          recentMessages: req.messages
+            .filter((m) => typeof m.content === 'string')
+            .slice(-6)
+            .map((m) => ({ role: m.role, content: m.content })),
+          userMessage: lastUserText,
+          triggerReason: cognitiveGate.reason,
+        })
+      : null;
+
   const assembler = new PromptAssembler();
   const baseSystemPrompt = assembler.assembleFromRecord(persona, {
     mode: activeMode,
@@ -1091,6 +1161,12 @@ export async function executeGrokChatTurn(
     blendedStyle,
     traitsDirective,
     sulkingDirective,
+    mindDirective,
+    fewShotDirective,
+    cognitiveReflectionDirective: cognitiveReflection
+      ? formatCognitiveReflectionForPrompt(cognitiveReflection)
+      : undefined,
+    sulkingLevel,
     emotionSummary: {
       emotion: updatedEmotion.primary,
       intensity: updatedEmotion.intensity,
@@ -1108,11 +1184,6 @@ export async function executeGrokChatTurn(
   ]
     .filter((part) => part && part.trim())
     .join('\n\n');
-
-  const llm = resolveLlmConfig(settings, { model: req.modelId });
-  const { apiKey, model } = llm;
-  const imageModel = settings.imageModel || process.env.IMAGE_MODEL || 'gpt-image-2.6';
-  const canCallUpstream = llm.canCall;
 
   let rawModelOutput = '';
   let liveThoughtSent = '';
@@ -1138,11 +1209,12 @@ export async function executeGrokChatTurn(
         systemPrompt,
         req.messages,
         temperature,
-        // 内心戏边写边推给前端，不用等整条回复生成完
+        // 内心戏边写边推给前端，不用等整条回复生成完（过滤分析腔，避免流式闪烁泄漏）
         onEvent && thinkEnabled
           ? (raw) => {
               const live = extractLiveThought(raw);
               if (!live || !live.thought || live.thought === liveThoughtSent) return;
+              if (isForbiddenThought(live.thought)) return;
               liveThoughtSent = live.thought;
               onEvent({
                 type: 'thought',
@@ -1169,7 +1241,8 @@ export async function executeGrokChatTurn(
         searchResp,
         hasImage,
         Boolean(req.requestPhoto),
-        req.messages.length
+        req.messages.length,
+        sulkingLevel
       );
     }
   } else {
@@ -1181,15 +1254,19 @@ export async function executeGrokChatTurn(
       searchResp,
       hasImage,
       Boolean(req.requestPhoto),
-      req.messages.length
+      req.messages.length,
+      sulkingLevel
     );
   }
 
-  // 模型原生的推理过程多是分析腔，不当作角色的内心戏；内心戏只来自 <thought> 或下面的补写
+  // 模型原生的推理过程多是分析腔，不当作角色的内心戏；内心戏只来自 <thought> 或二段推演/补写
   void nativeReasoning;
-  const parsed = parseStructuredModelOutput(rawModelOutput, '');
+  const parsed = parseStructuredModelOutput(
+    rawModelOutput,
+    cognitiveReflection?.spokenThought || ''
+  );
 
-  // 模型这轮漏写了内心戏：根据这轮真实的对话和回复补写一段（失败就不显示，不用模板顶替）
+  // 模型这轮漏写了内心戏：根据这轮真实的对话、思维习惯、脾气与关系补写一段（失败就不显示，不用模板顶替）
   if (thinkEnabled && !parsed.thought.trim() && !isDemoMode && canCallUpstream) {
     const brief = [
       persona.profile.occupation ? `职业：${persona.profile.occupation}。` : '',
@@ -1207,6 +1284,10 @@ export async function executeGrokChatTurn(
         .map((m) => ({ role: m.role, content: m.content })),
       reply: parsed.cleanReply,
       mood: parsed.mood || undefined,
+      mindSummary: `${personaMind.cognitiveStyle} / ${personaMind.defenseStyle} / 保留度 ${personaMind.subtextLevel}`,
+      traitsDirective: traitsDirective || undefined,
+      sulkingDirective: sulkingDirective || undefined,
+      intimacy: newIntimacy,
     });
   }
 
@@ -1260,7 +1341,10 @@ export async function executeGrokChatTurn(
     Boolean(req.requestPhoto) ||
     /自拍|照片|随手拍|画一张|生成.*图|配张图/i.test(lastUserText);
 
+  const isColdWarSulking = Boolean(updatedEmotion.sulking && updatedEmotion.sulking.level >= 3);
+
   if (
+    !isColdWarSulking &&
     hasExplicitSticker &&
     !parsed.mediaCards.some((c) => c.type === 'sticker')
   ) {
@@ -1275,9 +1359,9 @@ export async function executeGrokChatTurn(
       ),
     });
   } else if (
+    !isColdWarSulking &&
     hasExplicitPhoto &&
-    !parsed.mediaCards.some((c) => c.type === 'photo') &&
-    !(updatedEmotion.sulking && updatedEmotion.sulking.level >= 3)
+    !parsed.mediaCards.some((c) => c.type === 'photo')
   ) {
     parsed.mediaCards.unshift({
       type: 'photo',
@@ -1291,8 +1375,12 @@ export async function executeGrokChatTurn(
     });
   }
 
-  // Filter auto-emitted visual cards according to user preferences unless explicitly requested
+  // Filter auto-emitted visual cards according to user preferences unless explicitly requested,
+  // and block model-emitted photo/sticker cards during Level 3 cold-war sulking
   parsed.mediaCards = parsed.mediaCards.filter((card) => {
+    if (isColdWarSulking && (card.type === 'photo' || card.type === 'sticker')) {
+      return false;
+    }
     if (card.type === 'sticker' && !hasExplicitSticker) {
       return settings.enableAutoSticker !== false;
     }
@@ -1303,7 +1391,11 @@ export async function executeGrokChatTurn(
   });
 
   if (segments.length === 0) {
-    segments.push(...mediaOnlyBursts(parsed.mediaCards, `${persona.slug}:${lastUserText}`));
+    if (parsed.mediaCards.length > 0) {
+      segments.push(...mediaOnlyBursts(parsed.mediaCards, `${persona.slug}:${lastUserText}`));
+    } else if (isColdWarSulking) {
+      segments.push('现在没心情拍，晚点再说。');
+    }
     parsed.bursts = segments;
     parsed.cleanReply = segments.join('\n\n');
   }
