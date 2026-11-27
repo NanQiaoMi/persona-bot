@@ -38,6 +38,11 @@ interface GrokWorkspaceProps {
   initialSlug?: string;
 }
 
+/** 手机宽度（< 768px，对应 Tailwind 的 md 断点以下）：侧栏改为浮层、默认收起 */
+function isPhoneViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+}
+
 export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
   // 启动动画：整个页面只播一次；客户端路由切换回来时直接跳过
@@ -74,6 +79,10 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const [deepSearch, setDeepSearch] = useState(false);
   const [activeMode, setActiveMode] = useState<PersonaMode>("fun");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // 手机（< 768px）打开时侧栏默认收起：服务端渲染默认展开，挂载后再按屏幕宽度收起，避免水合不一致
+  useEffect(() => {
+    if (isPhoneViewport()) queueMicrotask(() => setSidebarOpen(false));
+  }, []);
   const [showInspector, setShowInspector] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2009,8 +2018,15 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
   // 稳定回调：传给 memo 子组件（LeftSidebar / RightInspector），身份永不变，调用时总是最新逻辑
   // 注意：本组件没有提前 return，以下 hooks 都在无条件路径上
-  const sidebarSelectPersona = useStableCallback(handleSelectPersona);
-  const sidebarSelectGroup = useStableCallback(handleSelectGroup);
+  // 手机上侧栏是盖在聊天上的浮层：选完角色 / 群聊就收起，直接进入聊天
+  const sidebarSelectPersona = useStableCallback((slug: string) => {
+    handleSelectPersona(slug);
+    if (isPhoneViewport()) setSidebarOpen(false);
+  });
+  const sidebarSelectGroup = useStableCallback((groupId: string) => {
+    handleSelectGroup(groupId);
+    if (isPhoneViewport()) setSidebarOpen(false);
+  });
   const sidebarCreateGroup = useStableCallback(() => setShowCreateGroup(true));
   const sidebarDeleteGroup = useStableCallback(handleDeleteGroup);
   const sidebarOpenSettings = useStableCallback(() => setShowSettings(true));
@@ -2059,9 +2075,17 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     <>
     {showSplash && <SplashScreen ready={Boolean(activePersona)} steps={splashSteps} />}
     <div
-      className="splash-reveal flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]"
+      className="splash-reveal flex h-dvh w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]"
     >
       {sidebarOpen && (
+        <>
+        {/* 手机上侧栏盖在聊天上面：点空白处收起 */}
+        <div
+          aria-hidden="true"
+          onClick={sidebarCollapse}
+          className="md:hidden fixed inset-0 z-40 bg-black/30 animate-fade-in"
+        />
+        <div className="fixed inset-y-0 left-0 z-50 flex shadow-2xl md:static md:z-auto md:shadow-none">
         <LeftSidebar
           personas={personas}
           activeSlug={activeSlug}
@@ -2081,6 +2105,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           onToggleTheme={sidebarToggleTheme}
           onCollapse={sidebarCollapse}
         />
+        </div>
+        </>
       )}
 
       <ChatStage
@@ -2142,6 +2168,14 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
       />
 
       {showInspector && (
+        <>
+        {/* 窄屏（< 1024px）右侧栏盖在聊天上面：手机全屏、平板从右侧滑出；点空白处关闭 */}
+        <div
+          aria-hidden="true"
+          onClick={inspectorClose}
+          className="lg:hidden fixed inset-0 z-40 bg-black/30 animate-fade-in"
+        />
+        <div className="fixed inset-y-0 right-0 z-50 flex w-full sm:w-auto shadow-2xl lg:static lg:z-auto lg:shadow-none">
         <RightInspector
           key={`inspector-${activePersona?.slug || "default"}`}
           persona={activePersona}
@@ -2181,6 +2215,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           onOpenAvatarPicker={inspectorOpenAvatarPicker}
           onClose={inspectorClose}
         />
+        </div>
+        </>
       )}
 
       <CreateBotModal

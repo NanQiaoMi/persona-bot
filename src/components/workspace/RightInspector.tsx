@@ -204,7 +204,7 @@ function RightInspector({
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
 
   return (
-    <aside className="w-[312px] shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-screen animate-fade-in">
+    <aside className="w-full sm:w-[312px] shrink-0 border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-dvh animate-fade-in">
       {/* Top Close & Centered Hero Avatar (Screenshot 3 Layout) */}
       <div className="relative px-4 pt-4 pb-3 flex flex-col items-center">
         <button

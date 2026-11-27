@@ -299,7 +299,7 @@ export default function ChatStage({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDropFile}
-      className="relative flex-1 flex flex-col h-screen bg-[var(--bg-primary)] min-w-0 overflow-hidden"
+      className="relative flex-1 flex flex-col h-dvh bg-[var(--bg-primary)] min-w-0 overflow-hidden"
     >
       {isDraggingFile && (
         <div className="pointer-events-none absolute inset-3 z-40 rounded-3xl border-2 border-dashed border-[#18a999] bg-[var(--bg-elevated)]/85 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-fade-in">

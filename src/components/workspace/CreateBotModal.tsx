@@ -80,7 +80,7 @@ export default function CreateBotModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[440px] rounded-[24px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl overflow-hidden"
+        className="w-full max-w-[440px] max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -139,7 +139,7 @@ export default function CreateBotModal({
               type="text"
               value={appearanceAnchor}
               onChange={(e) => setAppearanceAnchor(e.target.value)}
-              placeholder="固定外貌与穿搭锚点（可选，如：黑长直微卷、甜酷穿搭）"
+              placeholder="外貌与穿搭（可选，如：黑长直、甜酷风）"
               className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
             />
           </div>
