@@ -76,7 +76,7 @@ interface GroupMessageRowProps {
 }
 
 const BUBBLE_CLASS =
-  "max-w-[78%] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 break-words";
+  "max-w-[78%] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 break-words";
 
 export function GroupMessageRow({
   msg,
@@ -222,7 +222,7 @@ function GroupMediaCard({
 export function GroupSystemTip({ text }: { text: string }) {
   return (
     <div className="flex justify-center my-2">
-      <span className="rounded-full bg-[var(--bg-secondary)] px-3 py-1 text-[12px] text-[var(--text-muted)]">
+      <span className="rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] px-3 py-0.5 text-[11.5px] text-[var(--text-muted)]">
         {text}
       </span>
     </div>
@@ -255,7 +255,7 @@ export function GroupTypingRow({
         />
       </div>
       <div className="flex-1 min-w-0 flex flex-col items-start">
-        <div className="max-w-[78%] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-3">
+        <div className="max-w-[78%] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-3">
           <div className="flex items-center gap-1" aria-hidden="true">
             <span className="typing-dot" />
             <span className="typing-dot typing-dot-2" />
@@ -274,9 +274,9 @@ export function GroupTypingRow({
 export function NewMessagesDivider() {
   return (
     <div className="flex items-center gap-3 my-3 w-full">
-      <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+      <div className="h-px flex-1 bg-[var(--border-hairline,var(--border-subtle))]" />
       <span className="text-[11px] text-[var(--accent,#1683FF)]">以下为新消息</span>
-      <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+      <div className="h-px flex-1 bg-[var(--border-hairline,var(--border-subtle))]" />
     </div>
   );
 }

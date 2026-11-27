@@ -137,14 +137,14 @@ function LeftSidebar({
   );
 
   return (
-    <aside className="relative w-[268px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col h-dvh select-none">
+    <aside className="relative w-[264px] shrink-0 hairline-r border-r border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] flex flex-col h-dvh select-none">
       {/* Top Action Row */}
-      <div className="px-4 pt-4 pb-1 flex items-center justify-between">
+      <div className="px-3.5 pt-3.5 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onToggleTheme}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
             title={theme === "dark" ? "切换清爽浅色 (Grok Bot)" : "切换深空暗色"}
           >
             {theme === "dark" ? "☀️" : "🌙"}
@@ -153,7 +153,7 @@ function LeftSidebar({
             <button
               type="button"
               onClick={onCollapse}
-              className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
               title="收起侧边栏"
             >
               ◧
@@ -161,11 +161,11 @@ function LeftSidebar({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
             title="搜索或切换 (⌘K)"
           >
             <svg
@@ -186,7 +186,7 @@ function LeftSidebar({
           <button
             type="button"
             onClick={onOpenCreateBot}
-            className="w-8 h-8 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-sm text-[var(--text-primary)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-sm text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
             title="创建新 Bot"
           >
             <svg
@@ -207,14 +207,14 @@ function LeftSidebar({
       </div>
 
       {/* Centered Clickable Master Bot Card ("猫咪的bot") */}
-      <div className="px-4 py-2 flex flex-col items-center justify-center">
+      <div className="px-3.5 pt-1 pb-3 mb-2 hairline-b border-b border-[var(--border-hairline,var(--border-subtle))] flex flex-col items-center justify-center">
         <button
           type="button"
           onClick={() => onSelectPersona(masterSlug)}
-          className={`group w-full max-w-[148px] py-2.5 px-3 rounded-[20px] flex flex-col items-center justify-center transition-all cursor-pointer ${
+          className={`group w-full max-w-[152px] py-2.5 px-3 rounded-[16px] flex flex-col items-center justify-center transition-surface focus-ring cursor-pointer ${
             isMasterActive
-              ? "bg-[var(--bg-composer)] grok-active-row ring-1 ring-[var(--border-subtle)]"
-              : "hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
+              ? "bg-[var(--surface-active,var(--bg-composer))] grok-active-row ring-1 ring-[var(--border-hairline,var(--border-subtle))]"
+              : "hover:bg-[var(--bg-hover)]"
           }`}
           title="切换到主控 Bot（可统一指挥所有子 Bot 并接收汇报）"
         >
@@ -222,12 +222,12 @@ function LeftSidebar({
             shape={masterMascot.shape}
             color={masterMascot.color}
             image={masterMascot.image}
-            size={60}
+            size={58}
             showOnlineDot
             trackPointer
             state={isMasterActive && isStreaming ? "working" : "idle"}
           />
-          <span className="mt-2 text-[12.5px] font-semibold tracking-tight text-[var(--text-primary)] flex items-center gap-1">
+          <span className="mt-2 text-[12.5px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] flex items-center gap-1">
             <span>{masterBot?.name || "猫咪的bot"}</span>
           </span>
           {isMasterActive && isStreaming && (
@@ -240,9 +240,9 @@ function LeftSidebar({
 
       {/* Group Chats (群聊) */}
       {(groups.length > 0 || onCreateGroup) && (
-        <div className="px-3 pb-1 shrink-0">
-          <div className="flex items-center justify-between px-1.5 pb-1">
-            <span className="text-[11px] font-semibold tracking-wide text-[var(--text-muted)]">
+        <div className="px-3 pb-2.5 mb-2 hairline-b border-b border-[var(--border-hairline,var(--border-subtle))] shrink-0">
+          <div className="flex items-center justify-between px-1.5 pb-1.5">
+            <span className="type-section text-[11px] font-semibold tracking-[0.04em] text-[var(--text-muted)]">
               群聊
             </span>
             {onCreateGroup && (
@@ -251,7 +251,7 @@ function LeftSidebar({
                 onClick={onCreateGroup}
                 aria-label="发起群聊"
                 title="发起群聊"
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-surface focus-ring cursor-pointer"
               >
                 <svg
                   className="w-3.5 h-3.5"
@@ -271,11 +271,11 @@ function LeftSidebar({
           </div>
 
           {groups.length === 0 ? (
-            <p className="px-1.5 pb-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+            <p className="px-1.5 pb-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
               在主 bot 里说「拉个群聊聊…」也能建群
             </p>
           ) : (
-            <div className="space-y-1 pb-1">
+            <div className="space-y-0.5">
               {groups.map((group) => {
                 const isActive = activeGroupId === group.id;
                 const members = group.memberSlugs
@@ -285,16 +285,16 @@ function LeftSidebar({
                 return (
                   <div
                     key={group.id}
-                    className={`group relative rounded-[16px] transition-all duration-200 ${
+                    className={`group relative rounded-[12px] transition-surface ${
                       isActive
-                        ? "bg-[var(--bg-composer)] grok-active-row"
-                        : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
+                        ? "bg-[var(--surface-active,var(--bg-composer))] grok-active-row"
+                        : "bg-transparent hover:bg-[var(--bg-hover)]"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => onSelectGroup?.(group.id)}
-                      className="w-full text-left px-3 py-2 pr-8 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full text-left px-2.5 py-2 pr-8 flex items-center gap-2.5 focus-ring rounded-[12px] cursor-pointer"
                     >
                       <div className="flex items-center shrink-0">
                         {members.map((m, i) => {
@@ -306,7 +306,7 @@ function LeftSidebar({
                           return (
                             <span
                               key={m.slug}
-                              className={`rounded-full bg-[var(--bg-secondary)] ${
+                              className={`rounded-full bg-[var(--surface-panel,var(--bg-secondary))] ${
                                 i > 0 ? "-ml-2" : ""
                               }`}
                               style={{ zIndex: members.length - i }}
@@ -324,7 +324,7 @@ function LeftSidebar({
                         })}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate">
+                        <div className="text-[12.5px] font-semibold tracking-[-0.008em] text-[var(--text-primary)] truncate">
                           {group.name}
                         </div>
                         {group.lastMessage && (
@@ -339,7 +339,7 @@ function LeftSidebar({
                       {/* 未读：像微信一样的红色数字角标 */}
                       {!isActive && (group.unreadCount || 0) > 0 && (
                         <span
-                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FA5151] text-white text-[10.5px] font-semibold leading-[18px] text-center group-hover:opacity-0 transition-opacity"
+                          className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#FA5151] text-white text-[10px] font-semibold leading-[18px] text-center type-mono-num group-hover:opacity-0 transition-opacity"
                           aria-label={`${group.unreadCount} 条未读`}
                         >
                           {(group.unreadCount || 0) > 99 ? "99+" : group.unreadCount}
@@ -361,7 +361,7 @@ function LeftSidebar({
                             onDeleteGroup(group.id);
                           }
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[12px] leading-none text-[var(--text-muted)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-500 hover:bg-[var(--bg-hover)] transition-all cursor-pointer"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[12px] leading-none text-[var(--text-muted)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-500 hover:bg-[var(--bg-hover)] transition-interactive focus-ring cursor-pointer"
                       >
                         ×
                       </button>
@@ -375,7 +375,7 @@ function LeftSidebar({
       )}
 
       {/* Sub-Bots Clean 2-Line List */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-0.5">
         {subBots.map((p, index) => {
           const isActive = p.slug === activeSlug;
           const isBotTyping = isActive && isStreaming;
@@ -399,16 +399,16 @@ function LeftSidebar({
               key={p.slug}
               type="button"
               onClick={() => onSelectPersona(p.slug)}
-              className={`group relative w-full text-left px-3 py-2.5 rounded-[16px] transition-all duration-200 flex items-center gap-3 cursor-pointer ${
+              className={`group relative w-full text-left px-2.5 py-2 rounded-[12px] transition-surface flex items-center gap-2.5 focus-ring cursor-pointer ${
                 isActive
-                  ? "bg-[var(--bg-composer)] grok-active-row"
-                  : "bg-transparent hover:bg-black/[0.035] dark:hover:bg-white/[0.04]"
+                  ? "bg-[var(--surface-active,var(--bg-composer))] grok-active-row"
+                  : "bg-transparent hover:bg-[var(--bg-hover)]"
               }`}
             >
               {isActive && (
                 <span
                   aria-hidden="true"
-                  className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full transition-all"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-[2.5px] h-4 rounded-full transition-all"
                   style={{ backgroundColor: mascotCfg.color }}
                 />
               )}
@@ -425,7 +425,7 @@ function LeftSidebar({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[13.5px] font-semibold text-[var(--text-primary)] truncate">
+                  <span className="text-[13px] font-semibold tracking-[-0.008em] text-[var(--text-primary)] truncate">
                     {p.name}
                   </span>
                   {isBotTyping ? (
@@ -435,7 +435,7 @@ function LeftSidebar({
                     />
                   ) : (
                     timeLabel && (
-                      <span className="text-[10.5px] text-[var(--text-muted)] tabular-nums shrink-0">
+                      <span className="type-mono-num text-[10.5px] text-[var(--text-muted)] tabular-nums shrink-0">
                         {timeLabel}
                       </span>
                     )
@@ -462,7 +462,7 @@ function LeftSidebar({
               {/* 单聊未读：TA 主动发来、你还没看 */}
               {unread > 0 && (
                 <span
-                  className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FA5151] text-white text-[10.5px] font-semibold leading-[18px] text-center"
+                  className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#FA5151] text-white text-[10px] font-semibold leading-[18px] text-center type-mono-num"
                   aria-label={`${unread} 条未读`}
                 >
                   {unread > 99 ? "99+" : unread}
@@ -474,16 +474,16 @@ function LeftSidebar({
       </div>
 
       {/* Bottom Dock: User Popover Avatar + 「配置端口」入口 */}
-      <div className="relative p-3.5 flex items-center gap-2.5" ref={menuRef}>
+      <div className="relative px-3.5 py-3 hairline-t border-t border-[var(--border-hairline,var(--border-subtle))] flex items-center gap-2" ref={menuRef}>
         {accountMenuOpen && (
-          <div className="absolute bottom-[62px] left-3.5 w-[224px] rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
+          <div className="absolute bottom-[60px] left-3.5 w-[224px] rounded-[16px] border border-[var(--border-hairline,var(--border-subtle))] surface-popover bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_16px_40px_rgba(0,0,0,0.16))] p-1.5 z-40 animate-popover-in">
             <button
               type="button"
               onClick={() => {
                 setAccountMenuOpen(false);
                 onOpenCreateBot();
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[10px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] transition-surface focus-ring cursor-pointer"
             >
               <span>➕</span>
               <span>创建新 Bot</span>
@@ -494,7 +494,7 @@ function LeftSidebar({
                 setAccountMenuOpen(false);
                 router.push("/create");
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[10px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] transition-surface focus-ring cursor-pointer"
             >
               <span>✨</span>
               <span>聊天记录蒸馏工作室</span>
@@ -505,19 +505,19 @@ function LeftSidebar({
                 setAccountMenuOpen(false);
                 router.push("/gallery");
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[10px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] transition-surface focus-ring cursor-pointer"
             >
               <span>🪐</span>
               <span>角色引力场广场</span>
             </button>
-            <div className="my-1 border-t border-[var(--border-subtle)]" />
+            <div className="my-1 hairline-t border-t border-[var(--border-hairline,var(--border-subtle))]" />
             <button
               type="button"
               onClick={() => {
                 setAccountMenuOpen(false);
                 onOpenSettings();
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[10px] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] transition-surface focus-ring cursor-pointer"
             >
               <span>⚙️</span>
               <span>设置与模型密钥舱</span>
@@ -528,7 +528,7 @@ function LeftSidebar({
                 setAccountMenuOpen(false);
                 onToggleTheme();
               }}
-              className="w-full px-3 py-2 rounded-[13px] hover:bg-[var(--bg-hover)] text-left flex items-center justify-between text-[13px] text-[var(--text-primary)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[10px] hover:bg-[var(--bg-hover)] text-left flex items-center justify-between text-[13px] text-[var(--text-primary)] transition-surface focus-ring cursor-pointer"
             >
               <span className="flex items-center gap-2.5">
                 <span>{theme === "dark" ? "☀️" : "🌙"}</span>
@@ -541,7 +541,7 @@ function LeftSidebar({
         <button
           type="button"
           onClick={() => setAccountMenuOpen((prev) => !prev)}
-          className="w-9 h-9 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center text-base hover:scale-105 active:scale-95 transition-transform shrink-0 cursor-pointer"
+          className="w-9 h-9 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-base hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring shrink-0 cursor-pointer"
           title="个人菜单（广场 / 蒸馏 / 设置 / 主题）"
         >
           🐱
@@ -556,7 +556,7 @@ function LeftSidebar({
             setPortOpen((prev) => !prev);
           }}
           title="配置模型网关等服务的地址与端口"
-          className="flex-1 py-2 px-3.5 rounded-full bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+          className="flex-1 h-9 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center gap-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.99] transition-interactive focus-ring cursor-pointer"
         >
           <StatusDot status={gatewayStatus} />
           <span>配置端口</span>

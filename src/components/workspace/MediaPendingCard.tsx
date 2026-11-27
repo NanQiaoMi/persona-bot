@@ -65,7 +65,7 @@ export default function MediaPendingCard({
 
   return (
     <div
-      className={`relative mt-1.5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] ${
+      className={`relative mt-1.5 overflow-hidden rounded-[16px] border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] ${
         isSticker ? "w-[132px] h-[132px]" : "w-[220px] h-[164px]"
       }`}
       style={{ ["--media-dot" as string]: dotColor(accent) }}
@@ -77,7 +77,7 @@ export default function MediaPendingCard({
       <DotField cols={isSticker ? 8 : 13} rows={isSticker ? 8 : 10} animated={false} clearCenter />
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
         <span
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-primary)] text-[var(--text-secondary)] shadow-sm"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-card,var(--bg-primary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] shadow-xs"
         >
           <StateIcon state={state} />
         </span>
@@ -98,7 +98,7 @@ export default function MediaPendingCard({
                 setRetrying(false);
               }
             }}
-            className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-primary)] hover:border-[var(--border-strong)] cursor-pointer"
+            className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-[var(--surface-card,var(--bg-primary))] border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-surface focus-ring cursor-pointer"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M20 11a8 8 0 1 0-2.3 5.7" />

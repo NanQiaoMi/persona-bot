@@ -141,8 +141,8 @@ function ChatMessageList({
                     currTs - prevTs > 5 * 60 * 1000);
 
                 const timeDividerNode = showTimeDivider ? (
-                  <div className="w-full py-2 text-center">
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] text-[var(--text-muted)]">
+                  <div className="w-full py-2.5 text-center">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] tracking-[0.01em] text-[var(--text-muted)] type-mono-num">
                       {formatSmartImTimestamp(msg.timestamp)}
                     </span>
                   </div>
@@ -225,7 +225,7 @@ function ChatMessageList({
                             />
                           </button>
                         )}
-                        <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-tr-md bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-relaxed shadow-xs">
+                        <div className="max-w-[74%] px-4 py-2.5 rounded-[20px] rounded-tr-[6px] bg-[var(--user-capsule)] text-[var(--user-capsule-text)] text-[14px] leading-[1.55] tracking-[-0.006em] shadow-xs">
                           <p className="whitespace-pre-wrap break-words">
                             {msg.content}
                           </p>
@@ -287,11 +287,11 @@ function ChatMessageList({
                         </button>
 
                         {reportsOpen && (
-                          <div className="mt-2 w-full max-w-[660px] rounded-[18px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] p-3 space-y-2 animate-fade-in">
+                          <div className="mt-2 w-full max-w-[660px] rounded-[16px] border border-[var(--border-hairline,var(--border-subtle))] surface-card bg-[var(--surface-card,var(--bg-composer))] p-3 space-y-2 animate-fade-in">
                             {reports.map((rep) => (
                               <div
                                 key={`${msg.id}-${rep.slug}`}
-                                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] flex items-start gap-2.5 text-xs"
+                                className="p-2.5 rounded-[12px] bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] flex items-start gap-2.5 text-xs"
                               >
                                 <BlobMascot
                                   shape={
@@ -407,7 +407,7 @@ function ChatMessageList({
                       {bursts.filter((b) => (b || "").trim()).map((burstText, bIdx) => (
                         <div
                           key={bIdx}
-                          className="max-w-[86%] sm:max-w-[580px] rounded-[20px] rounded-tl-md bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
+                          className="max-w-[85%] sm:max-w-[580px] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-spring"
                         >
                           <GrokMessageBody content={burstText} />
                         </div>
@@ -415,7 +415,7 @@ function ChatMessageList({
                     </div>
 
                     {correctingIdx === idx && (
-                      <div className="mt-1.5 w-full max-w-[420px] rounded-[18px] border border-[var(--border-subtle)] bg-[var(--bg-composer)] p-3 space-y-2 text-xs animate-fade-in">
+                      <div className="mt-1.5 w-full max-w-[420px] rounded-[16px] border border-[var(--border-hairline,var(--border-subtle))] surface-card bg-[var(--surface-card,var(--bg-composer))] p-3 space-y-2 text-xs animate-fade-in">
                         {correctionState === "done" ? (
                           <div className="text-[#18a999] font-medium">已记下，下一轮 TA 就会改</div>
                         ) : (
@@ -588,7 +588,7 @@ function ChatMessageList({
                               onClick={() =>
                                 speakMessage(`${msg.id}-v-${cIdx}`, card.caption)
                               }
-                              className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center justify-between gap-3 text-left transition-all hover:-translate-y-0.5 cursor-pointer"
+                              className="w-full px-3.5 py-2.5 rounded-[16px] bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-between gap-3 text-left transition-surface hover:border-[var(--border-strong)] focus-ring cursor-pointer"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="w-7 h-7 rounded-full bg-[#18a999]/15 text-[#18a999] flex items-center justify-center text-xs shrink-0">

@@ -247,22 +247,22 @@ export default function GrokComposer({
   const hasContent = Boolean(value.trim()) || Boolean(activeImagePreview);
 
   return (
-    <div className="relative px-4 md:px-8 pb-5 pt-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/95 to-transparent">
-      <div className="relative max-w-3xl mx-auto">
+    <div className="relative px-4 md:px-8 pb-5 pt-2 bg-gradient-to-t from-[var(--surface-canvas,var(--bg-primary))] via-[var(--surface-canvas,var(--bg-primary))]/95 to-transparent">
+      <div className="relative max-w-[740px] mx-auto">
         {/* WeChat-style "+" Attachment Tray */}
         {menuOpen && (
           <div
             ref={popoverRef}
-            className="absolute bottom-full left-0 mb-3 w-72 rounded-3xl bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] grok-floating-card p-3.5 z-30 animate-popover-in"
+            className="absolute bottom-full left-0 mb-3 w-72 rounded-[20px] surface-popover bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--popover-shadow,0_16px_40px_rgba(0,0,0,0.16))] p-2.5 z-30 animate-popover-in"
           >
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
                   setMenuOpen(false);
                   fileInputRef.current?.click();
                 }}
-                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
+                className="p-2.5 rounded-[14px] bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] text-left flex items-center gap-2.5 transition-surface focus-ring cursor-pointer"
               >
                 <span className="w-9 h-9 rounded-xl bg-emerald-500/12 text-lg flex items-center justify-center shrink-0">
                   🖼️
@@ -285,7 +285,7 @@ export default function GrokComposer({
                   }
                   handleSubmit(true, false);
                 }}
-                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
+                className="p-2.5 rounded-[14px] bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] text-left flex items-center gap-2.5 transition-surface focus-ring cursor-pointer"
               >
                 <span className="w-9 h-9 rounded-xl bg-amber-500/12 text-lg flex items-center justify-center shrink-0">
                   📸
@@ -308,7 +308,7 @@ export default function GrokComposer({
                   }
                   handleSubmit(false, true);
                 }}
-                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
+                className="p-2.5 rounded-[14px] bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] text-left flex items-center gap-2.5 transition-surface focus-ring cursor-pointer"
               >
                 <span className="w-9 h-9 rounded-xl bg-sky-500/12 text-lg flex items-center justify-center shrink-0">
                   😄
@@ -329,7 +329,7 @@ export default function GrokComposer({
                   setMenuOpen(false);
                   onOpenImport();
                 }}
-                className="p-3 rounded-2xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left flex items-center gap-2.5 transition-colors cursor-pointer"
+                className="p-2.5 rounded-[14px] bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] text-left flex items-center gap-2.5 transition-surface focus-ring cursor-pointer"
               >
                 <span className="w-9 h-9 rounded-xl bg-purple-500/12 text-lg flex items-center justify-center shrink-0">
                   📂
@@ -349,7 +349,7 @@ export default function GrokComposer({
 
         {/* Active Image Attachment Preview */}
         {activeImagePreview && (
-          <div className="mb-2.5 px-4 py-2 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill flex items-center gap-3 animate-fade-in">
+          <div className="mb-2.5 px-3.5 py-2 rounded-[16px] bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center gap-3 animate-fade-in">
             <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-[var(--border-strong)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -377,7 +377,7 @@ export default function GrokComposer({
 
         {/* Floating "@" Bot Mention Picker (Grok Bot Style) */}
         {showMentionMenu && (
-          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] backdrop-blur-2xl shadow-2xl p-1.5 z-40 animate-popover-in">
+          <div className="absolute bottom-full left-10 mb-2.5 w-72 rounded-[16px] border border-[var(--border-hairline,var(--border-subtle))] surface-popover bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_16px_40px_rgba(0,0,0,0.16))] p-1.5 z-40 animate-popover-in">
             <div className="max-h-60 overflow-y-auto space-y-0.5">
               {filteredMentions.map((bot, idx) => {
                 const isAll = bot.slug === MENTION_ALL_SLUG;
@@ -389,7 +389,7 @@ export default function GrokComposer({
                     type="button"
                     onMouseEnter={() => setMentionIndex(idx)}
                     onClick={() => insertMentionBot(bot)}
-                    className={`w-full px-3 py-2 rounded-[13px] flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+                    className={`w-full px-3 py-2 rounded-[10px] flex items-center justify-between gap-2.5 text-left transition-surface focus-ring cursor-pointer ${
                       isSelected
                         ? "bg-[var(--bg-hover)]"
                         : "hover:bg-[var(--bg-hover)]"
@@ -429,7 +429,7 @@ export default function GrokComposer({
         )}
 
         {/* Main Floating Grok Bot Pill Capsule */}
-        <div className="flex items-end gap-2 px-2.5 py-2 rounded-[26px] bg-[var(--bg-composer)] border border-[var(--border-subtle)] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-black/5 dark:focus-within:ring-white/10 focus-within:shadow-xl transition-all duration-200">
+        <div className="flex items-end gap-1.5 px-2.5 py-2 rounded-[24px] bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill focus-within:border-[var(--border-strong)] focus-within-ring transition-surface">
           <input
             ref={fileInputRef}
             type="file"
@@ -443,10 +443,10 @@ export default function GrokComposer({
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="打开功能菜单"
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-interactive focus-ring shrink-0 cursor-pointer ${
               menuOpen
                 ? "bg-[var(--text-primary)] text-[var(--bg-primary)] rotate-45"
-                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
+                : "bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-[0.95]"
             }`}
             title="切换 Think / DeepSearch / 人格模式 / 传图"
           >
@@ -512,16 +512,16 @@ export default function GrokComposer({
             }}
             disabled={disabled}
             placeholder={`给 ${personaName || "TA"} 发消息...`}
-            className="flex-1 max-h-32 overflow-y-auto resize-none bg-transparent px-2 py-1.5 text-[14px] leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+            className="flex-1 max-h-32 overflow-y-auto resize-none bg-transparent px-2 py-1.5 text-[14px] leading-[1.55] tracking-[-0.006em] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
 
           <button
             type="button"
             onClick={handleVoiceInput}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-interactive focus-ring shrink-0 cursor-pointer ${
               isRecording
                 ? "bg-rose-500/20 text-rose-500 animate-pulse"
-                : "bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:scale-105 active:scale-95"
+                : "bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-[0.95]"
             }`}
             title="语音输入"
           >
@@ -556,7 +556,7 @@ export default function GrokComposer({
             aria-label={
               disabled ? "停止回复" : hasContent ? "发送消息" : "语音/主动破冰"
             }
-            className="group/send w-9 h-9 rounded-full hover:opacity-90 hover:scale-105 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-md transition-all shrink-0 cursor-pointer"
+            className="group/send w-9 h-9 rounded-full hover:opacity-90 active:scale-[0.95] disabled:opacity-50 text-white flex items-center justify-center shadow-sm transition-interactive focus-ring shrink-0 cursor-pointer"
             style={{ backgroundColor: accentColor }}
             title={
               disabled

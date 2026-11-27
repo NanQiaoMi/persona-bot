@@ -2075,7 +2075,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     <>
     {showSplash && <SplashScreen ready={Boolean(activePersona)} steps={splashSteps} />}
     <div
-      className="splash-reveal flex h-dvh w-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]"
+      className="splash-reveal flex h-dvh w-screen overflow-hidden bg-[var(--surface-canvas,var(--bg-primary))] text-[var(--text-primary)]"
     >
       {sidebarOpen && (
         <>
@@ -2083,9 +2083,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         <div
           aria-hidden="true"
           onClick={sidebarCollapse}
-          className="md:hidden fixed inset-0 z-40 bg-black/30 animate-fade-in"
+          className="md:hidden fixed inset-0 z-40 bg-[var(--surface-overlay,rgba(0,0,0,0.32))] backdrop-blur-[2px] animate-fade-in"
         />
-        <div className="fixed inset-y-0 left-0 z-50 flex shadow-2xl md:static md:z-auto md:shadow-none">
+        <div className="fixed inset-y-0 left-0 z-50 flex shadow-[var(--popover-shadow,0_20px_50px_rgba(0,0,0,0.22))] md:static md:z-auto md:shadow-none">
         <LeftSidebar
           personas={personas}
           activeSlug={activeSlug}
@@ -2173,9 +2173,9 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         <div
           aria-hidden="true"
           onClick={inspectorClose}
-          className="lg:hidden fixed inset-0 z-40 bg-black/30 animate-fade-in"
+          className="lg:hidden fixed inset-0 z-40 bg-[var(--surface-overlay,rgba(0,0,0,0.32))] backdrop-blur-[2px] animate-fade-in"
         />
-        <div className="fixed inset-y-0 right-0 z-50 flex w-full sm:w-auto shadow-2xl lg:static lg:z-auto lg:shadow-none">
+        <div className="fixed inset-y-0 right-0 z-50 flex w-full sm:w-auto shadow-[var(--popover-shadow,0_20px_50px_rgba(0,0,0,0.22))] lg:static lg:z-auto lg:shadow-none">
         <RightInspector
           key={`inspector-${activePersona?.slug || "default"}`}
           persona={activePersona}

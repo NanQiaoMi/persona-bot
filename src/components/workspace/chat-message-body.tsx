@@ -14,7 +14,7 @@ export function renderInlineMarkdown(text: string) {
       return (
         <code
           key={idx}
-          className="px-1.5 py-0.5 mx-0.5 rounded-md bg-black/5 dark:bg-white/10 font-mono text-[12.5px]"
+          className="px-1.5 py-0.5 mx-0.5 rounded-[5px] bg-black/[0.045] dark:bg-white/[0.08] font-mono text-[12.5px]"
         >
           {part.slice(1, -1)}
         </code>
@@ -34,7 +34,7 @@ function GrokMessageBodyImpl({
   const normalized = content.replace(/\n{3,}/g, "\n\n").trim();
   const blocks = normalized.split(/(```[\s\S]*?```)/g).filter(Boolean);
   return (
-    <div className="space-y-1.5 text-[14px] leading-[1.6] text-[var(--text-primary)]">
+    <div className="space-y-1.5 type-body text-[14px] leading-[1.6] tracking-[-0.006em] text-[var(--text-primary)]">
       {blocks.map((block, bIdx) => {
         const isLast = bIdx === blocks.length - 1;
         if (block.startsWith("```") && block.endsWith("```")) {
@@ -42,7 +42,7 @@ function GrokMessageBodyImpl({
           return (
             <pre
               key={bIdx}
-              className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] overflow-x-auto font-mono text-xs leading-relaxed"
+              className="p-3.5 rounded-[12px] bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] overflow-x-auto font-mono text-[12.5px] leading-relaxed"
             >
               <code>{inner}</code>
             </pre>
