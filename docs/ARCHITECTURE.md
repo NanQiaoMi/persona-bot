@@ -15,7 +15,7 @@ PersonaBot v2.0 采用**纯 TypeScript 全栈内聚架构**，分为四层：
    - `Stream Orchestrator`：通过 SSE (`text/event-stream`) 依次流式输出 `search` -> `thought` -> `emotion` -> `reply` -> `done`。
 3. **蒸馏与解析层（Pure-TS Distiller & Parsers）**：
    - 彻底移除旧版脆弱的 Python 子进程调用，用纯 TS 实现微信/iMessage/通用聊天记录解析与 5 阶段五层人格蒸馏管线。
-   - `PersonaSpec` v2 在兼容 v1 Markdown 的基础上补充 `mind`（思维风格、防御机制、分歧态度、口是心非度、动态 Few-Shot 池）、`temperament`（脾气原型、烈度档位、雷区与哄法）及 `baselineTraits` 初始锚点；对话编排采用「混合自适应思考（日常单次快路径 + 高张力 2.5s 超时轻量二段推演）」与四级 Prompt 优先级仲裁。
+   - `PersonaSpec` v2 在兼容 v1 Markdown 的基础上补充 `mind`（思维风格、防御机制、分歧态度、口是心非度、动态 Few-Shot 池）、`temperament`（脾气原型、烈度档位、雷区与哄法）、`baselineTraits` 初始锚点、`dailyRhythmOverride`（专属作息词表覆盖）与 `peerRelations`（群聊熟人关系）；对话编排采用「混合自适应思考（日常单次快路径 + 高张力 2.5s 超时轻量二段推演）」与四级 Prompt 优先级仲裁，并通过 `daily-life.json` 在单聊、朋友圈、群聊与主动破冰间共享「今日生活与心境板」。
 4. **统一存储仓储层（Unified Storage Repository）**：
    - 以本地结构化文件库（`exes/{slug}/` + `.data/settings.json`）为默认零配置后端，自动初始化 4 款标杆角色并向下兼容已有 `exes/` 数据；当环境变量配置 `MONGODB_URI` 时自动无缝适配 MongoDB。
 

@@ -17,6 +17,7 @@ import {
   ConversationMemoryState,
   ConversationMessage,
   CorrectionItem,
+  DailyLifeState,
   GroupChat,
   MomentPost,
   PersonaEmotionSnapshot,
@@ -863,6 +864,38 @@ export class UnifiedStorageRepository {
       await writeFileAtomic(path.join(this.dataDir, 'proactive-outreach.json'), JSON.stringify(next, null, 2), 'utf-8');
       return next;
     });
+  }
+
+  async getDailyLife(slug: string): Promise<DailyLifeState | null> {
+    const safeSlug = sanitizeSlug(slug);
+    const filePath = path.join(this.getPersonaDir(safeSlug), 'daily-life.json');
+    const parsed = await readJsonSafe<Partial<DailyLifeState> | null>(filePath, null);
+    if (!parsed || typeof parsed.dateKey !== 'string' || typeof parsed.mainEvent !== 'string') {
+      return null;
+    }
+    return {
+      dateKey: parsed.dateKey,
+      mainEvent: parsed.mainEvent,
+      moodTone: typeof parsed.moodTone === 'string' ? parsed.moodTone : '平静',
+      recentMoments: Array.isArray(parsed.recentMoments) ? parsed.recentMoments.slice(0, 3) : [],
+      updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+    };
+  }
+
+  async saveDailyLife(slug: string, state: DailyLifeState): Promise<DailyLifeState> {
+    const safeSlug = sanitizeSlug(slug);
+    const dir = this.getPersonaDir(safeSlug);
+    await fs.mkdir(dir, { recursive: true });
+    const normalized: DailyLifeState = {
+      ...state,
+      recentMoments: (state.recentMoments || []).slice(0, 3),
+    };
+    await writeFileAtomic(
+      path.join(dir, 'daily-life.json'),
+      JSON.stringify(normalized, null, 2),
+      'utf-8'
+    );
+    return normalized;
   }
 
   async getMoments(slug: string): Promise<MomentPost[]> {

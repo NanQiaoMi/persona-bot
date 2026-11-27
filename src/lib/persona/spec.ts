@@ -2,6 +2,7 @@ import {
   fingerprintFromPersonaMd,
   StyleFingerprint,
 } from '@/lib/persona/fingerprint';
+import type { RhythmArchetype } from '@/lib/persona/rhythm-types';
 
 /**
  * 结构化人格规格 (PersonaSpec)：
@@ -120,6 +121,22 @@ export interface PersonaTemperamentSpec {
   source?: 'preset' | 'llm' | 'heuristic' | 'user-edit';
 }
 
+export interface DailyRhythmOverride {
+  archetype?: RhythmArchetype;
+  label?: string;
+  freeActivities?: string[];
+  busyActivities?: string[];
+  asleepActivities?: string[];
+  lateNightActivities?: string[];
+}
+
+export interface PeerRelation {
+  targetSlug: string;
+  targetName: string;
+  relation: string;
+  tone: string;
+}
+
 export interface PersonaSpec {
   specVersion: number;
   fingerprint?: StyleFingerprint;
@@ -130,6 +147,10 @@ export interface PersonaSpec {
   mind?: PersonaMindSpec;
   /** 脾气原型、烈度档位、专属雷区与顺毛哄法 */
   temperament?: PersonaTemperamentSpec;
+  /** 专属作息模板与活动词表覆盖 */
+  dailyRhythmOverride?: DailyRhythmOverride;
+  /** 群聊里对其他成员的轻量人物关系印象 */
+  peerRelations?: PeerRelation[];
   learned: LearnedItem[];
   /** 最近若干轮回复的质量分（风格分 × 用户反应），作为试用规则的对照基线 */
   recentQuality?: number[];
@@ -298,6 +319,8 @@ export function ensurePersonaSpec(personaMd: string, spec?: Partial<PersonaSpec>
       ...(baselineTraits ? { baselineTraits } : {}),
       ...(spec.mind ? { mind: spec.mind } : {}),
       ...(spec.temperament ? { temperament: spec.temperament } : {}),
+      ...(spec.dailyRhythmOverride ? { dailyRhythmOverride: spec.dailyRhythmOverride } : {}),
+      ...(Array.isArray(spec.peerRelations) ? { peerRelations: spec.peerRelations } : {}),
       learned: spec.learned.filter((it) => it && typeof it.text === 'string'),
       recentQuality: Array.isArray(spec.recentQuality) ? spec.recentQuality.slice(-12) : undefined,
       memoryStats: spec.memoryStats && typeof spec.memoryStats === 'object' ? spec.memoryStats : undefined,

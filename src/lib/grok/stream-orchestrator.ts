@@ -51,6 +51,10 @@ import {
   presenceStatusText,
   typingSpeedFactor,
 } from '@/lib/persona/daily-rhythm';
+import {
+  buildDailyLifeDirective,
+  getOrInitDailyLife,
+} from '@/lib/persona/daily-life';
 import { blendStyle } from '@/lib/persona/style-blend';
 import {
   analyzeUserChatStyle,
@@ -1160,6 +1164,13 @@ export async function executeGrokChatTurn(
           sulkingLevel,
         })
       );
+  const presenceNow = req.presenceAt ? new Date(req.presenceAt) : new Date();
+  const dailyLifeState = isMasterBot
+    ? null
+    : await getOrInitDailyLife(persona, presenceNow).catch(() => null);
+  const dailyLifeDirective = dailyLifeState
+    ? buildDailyLifeDirective(dailyLifeState, { channel: req.groupId ? 'group' : 'chat' })
+    : '';
 
   const llm = resolveLlmConfig(settings, { model: req.modelId });
   const { apiKey, model } = llm;
@@ -1209,6 +1220,7 @@ export async function executeGrokChatTurn(
     cognitiveReflectionDirective: cognitiveReflection
       ? formatCognitiveReflectionForPrompt(cognitiveReflection)
       : undefined,
+    dailyLifeDirective: dailyLifeDirective || undefined,
     sulkingLevel,
     emotionSummary: {
       emotion: updatedEmotion.primary,

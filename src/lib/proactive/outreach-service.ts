@@ -6,6 +6,7 @@
 import { computeIntimacyUpdate } from '@/lib/emotion/turn';
 import { generateProactiveMessage } from '@/lib/grok/proactive-engine';
 import { resolveLlmConfig } from '@/lib/llm/client';
+import { getOrInitDailyLife } from '@/lib/persona/daily-life';
 import { getPresenceState } from '@/lib/persona/daily-rhythm';
 import { getDueTopics, markAskedTopics } from '@/lib/persona/pending-topics';
 import {
@@ -117,11 +118,18 @@ async function composeAndSave(
     ? Math.max(0, (at.getTime() - new Date(last.timestamp).getTime()) / 3_600_000)
     : 8;
 
-  // 情境：TA 那会儿在做什么、你之前提过该问结果的事
+  // 情境：TA 那会儿在做什么、今日生活与心境、你之前提过该问结果的事
   const presence = getPresenceState(persona, at);
+  const dailyLife = await getOrInitDailyLife(persona, at).catch(() => null);
   const extraContext: string[] = [
     `你此刻${presence.activity}${presence.availability === 'busy' ? '（在忙，抽空发的）' : ''}，是你自己想起对方、主动发的消息，不是回复`,
   ];
+  if (dailyLife) {
+    extraContext.push(`今天生活主线：${dailyLife.mainEvent}（今日心境：${dailyLife.moodTone}）`);
+    if (dailyLife.recentMoments[0]) {
+      extraContext.push(`你近期发过一条朋友圈「${dailyLife.recentMoments[0].content}」，可顺嘴带到`);
+    }
+  }
   const memoryState = await storageRepo.getMemoryState(persona.slug);
   const dueTopics = getDueTopics(memoryState.pendingTopics || [], at);
   if (dueTopics.length > 0) {

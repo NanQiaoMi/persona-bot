@@ -9,6 +9,7 @@ import { getMascotConfigForPersona } from '@/components/workspace/mascot-palette
 import {
   buildGroupAntiEchoDirective,
   buildGroupSystemDirective,
+  buildPeerRelationsDirective,
   collectGroupPeerBubbles,
   collectRoundOpeners,
   buildGroupTranscriptForSpeaker,
@@ -528,13 +529,15 @@ export async function generateMemberReply(params: {
   if (!canCallUpstream) return offline();
 
   try {
+    const otherMembers = members.filter((m) => m.slug !== persona.slug);
     const directive = buildGroupSystemDirective({
       groupName: group.name,
       topic: group.topic,
       speakerName: persona.name,
-      otherMemberNames: members.filter((m) => m.slug !== persona.slug).map((m) => m.name),
+      otherMemberNames: otherMembers.map((m) => m.name),
       replyTo: params.replyTo,
       isKickoff: Boolean(req.kickoff) && !params.isReaction,
+      peerRelationsHint: buildPeerRelationsDirective(persona, otherMembers),
     });
     const transcript = buildGroupTranscriptForSpeaker(history, persona.slug, {
       userName: USER_LABEL,

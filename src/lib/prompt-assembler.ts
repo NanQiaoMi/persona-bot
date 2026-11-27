@@ -38,6 +38,8 @@ export interface AssembleOptions {
   fewShotDirective?: string;
   /** 高张力场景下轻量二段心理推演的结果 */
   cognitiveReflectionDirective?: string;
+  /** 统一今日生活与心境板 */
+  dailyLifeDirective?: string;
   /** 当前闹别扭等级 (0~3)，用于对拍照/贴纸能力做分层门控 */
   sulkingLevel?: number;
 }
@@ -183,11 +185,16 @@ export class PromptAssembler {
     }
 
     // =========================================================================
-    // L3 共同记忆、动态示范与说话方式
+    // L3 共同记忆、今日生活板、动态示范与说话方式
     // =========================================================================
     sections.push('## 共同记忆锚点 (Shared Memories)');
     sections.push(filteredMemories || '（暂无特定历史记忆）');
     sections.push('');
+
+    if (options.dailyLifeDirective) {
+      sections.push(options.dailyLifeDirective);
+      sections.push('');
+    }
 
     if (options.fewShotDirective) {
       sections.push(options.fewShotDirective);
