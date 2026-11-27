@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
 import { stripEmoji } from "@/lib/text/emoji";
 import LineIcon from "./LineIcon";
@@ -489,9 +489,9 @@ export default function ChatStage({
                 </div>
               </div>
 
-              {/* 一键开聊：Linear / Raycast 极简细线列表 */}
+              {/* 一键开聊：无卡片浮动细线列表 */}
               <div
-                className="w-full max-w-[540px] rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-card,var(--bg-composer))] grok-floating-card overflow-hidden divide-y divide-[var(--border-hairline,var(--border-subtle))]"
+                className="w-full max-w-[440px] pt-1"
                 style={{ ["--row-accent" as string]: rowAccentColor }}
               >
                 {(persona.isMaster || persona.slug === "master-bot"
@@ -555,43 +555,50 @@ export default function ChatStage({
                         enableSearch: false,
                       },
                     ] as const)
-                ).map((chip) => (
-                  <button
-                    key={chip.title}
-                    type="button"
-                    onClick={() =>
-                      onQuickSend(chip.text, { deepSearch: chip.enableSearch })
-                    }
-                    className="w-full px-4 py-3 flex items-center gap-3.5 text-left transition-surface hover:bg-[var(--surface-panel,var(--bg-secondary))] focus-ring group/chip cursor-pointer"
-                  >
-                    <LineIcon
-                      name={chip.icon}
-                      size={16}
-                      className="shrink-0 text-[var(--text-muted)] group-hover/chip:text-[var(--row-accent)] transition-colors"
-                    />
-                    <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2.5">
-                      <span className="text-[13px] font-medium text-[var(--text-primary)] shrink-0">
-                        {chip.title}
-                      </span>
-                      <span className="text-[12px] text-[var(--text-muted)] truncate">
-                        {chip.sub}
-                      </span>
-                    </span>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
+                ).map((chip, idx) => (
+                  <Fragment key={chip.title}>
+                    {idx > 0 && (
+                      <div
+                        aria-hidden="true"
+                        className="mx-3.5 h-px bg-[var(--border-hairline,var(--border-subtle))] opacity-60"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onQuickSend(chip.text, { deepSearch: chip.enableSearch })
+                      }
+                      className="group/chip w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3 text-left transition-all duration-150 hover:bg-[var(--surface-panel,var(--bg-secondary))] active:scale-[0.995] focus-ring cursor-pointer"
                     >
-                      <path d="M5 12h14M13 6l6 6-6 6" />
-                    </svg>
-                  </button>
+                      <LineIcon
+                        name={chip.icon}
+                        size={15}
+                        className="shrink-0 text-[var(--text-muted)] opacity-75 group-hover/chip:opacity-100 group-hover/chip:text-[var(--row-accent)] transition-colors duration-150"
+                      />
+                      <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                        <span className="text-[13px] font-medium tracking-[-0.01em] text-[var(--text-primary)] shrink-0">
+                          {chip.title}
+                        </span>
+                        <span className="text-[12px] text-[var(--text-muted)] truncate opacity-80 group-hover/chip:opacity-100 transition-opacity">
+                          {chip.sub}
+                        </span>
+                      </span>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                        className="shrink-0 text-[var(--text-muted)] opacity-25 group-hover/chip:opacity-85 group-hover/chip:translate-x-0.5 transition-all duration-150"
+                      >
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </button>
+                  </Fragment>
                 ))}
               </div>
             </div>
