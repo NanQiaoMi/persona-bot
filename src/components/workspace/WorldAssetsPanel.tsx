@@ -174,22 +174,22 @@ export default function WorldAssetsPanel({
   })).filter((group) => group.items.length > 0);
 
   const pendingClass =
-    "py-1 px-2.5 rounded-lg bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[11px] font-medium cursor-pointer";
+    "py-1 px-2.5 rounded-lg bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[11px] font-medium transition-colors duration-150 cursor-pointer";
   const secondaryClass =
-    "py-1 px-2.5 rounded-lg bg-[var(--bg-composer)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] cursor-pointer disabled:opacity-50";
+    "py-1 px-2.5 rounded-lg bg-[var(--surface-card,var(--bg-composer))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] font-medium text-[var(--text-primary)] transition-colors duration-150 cursor-pointer disabled:opacity-50";
   const linkClass =
     "text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer disabled:opacity-50";
   const inputClass =
-    "w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none";
+    "w-full px-2.5 py-1.5 rounded-lg bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150";
 
   return (
-    <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+    <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-[var(--text-primary)]">
+        <span className="font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
           🌍 世界设定
         </span>
         {isCurrent && (
-          <span className="text-[10.5px] text-[var(--text-muted)] shrink-0">
+          <span className="text-[10.5px] tabular-nums text-[var(--text-muted)] shrink-0">
             已收录 {confirmed.length} · 待确认 {candidates.length}
           </span>
         )}
@@ -214,14 +214,14 @@ export default function WorldAssetsPanel({
       )}
 
       {isCurrent && entries.length === 0 && (
-        <div className="p-3 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[10.5px] text-[var(--text-muted)]">
+        <div className="p-3 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[10.5px] text-[var(--text-muted)] leading-relaxed">
           还没有归纳出世界设定；多聊几轮、发几条朋友圈后会自动出现在这里
         </div>
       )}
 
       {candidates.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[11px] font-semibold text-[var(--text-primary)]">
+          <div className="text-[11px] font-semibold tracking-[0.02em] text-[var(--text-secondary)]">
             待确认
           </div>
           {candidates.map((entry) => {
@@ -229,7 +229,7 @@ export default function WorldAssetsPanel({
             return (
               <div
                 key={entry.id}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-1.5"
+                className="p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] space-y-1.5"
               >
                 <div className="flex items-start gap-2 min-w-0">
                   <span className="text-[14px] leading-none mt-0.5 shrink-0">
@@ -332,7 +332,7 @@ export default function WorldAssetsPanel({
                 ) : (
                   <div
                     key={entry.id}
-                    className="group flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                    className="group flex items-center gap-2.5 p-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] transition-colors duration-150"
                   >
                     <KindThumb entry={entry} />
                     <div className="flex-1 min-w-0">

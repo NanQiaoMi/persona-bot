@@ -77,30 +77,30 @@ export default function CreateBotModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm px-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--surface-overlay,rgba(15,15,20,0.32))] backdrop-blur-sm px-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[440px] max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl"
+        className="w-full max-w-[440px] max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_20px_50px_rgba(0,0,0,0.18))]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 pt-5 pb-2 flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">
+        <div className="px-6 pt-5 pb-3 border-b border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]">
             创建新 Bot
           </h3>
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+            className="w-7 h-7 rounded-full border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all duration-150 cursor-pointer"
           >
             ✕
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-6 pb-6 pt-2 flex flex-col items-center">
+        <div className="px-6 pb-6 pt-3 flex flex-col items-center">
           {/* Live Interactive Mascot Preview */}
           <div className="my-3 flex items-center justify-center">
             <BlobMascot
@@ -125,7 +125,7 @@ export default function CreateBotModal({
               }
             }}
             placeholder="给你的 Bot 起个名字"
-            className="w-full rounded-full border border-[var(--border-strong)] bg-[var(--bg-primary)] px-4 py-2.5 text-center text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--border-strong)] transition-all"
+            className="w-full rounded-full border border-[var(--border-strong)] bg-[var(--bg-primary)] px-4 py-2.5 text-center text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.28))] transition-all duration-150"
           />
 
           <div className="mt-2.5 w-full space-y-2">
@@ -134,14 +134,14 @@ export default function CreateBotModal({
               value={personalityHint}
               onChange={(e) => setPersonalityHint(e.target.value)}
               placeholder="一句话性格（可选，如：嘴硬爱撒娇的深夜搭子）"
-              className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
+              className="w-full rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
             />
             <input
               type="text"
               value={appearanceAnchor}
               onChange={(e) => setAppearanceAnchor(e.target.value)}
               placeholder="外貌与穿搭（可选，如：黑长直、甜酷风）"
-              className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)]"
+              className="w-full rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--bg-primary)] px-3.5 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
             />
           </div>
 
@@ -159,7 +159,7 @@ export default function CreateBotModal({
                   type="button"
                   title={s.label}
                   onClick={() => setShape(s.id)}
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-150 cursor-pointer ${
                     selected
                       ? "bg-[var(--bg-hover)] ring-2 ring-[var(--border-strong)] scale-105"
                       : "hover:bg-[var(--bg-hover)] hover:scale-105"
@@ -187,9 +187,9 @@ export default function CreateBotModal({
                   type="button"
                   onClick={() => setColor(c)}
                   aria-label={`选择颜色 ${c}`}
-                  className={`w-7 h-7 rounded-full transition-transform cursor-pointer ${
+                  className={`w-7 h-7 rounded-full transition-transform duration-150 cursor-pointer ${
                     selected
-                      ? "ring-2 ring-[var(--border-strong)] ring-offset-2 ring-offset-[var(--bg-elevated)] scale-110"
+                      ? "ring-2 ring-[var(--border-strong)] ring-offset-2 ring-offset-[var(--surface-popover,var(--bg-elevated))] scale-110"
                       : "hover:scale-110"
                   }`}
                   style={{ backgroundColor: c }}
@@ -205,7 +205,7 @@ export default function CreateBotModal({
               onClose();
               router.push("/create");
             }}
-            className="mt-4 text-[11.5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            className="mt-4 text-[11.5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
           >
             想用微信 / iMessage 聊天记录深度蒸馏灵魂？前往工作室 →
           </button>
@@ -215,7 +215,7 @@ export default function CreateBotModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+              className="px-4 py-1.5 rounded-full border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150 cursor-pointer"
             >
               取消
             </button>
@@ -223,10 +223,10 @@ export default function CreateBotModal({
               type="button"
               disabled={!name.trim() || saving}
               onClick={() => void handleCreate()}
-              className={`px-5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer ${
+              className={`px-5 py-1.5 rounded-full text-[13px] font-medium transition-all duration-150 ${
                 name.trim() && !saving
-                  ? "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90"
-                  : "bg-[var(--bg-secondary)] text-[var(--text-muted)] opacity-60 cursor-not-allowed"
+                  ? "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 cursor-pointer"
+                  : "bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-muted)] opacity-60 cursor-not-allowed"
               }`}
             >
               {saving ? "创建中..." : "创建"}

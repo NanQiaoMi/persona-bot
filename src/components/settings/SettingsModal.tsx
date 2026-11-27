@@ -256,17 +256,17 @@ export default function SettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--surface-overlay,rgba(15,15,20,0.36))] backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-[24px] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+        className="w-full max-w-2xl rounded-[24px] border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-2xl shadow-[var(--popover-shadow,0_24px_60px_rgba(0,0,0,0.22))] overflow-hidden flex flex-col max-h-[88vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--border-subtle)] flex items-start justify-between gap-3">
+        <div className="px-6 py-4 border-b border-[var(--border-hairline,var(--border-subtle))] flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-[15px] font-bold text-[var(--text-primary)]">
+            <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]">
               ⚙️ 本地网关、生图表情包与模型设置舱
             </h3>
             <p className="text-[11.5px] text-[var(--text-muted)] mt-0.5">
@@ -277,7 +277,7 @@ export default function SettingsModal({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="shrink-0 w-7 h-7 rounded-full hover:bg-[var(--bg-hover)] flex items-center justify-center text-xs text-[var(--text-secondary)] cursor-pointer"
+            className="shrink-0 w-7 h-7 rounded-full border border-transparent hover:border-[var(--border-hairline,var(--border-subtle))] hover:bg-[var(--bg-hover)] flex items-center justify-center text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-150 cursor-pointer"
           >
             ✕
           </button>
@@ -306,10 +306,10 @@ export default function SettingsModal({
                       }));
                       void handleTestGateway(preset.baseUrl, preset.model);
                     }}
-                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-2xl border text-left transition-all duration-150 cursor-pointer ${
                       isSelected
                         ? "border-[#1683FF] bg-[#1683FF]/10 text-[#1683FF]"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        : "border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
                     }`}
                   >
                     <div className="font-semibold text-[11.5px] truncate">
@@ -337,7 +337,7 @@ export default function SettingsModal({
                   setForm((prev) => ({ ...prev, llmBaseUrl: e.target.value }))
                 }
                 placeholder={LOCAL_GATEWAY_BASE_URL}
-                className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#1683FF]"
+                className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-hairline,var(--border-subtle))] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
               />
             </div>
 
@@ -347,7 +347,7 @@ export default function SettingsModal({
                   聊天文本模型 (Chat Model)
                 </label>
                 {liveChatModels.length > 0 && (
-                  <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">
                     已实时拉取 {liveChatModels.length} 个模型
                   </span>
                 )}
@@ -359,7 +359,7 @@ export default function SettingsModal({
                   setForm((prev) => ({ ...prev, llmModel: e.target.value }))
                 }
                 placeholder="gpt-5.6 / gpt-6 / auto"
-                className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#1683FF]"
+                className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-hairline,var(--border-subtle))] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
               />
               {displayedChatModels.length > 0 && (
                 <div className="mt-2 max-h-24 overflow-y-auto flex flex-wrap items-center gap-1.5 pr-1">
@@ -370,10 +370,10 @@ export default function SettingsModal({
                       onClick={() =>
                         setForm((prev) => ({ ...prev, llmModel: m }))
                       }
-                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] border transition-colors cursor-pointer ${
+                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] border transition-colors duration-150 cursor-pointer ${
                         form.llmModel === m
                           ? "border-[#1683FF] bg-[#1683FF]/12 text-[#1683FF] font-semibold"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                          : "border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                       }`}
                     >
                       {m}
@@ -397,13 +397,13 @@ export default function SettingsModal({
                   setForm((prev) => ({ ...prev, llmApiKey: e.target.value }))
                 }
                 placeholder="sk-... / 本地网关调用密钥（可留空尝试直连）"
-                className="flex-1 px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#1683FF]"
+                className="flex-1 px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-hairline,var(--border-subtle))] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
               />
               <button
                 type="button"
                 onClick={() => void handleTestGateway()}
                 disabled={testingGateway}
-                className="px-3.5 py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11.5px] font-semibold text-[var(--text-primary)] shrink-0 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] font-semibold text-[var(--text-primary)] shrink-0 transition-colors duration-150 cursor-pointer"
               >
                 {testingGateway ? "拉取中..." : "↻ 拉取模型 / 测试连通"}
               </button>
@@ -638,11 +638,11 @@ export default function SettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[var(--border-subtle)] flex justify-end gap-2 bg-[var(--bg-secondary)]/60">
+        <div className="px-6 py-4 border-t border-[var(--border-hairline,var(--border-subtle))] flex justify-end gap-2 bg-[var(--surface-panel,var(--bg-secondary))]/60">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-full border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] cursor-pointer"
+            className="px-4 py-2 rounded-full border border-[var(--border-hairline,var(--border-subtle))] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150 cursor-pointer"
           >
             取消
           </button>
@@ -650,7 +650,7 @@ export default function SettingsModal({
             type="button"
             disabled={saving}
             onClick={handleSave}
-            className="px-5 py-2 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 font-semibold text-xs cursor-pointer"
+            className="px-5 py-2 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 font-semibold text-xs transition-all duration-150 cursor-pointer"
           >
             {saving ? "保存中..." : "保存配置"}
           </button>

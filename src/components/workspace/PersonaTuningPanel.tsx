@@ -344,10 +344,10 @@ export default function PersonaTuningPanel({
   return (
     <div className="space-y-3">
       {/* 卡片 1：性格与脾气调音台 */}
-      <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-1.5">
-            <span className="font-semibold text-[var(--text-primary)] truncate">
+            <span className="font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
               性格与脾气调音台
             </span>
           </div>
@@ -366,7 +366,7 @@ export default function PersonaTuningPanel({
                 setEditingTuning(false);
                 setTuningError(null);
               }}
-              className="shrink-0 text-[var(--text-muted)] text-[11px] hover:text-[var(--text-primary)] cursor-pointer"
+              className="shrink-0 text-[var(--text-muted)] text-[11px] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
             >
               收起
             </button>
@@ -378,7 +378,7 @@ export default function PersonaTuningPanel({
           <span className="px-2 py-0.5 rounded-full bg-amber-500/12 text-amber-600 dark:text-amber-300 text-[10.5px] font-medium">
             {archetypeMeta.label}
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-[10.5px]">
+          <span className="px-2 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] text-[10.5px]">
             {tierMeta.label}
           </span>
           <span className="ml-auto text-[10px] text-[var(--text-muted)]">
@@ -387,7 +387,7 @@ export default function PersonaTuningPanel({
         </div>
 
         {tuningSuccess && !editingTuning && (
-          <div className="px-2.5 py-1.5 rounded-xl bg-[#18a999]/10 text-[#18a999] text-[10.5px]">
+          <div className="px-2.5 py-1.5 rounded-xl bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] text-[10.5px]">
             ✓ {tuningSuccess}
           </div>
         )}
@@ -406,9 +406,9 @@ export default function PersonaTuningPanel({
                         {pct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#18a999]/80"
+                        className="h-full rounded-full bg-[var(--accent-teal,#18a999)]/85 transition-all duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -419,7 +419,7 @@ export default function PersonaTuningPanel({
 
             {(effectiveTemperament.triggers.length > 0 ||
               effectiveTemperament.coaxMethods.length > 0) && (
-              <div className="pt-2 border-t border-[var(--border-subtle)] space-y-1.5 text-[10.5px]">
+              <div className="pt-2 border-t border-[var(--border-hairline,var(--border-subtle))] space-y-1.5 text-[10.5px]">
                 {effectiveTemperament.triggers.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1">
                     <span className="text-[var(--text-muted)] shrink-0">雷区：</span>
@@ -475,7 +475,7 @@ export default function PersonaTuningPanel({
                         const val = Number((Number(e.target.value) / 100).toFixed(2));
                         setDraftTraits((prev) => ({ ...prev, [d.key]: val }));
                       }}
-                      className="w-full h-1.5 accent-[#18a999] cursor-pointer"
+                      className="w-full h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] accent-[var(--accent-teal,#18a999)] cursor-pointer"
                     />
                   </label>
                 );
@@ -483,7 +483,7 @@ export default function PersonaTuningPanel({
             </div>
 
             {/* 脾气原型选择 */}
-            <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+            <div className="space-y-1.5 pt-2 border-t border-[var(--border-hairline,var(--border-subtle))]">
               <div className="text-[11px] font-medium text-[var(--text-secondary)]">
                 脾气原型
               </div>
@@ -497,10 +497,10 @@ export default function PersonaTuningPanel({
                       onClick={() =>
                         setDraftTemperament((prev) => ({ ...prev, archetype: arch }))
                       }
-                      className={`px-2 py-1.5 rounded-xl text-[10.5px] font-medium border transition-colors cursor-pointer ${
+                      className={`px-2 py-1.5 rounded-xl text-[10.5px] font-medium border transition-colors duration-150 cursor-pointer ${
                         active
-                          ? "bg-[#18a999]/15 border-[#18a999] text-[#18a999]"
-                          : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                          ? "bg-[#18a999]/12 border-[#18a999]/60 text-[#18a999]"
+                          : "bg-[var(--surface-panel,var(--bg-secondary))] border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
                       }`}
                     >
                       {TEMPERAMENT_ARCHETYPE_META[arch].label}
@@ -515,7 +515,7 @@ export default function PersonaTuningPanel({
               <div className="text-[11px] font-medium text-[var(--text-secondary)]">
                 脾气烈度档位
               </div>
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))]">
                 {TIER_OPTIONS.map((tier) => {
                   const active = draftTemperament.intensityTier === tier;
                   return (
@@ -525,9 +525,9 @@ export default function PersonaTuningPanel({
                       onClick={() =>
                         setDraftTemperament((prev) => ({ ...prev, intensityTier: tier }))
                       }
-                      className={`py-1 px-1 rounded-lg text-[10.5px] font-medium transition-colors cursor-pointer truncate ${
+                      className={`py-1 px-1 rounded-lg text-[10.5px] font-medium transition-all duration-150 cursor-pointer truncate ${
                         active
-                          ? "bg-[var(--bg-composer)] text-[var(--text-primary)] shadow-sm"
+                          ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                           : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                       }`}
                     >
@@ -797,7 +797,7 @@ export default function PersonaTuningPanel({
       </div>
 
       {/* 卡片 2：今日心境（跨场景生活板） */}
-      <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-[var(--text-primary)] truncate">
@@ -915,7 +915,7 @@ export default function PersonaTuningPanel({
       </div>
 
       {/* 卡片 3：TA 眼中的你（分角色隔离印象） */}
-      <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
         <div className="flex items-center justify-between gap-2">
           <span className="font-semibold text-[var(--text-primary)] truncate">
             TA 眼中的你

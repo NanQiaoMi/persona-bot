@@ -200,7 +200,7 @@ export default function MomentsFeed({
   return (
     <div className="space-y-3 animate-fade-in">
       {/* WeChat Moments Cover Header */}
-      <div className="relative rounded-2xl overflow-visible border border-[var(--border-subtle)] bg-[var(--bg-composer)]">
+      <div className="relative rounded-2xl overflow-visible border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-card,var(--bg-composer))]">
         <div
           className="relative h-28 rounded-t-2xl overflow-hidden flex flex-col justify-between p-3"
           style={{
@@ -294,7 +294,7 @@ export default function MomentsFeed({
             return (
               <article
                 key={post.id}
-                className="group/post p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] transition-colors hover:border-[var(--border-strong)]"
+                className="group/post p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] transition-colors duration-150 hover:border-[var(--border-strong)]"
               >
                 {/* 头部：头像 / 名字 / 心情 */}
                 <header className="flex items-center gap-2.5">
@@ -420,7 +420,7 @@ export default function MomentsFeed({
 
                 {/* 点赞名单与评论 */}
                 {hasInteractions && (
-                  <div className="mt-1.5 rounded-xl bg-[var(--bg-secondary)] px-3 py-2 space-y-1.5 text-[11.5px]">
+                  <div className="mt-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] px-3 py-2 space-y-1.5 text-[11.5px]">
                     {post.likes.length > 0 && (
                       <div className="flex items-start gap-1.5 leading-relaxed">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="mt-[3px] shrink-0 text-rose-400">
