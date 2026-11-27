@@ -1,4 +1,5 @@
 import { RuntimeSettings, SearchResultItem } from '@/lib/storage/types';
+import { chatCompletion, resolveLlmConfig } from '@/lib/llm/client';
 
 export interface DeepSearchResponse {
   query: string;
@@ -20,24 +21,77 @@ export function extractSearchQuery(userMessage: string): string {
   return cleaned.slice(0, 80) || userMessage.trim().slice(0, 80);
 }
 
+export type SearchIntent = 'yes' | 'no' | 'maybe';
+
 /**
- * 判断这条消息是否明确需要查实时信息 / 资料（自动联网用，宁可少搜不要乱搜）：
- * - 太短（少于 4 个字）的寒暄不搜，如「咋啦」「在吗」；
- * - 问的是「你 / 我」本人的不搜，如「你是谁」「你在干嘛」；
- * - 需要明确的实时线索（热搜、新闻、行情、天气、比分、最新发布…）或明确的查询动作（搜一下、查一下、帮我查）。
+ * 用规则给消息分三类（自动联网用）：
+ * - 'no'：太短的寒暄（少于 4 个字，如「咋啦」）、问「你 / 我」本人的（「你是谁」「我该不该辞职」）、没有任何疑问意味的；
+ * - 'yes'：明确的查询动作（搜一下、帮我查）或明确的实时线索（热搜、新闻、行情、天气、比分、汇率、最新发布…）；
+ * - 'maybe'：像在问外面的事（带「吗 / 什么 / 多少 / 谁 / 哪 / 什么时候 / 原理」等），但规则拿不准，交给模型判断。
  */
-export function shouldAutoTriggerSearch(userMessage: string): boolean {
-  const text = (userMessage || '').trim();
-  if (text.replace(/[\s\p{P}\p{S}]/gu, '').length < 4) return false;
-  if (/(搜一下|搜搜|查一下|查查|帮我(搜|查)|联网|上网查|百度一下|谷歌一下)/.test(text)) return true;
-  if (/^(你|我)|(你|我)(是谁|是什么|在干嘛|在做什么|怎么样|觉得)/.test(text)) return false;
+export function classifySearchIntent(userMessage: string): SearchIntent {
+  // 「你知道 / 你听说过 / 你了解…吗」其实是在问外面的事，去掉这个开头再判断
+  const text = (userMessage || '').trim().replace(/^你(知道|听说过?|了解|晓得)(一下)?/, '');
+  if (text.replace(/[\s\p{P}\p{S}]/gu, '').length < 4) return 'no';
+  if (/(搜一下|搜搜|查一下|查查|帮我(搜|查)|联网|上网查|百度一下|谷歌一下)/.test(text)) return 'yes';
+  if (/^(你|我)|(你|我)(是谁|是什么|在干嘛|在做什么|怎么样|觉得)/.test(text)) return 'no';
   const realtime = [
     /热搜|新闻|头条|快讯|大事件?|发生了什么|出什么事/,
     /行情|股价|汇率|币价|油价|金价|比分|赛果|天气|气温|台风|地震/,
-    /(最新|最近|今天|今日|昨天|本周|这周|刚刚).{0,8}(消息|动态|发布|上映|新品|政策|新闻|热点|热门|进展|版本|比赛)/,
+    /(最新|最近|今天|今日|昨天|昨晚|本周|这周|刚刚).{0,8}(消息|动态|发布|上映|新品|政策|新闻|热点|热门|进展|版本|比赛|赛季)/,
     /(发布会|上市|开售|上映|官宣|更新了什么)/,
+    /(得了多少分|多少分|赢了吗|输了吗|换多少(人民币|美元|日元|欧元|港币))/,
   ];
-  return realtime.some((p) => p.test(text));
+  if (realtime.some((p) => p.test(text))) return 'yes';
+  if (
+    /[吗么？?]$|吗[？?。！!]?$|什么|多少|几[个点号月年天岁]|哪[个里儿些年]|是谁|谁是|怎么样|如何|为什么|是不是|有没有|原理|结果|什么时候|叫啥|知道.{0,12}吗/.test(
+      text
+    )
+  ) {
+    return 'maybe';
+  }
+  return 'no';
+}
+
+/** 规则判断「明确要搜」（兼容旧调用） */
+export function shouldAutoTriggerSearch(userMessage: string): boolean {
+  return classifySearchIntent(userMessage) === 'yes';
+}
+
+const SEARCH_INTENT_SYSTEM_PROMPT = `判断用户发给聊天伙伴的这句话，是否需要联网查询实时信息或外部事实才能准确回答。
+需要：新闻时事、比赛结果、价格汇率、天气、产品发布、作品信息（专辑、电影、游戏版本）、人物近况、科普知识等事实性问题。
+不需要：闲聊寒暄、情绪倾诉、观点讨论、请求陪伴或建议、关于聊天双方自己的问题、角色扮演。
+只输出 yes 或 no。`;
+
+/**
+ * 自动联网的最终判断：规则明确的直接给结论；拿不准的（'maybe'）再问模型（实测网关约 4–5 秒，限时 8 秒）。
+ * 模型不可用、超时或回答看不懂时按「不搜」处理。
+ */
+export async function decideAutoSearch(
+  userMessage: string,
+  settings: Partial<RuntimeSettings>,
+  options: { timeoutMs?: number; onAskModel?: () => void } = {}
+): Promise<{ search: boolean; via: 'rules' | 'model' }> {
+  const intent = classifySearchIntent(userMessage);
+  if (intent !== 'maybe') return { search: intent === 'yes', via: 'rules' };
+  const config = resolveLlmConfig(settings);
+  if (!config.canCall) return { search: false, via: 'rules' };
+  options.onAskModel?.();
+  try {
+    const raw = await chatCompletion(
+      config,
+      [
+        { role: 'system', content: SEARCH_INTENT_SYSTEM_PROMPT },
+        { role: 'user', content: userMessage.trim().slice(0, 300) },
+      ],
+      { temperature: 0, timeoutMs: options.timeoutMs ?? 8_000 }
+    );
+    const answer = raw.trim().toLowerCase();
+    const search = /^(yes|是|需要)/.test(answer);
+    return { search, via: 'model' };
+  } catch {
+    return { search: false, via: 'model' };
+  }
 }
 
 /** 模型网关联网搜索的超时：网关背后是真实网页搜索，实测 15–30 秒不等 */

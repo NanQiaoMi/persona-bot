@@ -9,8 +9,8 @@ import {
 import { buildTraitsBehaviorDirective } from '@/lib/persona/traits';
 import {
   DeepSearchResponse,
+  decideAutoSearch,
   performDeepSearch,
-  shouldAutoTriggerSearch,
 } from '@/lib/grok/deep-search';
 import {
   buildSearchDigest,
@@ -983,11 +983,14 @@ export async function executeGrokChatTurn(
   // Stage 1: DeepSearch
   let searchResp: DeepSearchResponse | null = null;
   let digestPromise: Promise<SearchDigest> | null = null;
-  const shouldSearch =
-    Boolean(req.deepSearch) ||
-    (req.deepSearch === undefined &&
-      settings.defaultDeepSearch &&
-      shouldAutoTriggerSearch(lastUserText));
+  // 开关打开 / 快捷入口 → 强制联网；否则（开关关着且允许自动联网）先用规则判断，拿不准再问模型
+  let shouldSearch = Boolean(req.deepSearch);
+  if (!shouldSearch && req.deepSearch === undefined && settings.defaultDeepSearch && lastUserText.trim()) {
+    const decision = await decideAutoSearch(lastUserText, settings, {
+      onAskModel: () => onEvent?.({ type: 'status', text: '正在判断要不要联网查一下…' }),
+    });
+    shouldSearch = decision.search;
+  }
 
   if (shouldSearch && lastUserText.trim()) {
     onEvent?.({
