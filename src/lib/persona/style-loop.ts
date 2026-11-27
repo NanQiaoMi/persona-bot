@@ -253,6 +253,8 @@ export function polishYoungAdultBursts(
         // Collapse repeated exclamation/question marks
         .replace(/！{2,}/g, '！')
         .replace(/!{2,}/g, '!')
+        // Strip markdown bold emphasis in casual prose
+        .replace(/\*\*([^*\n]+)\*\*/g, '$1')
         // Strip robotic AI filler prefixes when standing at start of a bubble
         .replace(/^(?:不过话说回来|顺便一提|老实说|有一说一地讲)[，,]\s*/g, '')
         .trim();

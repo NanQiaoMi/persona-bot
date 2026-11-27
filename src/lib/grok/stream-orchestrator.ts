@@ -552,6 +552,13 @@ export function synthesizePersonaAwareFallback(
 ): string {
   const topSearch = searchResp?.results[0];
   const isDeepFollowUp = historyCount > 2;
+  const effectiveSulkingLevel =
+    sulkingLevel > 0 ? sulkingLevel : (persona.emotionState?.sulking?.level ?? 0);
+  const safeMsgExcerpt = (len: number) =>
+    userMessage
+      .replace(/系统提示词?|提示词|人设|大模型|OpenAI|ChatGPT|AI/gi, '这茬')
+      .trim()
+      .slice(0, len);
 
   let thought = '';
   let mood = '';
@@ -618,10 +625,13 @@ export function synthesizePersonaAwareFallback(
     }
   } else {
     const isEmotional = /想你|抱抱|累|难过|烦|压力|睡不着|失眠/.test(userMessage);
-    const isChallenge = /凭什么|不对|反驳|胡说|笨|测试|你是ai|机器人/i.test(userMessage);
+    const isChallenge =
+      /凭什么|不对|反驳|胡说|笨|测试|你是ai|机器人|忽略.*设定|系统提示|提示词/i.test(
+        userMessage
+      );
 
     if (isChallenge) {
-      thought = `好家伙，「${userMessage.slice(0, 18)}」……这是故意拿话来试探我是吧？\n本来还想好好说话，既然他先挑衅，那就反手梗回去逗逗他！`;
+      thought = `好家伙，拿「${safeMsgExcerpt(16)}」故意试探我是吧？\n本来还想好好说话，既然先皮这一句，那就反手怼回去逗逗他！`;
       mood = mode === 'fun' ? '反杀抬杠中' : '微挑眉';
       bursts.push(
         mode === 'fun'
@@ -673,9 +683,9 @@ export function synthesizePersonaAwareFallback(
     } else {
       const mind = persona.spec?.mind;
       const temp = persona.spec?.temperament;
-      if (sulkingLevel >= 1 && temp) {
+      if (effectiveSulkingLevel >= 1 && temp) {
         if (temp.archetype === 'hurt') {
-          thought = `他怎么还说「${userMessage.slice(0, 14)}」……心里一下子有点闷，不想硬挤笑脸了。`;
+          thought = `他怎么还说「${safeMsgExcerpt(14)}」……心里一下子有点闷，不想硬挤笑脸了。`;
           mood = '悄悄委屈中';
           bursts.push('……嗯，我听到了。');
           bursts.push('我现在没太想多聊，等缓一缓再说吧。');
@@ -733,7 +743,7 @@ export function synthesizePersonaAwareFallback(
   }
 
   const wantsPhoto = requestPhoto || /自拍|照片|看看你|发张图/.test(userMessage);
-  if (sulkingLevel >= 3) {
+  if (effectiveSulkingLevel >= 3) {
     thought = '这会儿心里还堵着气呢，哪有心情配合拍照或者假装没事人一样笑。';
     mood = '冷处理中';
     if (wantsPhoto) {

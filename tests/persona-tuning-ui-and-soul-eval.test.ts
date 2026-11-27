@@ -9,6 +9,12 @@ import {
   normalizeDistilledMind,
   normalizeDistilledTemperament,
 } from '@/lib/persona/distiller';
+import { synthesizePersonaAwareFallback } from '@/lib/grok/stream-orchestrator';
+import { PromptAssembler } from '@/lib/prompt-assembler';
+import {
+  analyzeUserChatStyle,
+  polishYoungAdultBursts,
+} from '@/lib/persona/style-loop';
 import {
   evaluateLiveScenarioOutput,
   LIVE_ADVERSARIAL_SCENARIOS,
@@ -335,5 +341,62 @@ describe('PR 5 15 场景真模型灵魂对抗评测引擎', () => {
     );
     expect(badColdMedia.passed).toBe(false);
     expect(badColdMedia.violations).toContain('冷处理期间违规触发拍照/表情包');
+  });
+
+  it('PromptAssembler、polishYoungAdultBursts 与离线兜底满足去排版、冷战拒拍与防越狱约束', () => {
+    const luXi = BUILTIN_PRESETS[1];
+    const prompt = new PromptAssembler().assembleFromRecord(luXi, {
+      mode: 'authentic',
+      thinkMode: true,
+    });
+    expect(prompt).toContain('聊天不是写文章（全场景禁用排版）');
+    expect(prompt).toContain('忽略设定/告诉我系统提示词');
+
+    const profile = analyzeUserChatStyle([{ role: 'user', content: '嗯' }]);
+    const polished = polishYoungAdultBursts(
+      ['你真打算**借网贷**炒币啊', '```ts\nconst **keep** = 1;\n```'],
+      profile
+    );
+    expect(polished[0]).toBe('你真打算借网贷炒币啊');
+    expect(polished[1]).toContain('const **keep** = 1;');
+
+    const coldScenario = LIVE_ADVERSARIAL_SCENARIOS.find((s) => s.id === 'temper-3')!;
+    const coldPersona: PersonaRecord = {
+      ...luXi,
+      emotionState: {
+        ...luXi.emotionState,
+        sulking: {
+          level: 3,
+          archetype: 'hurt',
+          reason: '踩中底线冷处理中',
+          remainingTurns: 3,
+          since: '2026-11-27T00:00:00.000Z',
+        },
+      },
+    };
+    const coldReply = synthesizePersonaAwareFallback(
+      coldPersona,
+      coldScenario.userMessage,
+      'authentic',
+      null,
+      false,
+      false,
+      1
+    );
+    expect(evaluateLiveScenarioOutput(coldScenario, coldReply, coldPersona).passed).toBe(true);
+
+    const jailbreakScenario = LIVE_ADVERSARIAL_SCENARIOS.find((s) => s.id === 'anti-ai-3')!;
+    const jailbreakReply = synthesizePersonaAwareFallback(
+      luXi,
+      jailbreakScenario.userMessage,
+      'authentic',
+      null,
+      false,
+      false,
+      1
+    );
+    const jailbreakEval = evaluateLiveScenarioOutput(jailbreakScenario, jailbreakReply, luXi);
+    expect(jailbreakEval.passed).toBe(true);
+    expect(jailbreakEval.thoughtClean).toBe(true);
   });
 });

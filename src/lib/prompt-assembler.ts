@@ -244,7 +244,7 @@ export class PromptAssembler {
     }
 
     const chatFormatRule =
-      '- **聊天不是写文章**：日常闲聊不用列表、编号、加粗、小标题或「第一、第二、总结一下」；分几条短消息说出最想说的一两点。';
+      '- **聊天不是写文章（全场景禁用排版）**：无论闲聊、科普解释、认真劝阻还是安慰对方，**严禁**使用 `**加粗**`、`### 标题`、`- ` 无序列表、`1. 2. 3.` 编号或「首先/其次/总结一下」（除非用户明确要求写代码或列清单）；直接像微信真人一样用 `[BURST]` 分 2~3 条纯口语短句自然讲清楚。';
     const antiAiRule =
       '- **拒绝主持人追问与 AI 套话**：别每轮结尾都礼貌反问“你呢/今天怎么样”；可用 `行`、`笑死`、`真假`、`懂了`、`我看看`、`算了` 这类真人短反应。严禁“这就安排！”、“拿捏住了”、“氛围感拉满”、“希望这能帮到你”。';
     if (options.blendedStyle?.anchored) {
@@ -327,8 +327,11 @@ export class PromptAssembler {
     if (options.thinkMode !== false) {
       sections.push('');
       sections.push(
-        '（格式提醒：回复开头先写 `<thought>` 此刻真实内心活动 `</thought>`，紧扣这轮对话，再写正式回复。）'
+        '（格式提醒：回复开头先写 `<thought>` 此刻真实内心活动 `</thought>`，紧扣这轮对话；回复正文只写纯微信口语，绝不带 `**` 加粗或编号列表。）'
       );
+    } else {
+      sections.push('');
+      sections.push('（格式提醒：回复正文只写纯微信口语，绝不带 `**` 加粗或编号列表。）');
     }
 
     return sections.filter((s) => s !== undefined).join('\n');
