@@ -39,8 +39,10 @@ export const WeChatInput: React.FC<WeChatInputProps> = ({
   return (
     <div className={`flex items-end gap-2 ${className}`}>
       <div
-        className={`flex-1 relative rounded-lg border transition-all duration-200 ${
-          isFocused ? 'border-[#07C160] bg-white' : 'border-[#E5E5E5] bg-[#F7F7F7]'
+        className={`flex-1 relative rounded-xl hairline-border transition-surface ${
+          isFocused
+            ? 'bg-[var(--bg-composer)] border-[var(--border-strong)] focus-within-ring'
+            : 'bg-[var(--bg-secondary)]'
         }`}
       >
         <textarea
@@ -53,7 +55,7 @@ export const WeChatInput: React.FC<WeChatInputProps> = ({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-4 py-2.5 bg-transparent resize-none outline-none text-[#353535] placeholder-[#999999] text-sm leading-relaxed"
+          className="w-full px-3.5 py-2.5 bg-transparent resize-none outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm leading-relaxed"
           style={{ maxHeight: '120px' }}
         />
       </div>
@@ -62,10 +64,10 @@ export const WeChatInput: React.FC<WeChatInputProps> = ({
         <button
           onClick={onSend}
           disabled={!value.trim() || disabled}
-          className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+          className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-interactive focus-ring ${
             value.trim()
-              ? 'bg-[#07C160] hover:bg-[#06AD56] text-white active:scale-95'
-              : 'bg-[#EDEDED] text-[#999999] cursor-not-allowed'
+              ? 'bg-[var(--user-capsule)] hover:opacity-90 text-[var(--user-capsule-text)] active:scale-[0.98]'
+              : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] cursor-not-allowed'
           }`}
         >
           发送

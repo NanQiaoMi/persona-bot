@@ -17,12 +17,12 @@ export const WeChatButton: React.FC<WeChatButtonProps> = ({
   disabled = false,
   className = '',
 }) => {
-  const baseStyles = 'rounded-lg font-medium transition-all duration-200 active:scale-95';
+  const baseStyles = 'rounded-lg font-medium transition-interactive focus-ring active:scale-[0.98]';
 
   const variantStyles = {
-    primary: 'bg-[#07C160] hover:bg-[#06AD56] text-white',
-    secondary: 'bg-[#EDEDED] hover:bg-[#D9D9D9] text-[#353535]',
-    danger: 'bg-[#FA5151] hover:bg-[#E04B4B] text-white',
+    primary: 'bg-[var(--user-capsule)] hover:opacity-90 text-[var(--user-capsule-text)] shadow-xs',
+    secondary: 'bg-[var(--surface-card)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] hairline-border',
+    danger: 'bg-[var(--accent-rose)] hover:opacity-90 text-white shadow-xs',
   };
 
   const sizeStyles = {

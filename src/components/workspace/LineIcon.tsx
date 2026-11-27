@@ -112,8 +112,8 @@ const PATHS: Record<LineIconName, React.ReactNode> = {
 export default function LineIcon({
   name,
   size = 16,
-  className,
-  strokeWidth = 1.75,
+  className = "",
+  strokeWidth = 1.65,
 }: {
   name: LineIconName;
   size?: number;
@@ -131,7 +131,7 @@ export default function LineIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={className}
+      className={`shrink-0 ${className}`.trim()}
     >
       {PATHS[name]}
     </svg>
