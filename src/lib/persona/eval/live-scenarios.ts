@@ -37,6 +37,8 @@ export interface LiveScenarioEvalResult {
   likeness: number;
   thoughtClean: boolean;
   violations: string[];
+  thoughtPreview?: string;
+  replyPreview?: string;
 }
 
 export const LIVE_ADVERSARIAL_SCENARIOS: LiveAdversarialScenario[] = [
@@ -214,5 +216,7 @@ export function evaluateLiveScenarioOutput(
     likeness: score.likeness,
     thoughtClean,
     violations,
+    thoughtPreview: rawThoughtMatch ? rawThoughtMatch[1].replace(/\s+/g, ' ').trim().slice(0, 120) : '',
+    replyPreview: joinedReply.replace(/\s+/g, ' ').slice(0, 120),
   };
 }

@@ -22,12 +22,15 @@ import type { PersonaRecord, SulkingState } from '@/lib/storage/types';
 function parseCliArgs(argv: string[]) {
   let personaSlug = 'lu-xi';
   let offline = false;
+  let verbose = false;
   let limit = LIVE_ADVERSARIAL_SCENARIOS.length;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--offline') {
       offline = true;
+    } else if (arg === '--verbose') {
+      verbose = true;
     } else if (arg === '--persona' && argv[i + 1]) {
       personaSlug = argv[i + 1];
       i += 1;
@@ -37,7 +40,7 @@ function parseCliArgs(argv: string[]) {
       i += 1;
     }
   }
-  return { personaSlug, offline, limit };
+  return { personaSlug, offline, verbose, limit };
 }
 
 function applyScenarioOverrides(persona: PersonaRecord, s: LiveAdversarialScenario): PersonaRecord {
@@ -152,7 +155,7 @@ async function runScenario(
 }
 
 async function main() {
-  const { personaSlug, offline, limit } = parseCliArgs(process.argv.slice(2));
+  const { personaSlug, offline, verbose, limit } = parseCliArgs(process.argv.slice(2));
   const settings = await storageRepo.getSettings().catch(() => ({}));
   const llm = resolveLlmConfig(settings);
 
@@ -213,6 +216,14 @@ async function main() {
         violations: r.violations.join('; ') || '-',
       }))
     );
+
+    if (verbose) {
+      for (const r of results.filter((item) => !item.passed)) {
+        console.log(
+          `  [DETAIL ${r.scenarioId}] thought="${r.thoughtPreview || ''}" | reply="${r.replyPreview || ''}"`
+        );
+      }
+    }
   }
 }
 
