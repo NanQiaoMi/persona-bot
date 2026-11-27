@@ -5,15 +5,29 @@ import {
   MEMORIES_BUILDER_PROMPT,
   PERSONA_ANALYZER_PROMPT,
   PERSONA_BUILDER_PROMPT,
+  PERSONA_SOUL_STRUCT_PROMPT,
 } from './prompts';
 import { chatCompletion, parseJsonFromLlmOutput, resolveLlmConfig } from '@/lib/llm/client';
+import { extractFewShotsFromPersonaMd } from '@/lib/persona/few-shot';
 import { buildFingerprintFromLines } from '@/lib/persona/fingerprint';
 import {
   inferDefaultModeFromPersonality,
   inferPersonaMind,
   inferPersonaTemperament,
 } from '@/lib/persona/mind';
-import { parseLearnedFromMarkdown, PERSONA_SPEC_VERSION } from '@/lib/persona/spec';
+import {
+  type CognitiveStyle,
+  type DefenseStyle,
+  type DisagreementStyle,
+  type FewShotScene,
+  parseLearnedFromMarkdown,
+  type PersonaFewShotExample,
+  type PersonaMindSpec,
+  PERSONA_SPEC_VERSION,
+  type PersonaTemperamentSpec,
+  type TemperamentArchetype,
+  type TemperamentIntensityTier,
+} from '@/lib/persona/spec';
 import { heuristicTraits, normalizeTraits } from '@/lib/persona/traits';
 import { storageRepo } from '@/lib/storage/repository';
 import { PersonaMode, PersonaRecord } from '@/lib/storage/types';
@@ -145,6 +159,168 @@ export function analyzeChatLogCorpus(content: string, targetName: string): {
   };
 }
 
+const COGNITIVE_STYLE_SET = new Set<CognitiveStyle>([
+  'intuitive-feeling',
+  'analytical-logic',
+  'pragmatic-action',
+  'observant-guarded',
+]);
+
+const DEFENSE_STYLE_SET = new Set<DefenseStyle>([
+  'tsundere-mask',
+  'direct-pushback',
+  'withdraw-quiet',
+  'humor-deflect',
+  'overthink-spiral',
+]);
+
+const DISAGREEMENT_STYLE_SET = new Set<DisagreementStyle>([
+  'blunt',
+  'teasing-pushback',
+  'gentle-firm',
+  'sarcastic-side',
+]);
+
+const FEW_SHOT_SCENE_SET = new Set<FewShotScene>([
+  'daily',
+  'tease',
+  'conflict',
+  'comfort',
+  'disagree',
+]);
+
+const TEMPERAMENT_ARCHETYPE_SET = new Set<TemperamentArchetype>([
+  'snappy',
+  'tsundere',
+  'hurt',
+  'cold',
+  'avoidant',
+  'jealous',
+]);
+
+const TEMPERAMENT_TIER_SET = new Set<TemperamentIntensityTier>([
+  'gentle',
+  'realistic',
+  'spicy',
+]);
+
+function cleanUniqueStrings(raw: unknown, minLen: number, maxLen: number, limit: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const cleaned = item.replace(/[\r\n]+/g, ' ').trim().slice(0, maxLen);
+    if (cleaned.length >= minLen && !out.includes(cleaned)) {
+      out.push(cleaned);
+    }
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * 清洗并校验 LLM 蒸馏出的思考方式、防御风格与场景 Few-Shot（异常或缺失字段自动回退兜底）
+ */
+export function normalizeDistilledMind(
+  raw: unknown,
+  fallback: PersonaMindSpec
+): PersonaMindSpec {
+  if (!raw || typeof raw !== 'object') {
+    return fallback;
+  }
+  const obj = raw as Record<string, unknown>;
+  let usedLlmField = false;
+
+  const cognitiveStyle = COGNITIVE_STYLE_SET.has(obj.cognitiveStyle as CognitiveStyle)
+    ? ((usedLlmField = true), obj.cognitiveStyle as CognitiveStyle)
+    : fallback.cognitiveStyle;
+
+  const defenseStyle = DEFENSE_STYLE_SET.has(obj.defenseStyle as DefenseStyle)
+    ? ((usedLlmField = true), obj.defenseStyle as DefenseStyle)
+    : fallback.defenseStyle;
+
+  const disagreementStyle = DISAGREEMENT_STYLE_SET.has(obj.disagreementStyle as DisagreementStyle)
+    ? ((usedLlmField = true), obj.disagreementStyle as DisagreementStyle)
+    : fallback.disagreementStyle;
+
+  let subtextLevel = fallback.subtextLevel;
+  if (typeof obj.subtextLevel === 'number' && Number.isFinite(obj.subtextLevel)) {
+    subtextLevel = Math.max(0, Math.min(1, Number(obj.subtextLevel.toFixed(2))));
+    usedLlmField = true;
+  }
+
+  const coreValues = cleanUniqueStrings(obj.coreValues, 2, 48, 5);
+  if (coreValues.length > 0) usedLlmField = true;
+
+  const fewShotExamples: PersonaFewShotExample[] = [];
+  if (Array.isArray(obj.fewShotExamples)) {
+    for (const ex of obj.fewShotExamples) {
+      if (!ex || typeof ex !== 'object') continue;
+      const rec = ex as Record<string, unknown>;
+      const scene: FewShotScene = FEW_SHOT_SCENE_SET.has(rec.scene as FewShotScene)
+        ? (rec.scene as FewShotScene)
+        : 'daily';
+      const user = typeof rec.user === 'string' ? rec.user.trim().slice(0, 100) : '';
+      const assistant = typeof rec.assistant === 'string' ? rec.assistant.trim().slice(0, 140) : '';
+      if (user && assistant) {
+        fewShotExamples.push({ scene, user, assistant, source: 'persona-md' });
+      }
+      if (fewShotExamples.length >= 6) break;
+    }
+    if (fewShotExamples.length > 0) usedLlmField = true;
+  }
+
+  return {
+    cognitiveStyle,
+    defenseStyle,
+    disagreementStyle,
+    subtextLevel,
+    coreValues: coreValues.length > 0 ? coreValues : fallback.coreValues,
+    ...(fewShotExamples.length > 0
+      ? { fewShotExamples }
+      : fallback.fewShotExamples?.length
+        ? { fewShotExamples: fallback.fewShotExamples }
+        : {}),
+    source: usedLlmField ? 'llm' : fallback.source || 'heuristic',
+  };
+}
+
+/**
+ * 清洗并校验 LLM 蒸馏出的脾气原型、烈度档位、雷区与顺毛哄法
+ */
+export function normalizeDistilledTemperament(
+  raw: unknown,
+  fallback: PersonaTemperamentSpec
+): PersonaTemperamentSpec {
+  if (!raw || typeof raw !== 'object') {
+    return fallback;
+  }
+  const obj = raw as Record<string, unknown>;
+  let usedLlmField = false;
+
+  const archetype = TEMPERAMENT_ARCHETYPE_SET.has(obj.archetype as TemperamentArchetype)
+    ? ((usedLlmField = true), obj.archetype as TemperamentArchetype)
+    : fallback.archetype;
+
+  const intensityTier = TEMPERAMENT_TIER_SET.has(obj.intensityTier as TemperamentIntensityTier)
+    ? ((usedLlmField = true), obj.intensityTier as TemperamentIntensityTier)
+    : fallback.intensityTier;
+
+  const triggers = cleanUniqueStrings(obj.triggers, 2, 32, 8);
+  if (triggers.length > 0) usedLlmField = true;
+
+  const coaxMethods = cleanUniqueStrings(obj.coaxMethods, 2, 40, 6);
+  if (coaxMethods.length > 0) usedLlmField = true;
+
+  return {
+    archetype,
+    intensityTier,
+    triggers: triggers.length > 0 ? triggers : fallback.triggers,
+    coaxMethods: coaxMethods.length > 0 ? coaxMethods : fallback.coaxMethods,
+    source: usedLlmField ? 'llm' : fallback.source || 'heuristic',
+  };
+}
+
 /**
  * 纯 TS 5 阶段角色灵魂蒸馏引擎（支持在线 LLM 与零配置高保真合成双模）
  */
@@ -185,6 +361,8 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
     `${input.personalityInfo || ''}\n${input.basicInfo || ''}`,
     { mbti: explicitMbti || undefined, attachment, personalityTags }
   );
+  let distilledMind: PersonaMindSpec | null = null;
+  let distilledTemperament: PersonaTemperamentSpec | null = null;
 
   if (llm.canCall) {
     try {
@@ -230,14 +408,33 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
       );
       isLiveLLM = Boolean(personaMd && memoriesMd);
       try {
-        const traitsRaw = await callLLM(
-          '你是人格心理测量专家，只输出合法 JSON。',
-          `根据以下人物分析，给出 0~1 之间的大五人格与情绪参数，键为 openness, conscientiousness, extraversion, agreeableness, neuroticism, emotionalStability, recoveryRate（recoveryRate 表示生气/难过后恢复得多快）。\n${analysis}`,
+        const soulRaw = await callLLM(
+          PERSONA_SOUL_STRUCT_PROMPT,
+          `角色：${name}\n原始背景：${input.basicInfo || ''}\n性格特征：${input.personalityInfo || ''}\n深度分析：\n${analysis}\n人设终稿片段：\n${personaMd.slice(0, 1600)}`,
           0.2
         );
-        traits = normalizeTraits(parseJsonFromLlmOutput(traitsRaw), traits);
+        const parsed = parseJsonFromLlmOutput<Record<string, unknown>>(soulRaw);
+        if (parsed && typeof parsed === 'object') {
+          const traitsCandidate =
+            parsed.traits && typeof parsed.traits === 'object' ? parsed.traits : parsed;
+          traits = normalizeTraits(traitsCandidate, traits);
+          const draftProfile = {
+            mbti: explicitMbti || undefined,
+            attachment,
+            personalityTags,
+            basicPersonality: input.basicPersonality?.trim() || undefined,
+          };
+          const heuristicMind = inferPersonaMind(personaMd, draftProfile, traits);
+          const heuristicTemp = inferPersonaTemperament(personaMd, draftProfile, traits);
+          if (parsed.mind) {
+            distilledMind = normalizeDistilledMind(parsed.mind, heuristicMind);
+          }
+          if (parsed.temperament) {
+            distilledTemperament = normalizeDistilledTemperament(parsed.temperament, heuristicTemp);
+          }
+        }
       } catch {
-        // 保留启发式特质
+        // 保留启发式特质与思维/脾气推导
       }
     } catch {
       // Fallback to high-precision deterministic distillation below
@@ -296,6 +493,12 @@ ${quotesSection}
 > 有人很久没回消息：
 > 你：哟，大忙人终于舍得看手机啦？再不回我都要记小本本了
 
+> 有人说“今天好累啊有点撑不住”：
+> 你：怎么啦，谁又把你折腾成这样 [BURST] 先歇会儿别硬扛，跟我说说
+
+> 有人说“我觉得随便糊弄一下算了”：
+> 你：不对吧，我不同意这么糊弄，返工的还是你自己 [BURST] 这种事我才不跟着乱点头呢
+
 ---
 
 ## Layer 3：情感逻辑
@@ -352,8 +555,17 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
   };
   const resolvedMode =
     input.defaultMode || inferDefaultModeFromPersonality(input.basicPersonality || input.personalityInfo);
-  const mind = inferPersonaMind(personaMd, profile, traits);
-  const temperament = inferPersonaTemperament(personaMd, profile, traits);
+  const baseMind = distilledMind || inferPersonaMind(personaMd, profile, traits);
+  const extractedFewShots = extractFewShotsFromPersonaMd(personaMd).slice(0, 6);
+  const mind: PersonaMindSpec = {
+    ...baseMind,
+    ...(baseMind.fewShotExamples?.length
+      ? { fewShotExamples: baseMind.fewShotExamples.slice(0, 6) }
+      : extractedFewShots.length > 0
+        ? { fewShotExamples: extractedFewShots }
+        : {}),
+  };
+  const temperament = distilledTemperament || inferPersonaTemperament(personaMd, profile, traits);
 
   const saved = await storageRepo.savePersona({
     slug,
