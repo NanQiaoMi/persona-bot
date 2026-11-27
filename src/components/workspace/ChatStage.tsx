@@ -271,13 +271,10 @@ export default function ChatStage({
   }
 
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
-  // 首页快捷卡片的图标底色：角色颜色的浅色版；颜色太深（如主 bot 的黑色）时改用主题文字色，暗色主题下也看得清
-  const heroAccentStyle = isVeryDark(mascotCfg.color)
-    ? { backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" }
-    : {
-        backgroundColor: `color-mix(in srgb, ${mascotCfg.color} 14%, transparent)`,
-        color: mascotCfg.color,
-      };
+  // 首页快捷列表的悬停图标色：角色颜色太深（如主 bot 的黑色）时改用主题文字色，暗色主题下也看得清
+  const rowAccentColor = isVeryDark(mascotCfg.color)
+    ? "var(--text-primary)"
+    : mascotCfg.color;
   // 群聊：成员名（用于 @ 高亮）、头像图片、按名字找人（「X 正在输入」）
   const groupMembers = activeGroup
     ? (personas || []).filter((p) => activeGroup.memberSlugs.includes(p.slug))
@@ -492,8 +489,11 @@ export default function ChatStage({
                 </div>
               </div>
 
-              {/* 一键开聊：图标底色跟随角色的颜色 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-2">
+              {/* 一键开聊：Linear / Raycast 极简细线列表 */}
+              <div
+                className="w-full max-w-[540px] rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-card,var(--bg-composer))] grok-floating-card overflow-hidden divide-y divide-[var(--border-hairline,var(--border-subtle))]"
+                style={{ ["--row-accent" as string]: rowAccentColor }}
+              >
                 {(persona.isMaster || persona.slug === "master-bot"
                   ? ([
                       {
@@ -562,36 +562,35 @@ export default function ChatStage({
                     onClick={() =>
                       onQuickSend(chip.text, { deepSearch: chip.enableSearch })
                     }
-                    className="group/chip p-4 rounded-[16px] bg-[var(--surface-card,var(--bg-composer))] hover:bg-[var(--surface-card-hover,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-card hover:border-[var(--border-strong)] active:scale-[0.99] text-left transition-interactive flex items-start gap-3 focus-ring cursor-pointer"
+                    className="w-full px-4 py-3 flex items-center gap-3.5 text-left transition-surface hover:bg-[var(--surface-panel,var(--bg-secondary))] focus-ring group/chip cursor-pointer"
                   >
-                    <span
-                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover/chip:scale-105"
-                      style={heroAccentStyle}
-                    >
-                      <LineIcon name={chip.icon} size={17} />
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                        <span className="truncate">{chip.title}</span>
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                          className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
-                        >
-                          <path d="M5 12h14M13 6l6 6-6 6" />
-                        </svg>
+                    <LineIcon
+                      name={chip.icon}
+                      size={16}
+                      className="shrink-0 text-[var(--text-muted)] group-hover/chip:text-[var(--row-accent)] transition-colors"
+                    />
+                    <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2.5">
+                      <span className="text-[13px] font-medium text-[var(--text-primary)] shrink-0">
+                        {chip.title}
                       </span>
-                      <span className="block mt-1 text-[11.5px] leading-5 text-[var(--text-secondary)] line-clamp-2">
+                      <span className="text-[12px] text-[var(--text-muted)] truncate">
                         {chip.sub}
                       </span>
                     </span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
+                    >
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
                   </button>
                 ))}
               </div>
