@@ -22,14 +22,14 @@
 
 ```mermaid
 flowchart TB
-  UI["沉浸式三栏工作台\n角色列表 · SSE 对话舞台 · PAD 状态舱"] --> API["/api/chat/stream (SSE)"]
-  Distill["纯 TS 蒸馏管线\n微信 / iMessage 解析 -> 五层人格"] --> Repo
+  UI["沉浸式三栏工作台<br/>角色列表 · SSE 对话舞台 · PAD 状态舱"] --> API["/api/chat/stream (SSE)"]
+  Distill["纯 TS 蒸馏管线<br/>微信 / iMessage 解析 -> 五层人格"] --> Repo
   subgraph Brain["Grok Brain & Emotion Engine"]
-    Search["DeepSearch\n实时联网检索"]
-    Prompt["PromptAssembler\n五层人格 + 模式 + PAD 情绪"]
-    Stream["StreamOrchestrator\nsearch -> thought -> emotion -> reply"]
+    Search["DeepSearch<br/>实时联网检索"]
+    Prompt["PromptAssembler<br/>五层人格 + 模式 + PAD 情绪"]
+    Stream["StreamOrchestrator<br/>search -> thought -> emotion -> reply"]
   end
-  API --> Repo["统一存储仓储\n本地文件库 / MongoDB"]
+  API --> Repo["统一存储仓储<br/>本地文件库 / MongoDB"]
   API --> Brain
   Brain --> Repo
 ```
