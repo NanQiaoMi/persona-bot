@@ -1113,7 +1113,9 @@ export async function executeGrokChatTurn(
 
   // Stage 3: Prompt Assembly & Streaming LLM Call
   const userStyleProfile = analyzeUserChatStyle(req.messages);
-  const recalledMemories = retrieveRelevantMemories(persona.memoriesMd, lastUserText).relevant;
+  const recalledMemories = retrieveRelevantMemories(persona.memoriesMd, lastUserText, {
+    memoryStats: persona.spec?.memoryStats,
+  }).relevant;
   const blendedStyle = blendStyle(
     persona.spec?.fingerprint ?? fingerprintFromPersonaMd(persona.personaMd),
     req.messages
