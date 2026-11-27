@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { GroupChat, PersonaSummary } from "@/lib/storage/types";
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import PortConfigPopover, {
@@ -63,6 +63,36 @@ function formatSidebarTime(iso?: string): string {
 }
 
 const EMPTY_UNREAD: Record<string, number> = {};
+const GROUPS_COLLAPSED_KEY = "personabot:groups-collapsed";
+const GROUPS_COLLAPSED_EVENT = "personabot:groups-collapsed-change";
+
+function subscribeGroupsCollapsed(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === GROUPS_COLLAPSED_KEY || e.key === null) callback();
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(GROUPS_COLLAPSED_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(GROUPS_COLLAPSED_EVENT, callback);
+  };
+}
+
+function getGroupsCollapsedSnapshot(): "expanded" | "collapsed" | null {
+  try {
+    const saved = localStorage.getItem(GROUPS_COLLAPSED_KEY);
+    if (saved === "1") return "collapsed";
+    if (saved === "0") return "expanded";
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function getGroupsCollapsedServerSnapshot(): "expanded" | "collapsed" | null {
+  return null;
+}
 
 function LeftSidebar({
   personas,
@@ -87,7 +117,38 @@ function LeftSidebar({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [portOpen, setPortOpen] = useState(false);
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus>("unknown");
+  const storedGroupCollapsePref = useSyncExternalStore(
+    subscribeGroupsCollapsed,
+    getGroupsCollapsedSnapshot,
+    getGroupsCollapsedServerSnapshot
+  );
+  const [localGroupCollapsePref, setLocalGroupCollapsePref] = useState<
+    "expanded" | "collapsed" | null
+  >(null);
+  const groupCollapsePref = localGroupCollapsePref ?? storedGroupCollapsePref;
   const closePort = useCallback(() => setPortOpen(false), []);
+
+  const isGroupsCollapsed =
+    groupCollapsePref !== null
+      ? groupCollapsePref === "collapsed"
+      : groups.length === 0;
+
+  const totalGroupUnread = groups.reduce(
+    (sum, g) => sum + (g.id !== activeGroupId ? g.unreadCount || 0 : 0),
+    0
+  );
+
+  const toggleGroupsCollapsed = () => {
+    const nextCollapsed = !isGroupsCollapsed;
+    const nextPref = nextCollapsed ? "collapsed" : "expanded";
+    setLocalGroupCollapsePref(nextPref);
+    try {
+      localStorage.setItem(GROUPS_COLLAPSED_KEY, nextCollapsed ? "1" : "0");
+      window.dispatchEvent(new Event(GROUPS_COLLAPSED_EVENT));
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   // 打开工作台时测一次网关，入口按钮上的小圆点显示连没连上
   useEffect(() => {
@@ -240,11 +301,56 @@ function LeftSidebar({
 
       {/* Group Chats (群聊) */}
       {(groups.length > 0 || onCreateGroup) && (
-        <div className="px-3 pb-2.5 mb-2 hairline-b border-b border-[var(--border-hairline,var(--border-subtle))] shrink-0">
-          <div className="flex items-center justify-between px-1.5 pb-1.5">
-            <span className="type-section text-[11px] font-semibold tracking-[0.04em] text-[var(--text-muted)]">
-              群聊
-            </span>
+        <div
+          className={`px-3 mb-2 hairline-b border-b border-[var(--border-hairline,var(--border-subtle))] shrink-0 ${
+            isGroupsCollapsed ? "pb-2" : "pb-2.5"
+          }`}
+        >
+          <div
+            className={`flex items-center justify-between px-1 ${
+              isGroupsCollapsed ? "pb-0" : "pb-1.5"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={toggleGroupsCollapsed}
+              aria-expanded={!isGroupsCollapsed}
+              title={isGroupsCollapsed ? "展开群聊" : "收起群聊"}
+              className="group/sec flex items-center gap-1.5 py-0.5 px-1 -ml-0.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-surface focus-ring cursor-pointer"
+            >
+              <svg
+                className={`w-3 h-3 shrink-0 transition-transform duration-150 ${
+                  isGroupsCollapsed ? "" : "rotate-90"
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.2}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+              <span className="type-section text-[11px] font-semibold tracking-[0.04em]">
+                群聊
+              </span>
+              {groups.length > 0 && (
+                <span className="type-mono-num text-[10.5px] font-normal opacity-70">
+                  {groups.length}
+                </span>
+              )}
+              {isGroupsCollapsed && totalGroupUnread > 0 && (
+                <span
+                  className="min-w-[16px] h-[16px] px-1 rounded-full bg-[#FA5151] text-white text-[9.5px] font-semibold leading-[16px] text-center type-mono-num"
+                  aria-label={`${totalGroupUnread} 条群聊未读`}
+                >
+                  {totalGroupUnread > 99 ? "99+" : totalGroupUnread}
+                </span>
+              )}
+            </button>
             {onCreateGroup && (
               <button
                 type="button"
@@ -270,107 +376,108 @@ function LeftSidebar({
             )}
           </div>
 
-          {groups.length === 0 ? (
-            <p className="px-1.5 pb-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
-              在主 bot 里说「拉个群聊聊…」也能建群
-            </p>
-          ) : (
-            <div className="space-y-0.5">
-              {groups.map((group) => {
-                const isActive = activeGroupId === group.id;
-                const members = group.memberSlugs
-                  .map((slug) => personas.find((p) => p.slug === slug))
-                  .filter((p): p is PersonaSummary => Boolean(p))
-                  .slice(0, 3);
-                return (
-                  <div
-                    key={group.id}
-                    className={`group relative rounded-[12px] transition-surface ${
-                      isActive
-                        ? "bg-[var(--surface-active,var(--bg-composer))] grok-active-row"
-                        : "bg-transparent hover:bg-[var(--bg-hover)]"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSelectGroup?.(group.id)}
-                      className="w-full text-left px-2.5 py-2 pr-8 flex items-center gap-2.5 focus-ring rounded-[12px] cursor-pointer"
+          {!isGroupsCollapsed &&
+            (groups.length === 0 ? (
+              <p className="px-1.5 pb-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                在主 bot 里说「拉个群聊聊…」也能建群
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                {groups.map((group) => {
+                  const isActive = activeGroupId === group.id;
+                  const members = group.memberSlugs
+                    .map((slug) => personas.find((p) => p.slug === slug))
+                    .filter((p): p is PersonaSummary => Boolean(p))
+                    .slice(0, 3);
+                  return (
+                    <div
+                      key={group.id}
+                      className={`group relative rounded-[12px] transition-surface ${
+                        isActive
+                          ? "bg-[var(--surface-active,var(--bg-composer))] grok-active-row"
+                          : "bg-transparent hover:bg-[var(--bg-hover)]"
+                      }`}
                     >
-                      <div className="flex items-center shrink-0">
-                        {members.map((m, i) => {
-                          const cfg = getMascotConfigForPersona(
-                            m.slug,
-                            m.profile,
-                            i
-                          );
-                          return (
-                            <span
-                              key={m.slug}
-                              className={`rounded-full bg-[var(--surface-panel,var(--bg-secondary))] ${
-                                i > 0 ? "-ml-2" : ""
-                              }`}
-                              style={{ zIndex: members.length - i }}
-                            >
-                              <BlobMascot
-                                shape={cfg.shape}
-                                color={cfg.color}
-                                image={cfg.image}
-                                size={22}
-                                trackPointer={false}
-                                animated={false}
-                              />
-                            </span>
-                          );
-                        })}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-semibold tracking-[-0.008em] text-[var(--text-primary)] truncate">
-                          {group.name}
-                        </div>
-                        {group.lastMessage && (
-                          <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
-                            {!isActive && (group.unreadCount || 0) > 0 && (
-                              <span className="text-[var(--text-muted)]">[{group.unreadCount}条] </span>
-                            )}
-                            {group.lastMessage}
-                          </p>
-                        )}
-                      </div>
-                      {/* 未读：像微信一样的红色数字角标 */}
-                      {!isActive && (group.unreadCount || 0) > 0 && (
-                        <span
-                          className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#FA5151] text-white text-[10px] font-semibold leading-[18px] text-center type-mono-num group-hover:opacity-0 transition-opacity"
-                          aria-label={`${group.unreadCount} 条未读`}
-                        >
-                          {(group.unreadCount || 0) > 99 ? "99+" : group.unreadCount}
-                        </span>
-                      )}
-                    </button>
-                    {onDeleteGroup && (
                       <button
                         type="button"
-                        aria-label="删除群聊"
-                        title="删除群聊"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (
-                            window.confirm(
-                              "确定删除这个群聊吗？聊天记录也会一起删除"
-                            )
-                          ) {
-                            onDeleteGroup(group.id);
-                          }
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[12px] leading-none text-[var(--text-muted)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-500 hover:bg-[var(--bg-hover)] transition-interactive focus-ring cursor-pointer"
+                        onClick={() => onSelectGroup?.(group.id)}
+                        className="w-full text-left px-2.5 py-2 pr-8 flex items-center gap-2.5 focus-ring rounded-[12px] cursor-pointer"
                       >
-                        ×
+                        <div className="flex items-center shrink-0">
+                          {members.map((m, i) => {
+                            const cfg = getMascotConfigForPersona(
+                              m.slug,
+                              m.profile,
+                              i
+                            );
+                            return (
+                              <span
+                                key={m.slug}
+                                className={`rounded-full bg-[var(--surface-panel,var(--bg-secondary))] ${
+                                  i > 0 ? "-ml-2" : ""
+                                }`}
+                                style={{ zIndex: members.length - i }}
+                              >
+                                <BlobMascot
+                                  shape={cfg.shape}
+                                  color={cfg.color}
+                                  image={cfg.image}
+                                  size={22}
+                                  trackPointer={false}
+                                  animated={false}
+                                />
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12.5px] font-semibold tracking-[-0.008em] text-[var(--text-primary)] truncate">
+                            {group.name}
+                          </div>
+                          {group.lastMessage && (
+                            <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                              {!isActive && (group.unreadCount || 0) > 0 && (
+                                <span className="text-[var(--text-muted)]">[{group.unreadCount}条] </span>
+                              )}
+                              {group.lastMessage}
+                            </p>
+                          )}
+                        </div>
+                        {/* 未读：像微信一样的红色数字角标 */}
+                        {!isActive && (group.unreadCount || 0) > 0 && (
+                          <span
+                            className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#FA5151] text-white text-[10px] font-semibold leading-[18px] text-center type-mono-num group-hover:opacity-0 transition-opacity"
+                            aria-label={`${group.unreadCount} 条未读`}
+                          >
+                            {(group.unreadCount || 0) > 99 ? "99+" : group.unreadCount}
+                          </span>
+                        )}
                       </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                      {onDeleteGroup && (
+                        <button
+                          type="button"
+                          aria-label="删除群聊"
+                          title="删除群聊"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (
+                              window.confirm(
+                                "确定删除这个群聊吗？聊天记录也会一起删除"
+                              )
+                            ) {
+                              onDeleteGroup(group.id);
+                            }
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[12px] leading-none text-[var(--text-muted)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-500 hover:bg-[var(--bg-hover)] transition-interactive focus-ring cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
         </div>
       )}
 
