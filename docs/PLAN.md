@@ -28,11 +28,10 @@
 
 ## 性格深化、真实思考与多原型脾气 5 PR 蓝图（2026-11 迭代）
 1. **PR 1 (`feat/persona-mind-and-autonomy`) — 人格思考内核、混合自适应思考与建人收口**（已合入 `#70`）
-2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**（进行中）
-   - 根治 PAD 引擎 5 处数学与状态缺陷（动态 `novelty`/`arousal`/`dominance`/`intensity`、修复衰减正负号反转、惯性混合后重算 `primary`、`applyLlmAffectSignal` 基于 `currentSnapshot` 升级连续 `cold` 并重算主情绪、去除强制拉正基线）。
-   - 落地 `temperament.ts`：6 种脾气原型（`snappy`/`tsundere`/`hurt`/`cold`/`avoidant`/`jealous`）× 3 档烈度（`gentle`/`realistic`/`spicy`）+ 专属雷区/哄法与 `spicy` 轻度旧账。
-   - 升级 4 款内置角色预设（中文 `primary`、完整 `spec.mind`/`temperament`/`traits`/`baselineTraits`）与离线兜底区分度；`evolution.ts` 加入 ±0.20 初始锚点护栏。
-   - 打通主动破冰（`sulkingLevel >= 2` 门控、有界好感、`proactive-engine.ts` 去错拼模板内心戏）与群聊情绪联动。
-3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**
+2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**（已合入 `#71`）
+3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**（进行中）
+   - 扩展 `rhythm-templates.ts` 与 `daily-rhythm.ts` 支持细分职业/兴趣作息词表覆盖与 `spec.dailyRhythmOverride`，解决 4 位预设“画稿/改稿”错配。
+   - 新增 `daily-life.ts`（`exes/{slug}/daily-life.json` 按日持久化今日主线、心境底色与朋友圈摘要），统一串联单聊、朋友圈、主动破冰与群聊。
+   - 为 `moments.ts` 自动发布增加睡眠与冷战（`sulkingLevel >= 2`）门控，并在群聊注入仅面向在场成员的轻量 `peerRelations`。
 4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**
 5. **PR 5 (`feat/persona-tuning-ui-and-soul-eval`) — 蒸馏深化、性格脾气调音台 UI 与真模型对抗剧本评测**
