@@ -66,11 +66,8 @@ export default function PersonaStudio() {
   const [avatarEmoji, setAvatarEmoji] = useState("⚡");
   const [defaultMode, setDefaultMode] = useState<PersonaMode>("authentic");
   const [basicInfo, setBasicInfo] = useState("");
-  const [selectedMbti, setSelectedMbti] = useState("ENFP");
-  const [selectedTags, setSelectedTags] = useState<string[]>([
-    "嘴硬心软",
-    "夜猫子",
-  ]);
+  const [selectedMbti, setSelectedMbti] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [extraPersonality, setExtraPersonality] = useState("");
 
   // Chat log import tab states
@@ -125,11 +122,21 @@ export default function PersonaStudio() {
         .filter(Boolean)
         .join(" · ");
 
+      const basicPersonality = [
+        extraPersonality.trim(),
+        ...selectedTags,
+      ]
+        .filter(Boolean)
+        .slice(0, 6)
+        .join(" · ");
+
       const res = await fetch("/api/persona/pipeline-v3", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          ensureUniqueSlug: true,
+          basicPersonality: basicPersonality || undefined,
           basicInfo:
             basicInfo.trim() ||
             "认识很久、彼此非常熟悉、在私密聊天软件中无话不谈的关系",
@@ -421,6 +428,17 @@ export default function PersonaStudio() {
                 MBTI 人格基底
               </label>
               <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMbti("")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                    selectedMbti === ""
+                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                      : "border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
+                  }`}
+                >
+                  不指定（自动推断）
+                </button>
                 {MBTI_LIST.map((mbti) => (
                   <button
                     key={mbti}

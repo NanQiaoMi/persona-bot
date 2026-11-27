@@ -8,6 +8,11 @@ import {
 } from './prompts';
 import { chatCompletion, parseJsonFromLlmOutput, resolveLlmConfig } from '@/lib/llm/client';
 import { buildFingerprintFromLines } from '@/lib/persona/fingerprint';
+import {
+  inferDefaultModeFromPersonality,
+  inferPersonaMind,
+  inferPersonaTemperament,
+} from '@/lib/persona/mind';
 import { parseLearnedFromMarkdown, PERSONA_SPEC_VERSION } from '@/lib/persona/spec';
 import { heuristicTraits, normalizeTraits } from '@/lib/persona/traits';
 import { storageRepo } from '@/lib/storage/repository';
@@ -158,11 +163,11 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
   const settings = await storageRepo.getSettings();
   const llm = resolveLlmConfig(settings);
 
-  const mbti =
-    input.personalityInfo?.match(/([EI][NS][FT][JP])/i)?.[1]?.toUpperCase() || 'ENFP';
+  const explicitMbti =
+    input.personalityInfo?.match(/([EI][NS][FT][JP])/i)?.[1]?.toUpperCase() || '';
   const zodiac =
     input.personalityInfo?.match(/(白羊|金牛|双子|巨蟹|狮子|处女|天秤|天蝎|射手|摩羯|水瓶|双鱼)座?/)?.[0] ||
-    '水瓶座';
+    '';
   const attachment =
     input.personalityInfo?.match(/(安全型|焦虑型|回避型|高共情|毒舌|傲娇)/)?.[1] || '鲜活真实型';
   const rawTags = extractPersonalityTags(input.personalityInfo);
@@ -178,7 +183,7 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
   let isLiveLLM = false;
   let traits = heuristicTraits(
     `${input.personalityInfo || ''}\n${input.basicInfo || ''}`,
-    { mbti, attachment, personalityTags }
+    { mbti: explicitMbti || undefined, attachment, personalityTags }
   );
 
   if (llm.canCall) {
@@ -246,14 +251,15 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
         ? corpus.sampleQuotes.map((q) => `- 「${q}」`).join('\n')
         : `- 「今天这事我得好好跟你唠唠」\n- 「不是吧，你居然才发现？」\n- 「行啦，知道你忙，忙完记得找我」`;
 
-    aiProfile = `**${name}**（${mbti} · ${zodiac}）是一个极具活人感的专属角色。
+    const profileDescriptor = [explicitMbti, zodiac].filter(Boolean).join(' · ') || '独特个性';
+    aiProfile = `**${name}**（${profileDescriptor}）是一个极具活人感的专属角色。
 - **核心关系背景**：${input.basicInfo || '与你默契极深、无话不谈的日常搭档'}
-- **性格底色**：${input.personalityInfo || '嘴硬心软、反应敏捷、讨厌一切机械客套'}
+- **性格底色**：${input.personalityInfo || '性格鲜活、有主见、讨厌一切机械客套'}
 - **语言指纹**：高频使用「${corpus.topCatchphrases.join('」、「')}」，说话节奏自然，善用短句与情绪留白。`;
 
     analysis = `1. 表达风格：高频词 [${corpus.topCatchphrases.join(', ')}]，偏向手机即时通讯的短句连发。
-2. 性格内核：${mbti} 特质明显，对亲近的人护短且自带小傲娇。
-3. 情感逻辑：被认真回应时情绪积极，被敷衍或久不回复会流露微妙小脾气。`;
+2. 性格内核：${explicitMbti ? `${explicitMbti} 特质明显，` : ''}${input.personalityInfo || '有主见且重感情'}。
+3. 情感逻辑：被认真回应时情绪积极，被敷衍或踩雷时会流露真实脾气。`;
 
     personaMd = `# ${name} — Persona (五层灵魂结构)
 
@@ -267,7 +273,7 @@ export async function distillPersona(input: DistillInput): Promise<DistillResult
 ---
 
 ## Layer 1：身份
-你是 **${name}**（${mbti} / ${zodiac} / ${attachment}）。
+你是 **${name}**（${[explicitMbti || '鲜活个性', zodiac, attachment].filter(Boolean).join(' / ')}）。
 你们的关系背景：${input.basicInfo || '彼此熟悉、随时可以毫无顾忌开聊的亲密关系'}。
 别人对你的印象：“${input.personalityInfo || '说话带点小个性，但关键时刻永远靠谱又懂你'}”。
 
@@ -329,33 +335,39 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
   }
 
   const now = new Date().toISOString();
+  const profile = {
+    mbti: explicitMbti,
+    zodiac: zodiac || undefined,
+    attachment,
+    personalityTags,
+    avatarEmoji: input.avatarEmoji || '✨',
+    accentColor: input.avatarColor || '#10B981',
+    avatarShape: input.avatarShape || undefined,
+    avatarColor: input.avatarColor || undefined,
+    appearanceAnchor: input.appearanceAnchor?.trim() || undefined,
+    // 用户亲手写的外貌锚点：锁定，不会被「看图反推」覆盖
+    appearanceAnchorLocked: input.appearanceAnchor?.trim() ? true : undefined,
+    basicPersonality: input.basicPersonality?.trim() || undefined,
+    bio: (input.basicInfo || input.personalityInfo || `${explicitMbti || name} 专属蒸馏角色`).slice(0, 100),
+  };
+  const resolvedMode =
+    input.defaultMode || inferDefaultModeFromPersonality(input.basicPersonality || input.personalityInfo);
+  const mind = inferPersonaMind(personaMd, profile, traits);
+  const temperament = inferPersonaTemperament(personaMd, profile, traits);
+
   const saved = await storageRepo.savePersona({
     slug,
     name,
     version: 'v2.0',
     isPreset: false,
-    defaultMode: input.defaultMode || 'authentic',
+    defaultMode: resolvedMode,
     intimacy: 65,
-    profile: {
-      mbti,
-      zodiac,
-      attachment,
-      personalityTags,
-      avatarEmoji: input.avatarEmoji || '✨',
-      accentColor: input.avatarColor || '#10B981',
-      avatarShape: input.avatarShape || undefined,
-      avatarColor: input.avatarColor || undefined,
-      appearanceAnchor: input.appearanceAnchor?.trim() || undefined,
-      // 用户亲手写的外貌锚点：锁定，不会被「看图反推」覆盖
-      appearanceAnchorLocked: input.appearanceAnchor?.trim() ? true : undefined,
-      basicPersonality: input.basicPersonality?.trim() || undefined,
-      bio: (input.basicInfo || input.personalityInfo || `${mbti} 专属蒸馏角色`).slice(0, 100),
-    },
+    profile,
     personaMd,
     memoriesMd,
     aiProfileMd: aiProfile,
     emotionState: {
-      primary: 'happy',
+      primary: '开心',
       pleasure: 0.35,
       arousal: 0.45,
       dominance: 0.55,
@@ -373,6 +385,9 @@ ${corpus.totalCount > 0 ? `- **聊天记录沉淀**：已从 ${corpus.totalCount
           ? buildFingerprintFromLines(corpus.targetLines, 'chatlog')
           : undefined,
       traits,
+      baselineTraits: { ...traits },
+      mind,
+      temperament,
       learned: parseLearnedFromMarkdown(personaMd),
     },
     createdAt: now,

@@ -24,7 +24,15 @@
 - 本地重型生图（ComfyUI / Stable Diffusion）部署耦合。
 
 ## 活人感性格系统 4 阶段升级计划
-1. **阶段 1 (`feat/emotion-traits-and-sulking`)**：升级语义情绪评估与消除正向偏置、接入搭便车 `[AFFECT]` 判定、将大五性格参数转译为 Prompt 行为准则、实现 1~3 轮「闹别扭 / 冷处理 → 哄好解除」状态机，并在右侧情绪雷达提供状态展示与一键翻篇。
-2. **阶段 2 (`feat/persona-fewshot-and-autonomy`)**：动态 Few-Shot 示范对话注入、系统提示词瘦身与真实熟人分歧权/小脾气护栏、拍照态度分层。
-3. **阶段 3 (`feat/unified-daily-life-state`)**：统一「今日生活与心境板」，串联单聊、朋友圈、群聊与主动破冰。
-4. **阶段 4 (`feat/user-impression-and-relation-stage`)**：按角色完全隔离的「TA 眼中的你」认知档案 + 4 档关系阶段分层 + 记忆同义词召回增强。
+1. **阶段 1 (`feat/emotion-traits-and-sulking`)**：升级语义情绪评估与消除正向偏置、接入搭便车 `[AFFECT]` 判定、将大五性格参数转译为 Prompt 行为准则、实现 1~3 轮「闹别扭 / 冷处理 → 哄好解除」状态机，并在右侧情绪雷达提供状态展示与一键翻篇。（已完成）
+
+## 性格深化、真实思考与多原型脾气 5 PR 蓝图（2026-11 迭代）
+1. **PR 1 (`feat/persona-mind-and-autonomy`) — 人格思考内核、混合自适应思考与建人收口**（进行中）
+   - 扩展 `PersonaSpec` v2（`PersonaMindSpec` / `PersonaTemperamentSpec` / `baselineTraits`）。
+   - 落地动态 Few-Shot 检索（`few-shot.ts`）与混合自适应性格思考（`cognitive-loop.ts`，高张力轻量二段推演 + 2.5s 超时降级）。
+   - 重构 `PromptAssembler` 四级优先级仲裁、加入真实熟人分歧权，并实现冷战 Level 3 拍照/贴纸三处联动门控。
+   - 修复 `<thought>` 与 `[EARLY]` 冲突、主输出 AI 分析腔泄漏、补写上下文残缺，并统一收口 3 条建人链路与 `distiller.ts` 默认偏置。
+2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**
+3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**
+4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**
+5. **PR 5 (`feat/persona-tuning-ui-and-soul-eval`) — 蒸馏深化、性格脾气调音台 UI 与真模型对抗剧本评测**

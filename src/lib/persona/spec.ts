@@ -10,7 +10,7 @@ import {
  *   每条都带来源、证据、置信度与状态，供自进化闭环与成长日志面板管理
  * - fingerprint 为本人风格锚点；traits 为大五人格与情绪参数
  */
-export const PERSONA_SPEC_VERSION = 1;
+export const PERSONA_SPEC_VERSION = 2;
 
 export const LEARNED_HABITS_HEADING = '## 6. 相处中习得的习惯与偏好';
 export const STYLE_LOOP_HEADING = '## 7. 对话方式自学习循环 (Style Loop)';
@@ -62,10 +62,74 @@ export interface MemoryStat {
   lastRecalledAt?: string;
 }
 
+export type CognitiveStyle =
+  | 'intuitive-feeling'
+  | 'analytical-logic'
+  | 'pragmatic-action'
+  | 'observant-guarded';
+
+export type DefenseStyle =
+  | 'tsundere-mask'
+  | 'direct-pushback'
+  | 'withdraw-quiet'
+  | 'humor-deflect'
+  | 'overthink-spiral';
+
+export type DisagreementStyle =
+  | 'blunt'
+  | 'teasing-pushback'
+  | 'gentle-firm'
+  | 'sarcastic-side';
+
+export type FewShotScene = 'daily' | 'tease' | 'conflict' | 'comfort' | 'disagree';
+
+export interface PersonaFewShotExample {
+  scene: FewShotScene;
+  user: string;
+  assistant: string;
+  source?: 'preset' | 'persona-md' | 'chatlog' | 'correction' | 'user-edit';
+}
+
+export interface PersonaMindSpec {
+  cognitiveStyle: CognitiveStyle;
+  defenseStyle: DefenseStyle;
+  disagreementStyle: DisagreementStyle;
+  /** 口是心非/保留度 0~1：0 表示直白全说，1 表示心里想十分嘴上只露三分 */
+  subtextLevel: number;
+  /** 角色最看重的底线与价值观（最多 5 条） */
+  coreValues: string[];
+  fewShotExamples?: PersonaFewShotExample[];
+  source?: 'preset' | 'llm' | 'heuristic' | 'user-edit';
+}
+
+export type TemperamentArchetype =
+  | 'snappy'
+  | 'tsundere'
+  | 'hurt'
+  | 'cold'
+  | 'avoidant'
+  | 'jealous';
+
+export type TemperamentIntensityTier = 'gentle' | 'realistic' | 'spicy';
+
+export interface PersonaTemperamentSpec {
+  archetype: TemperamentArchetype;
+  intensityTier: TemperamentIntensityTier;
+  triggers: string[];
+  coaxMethods: string[];
+  source?: 'preset' | 'llm' | 'heuristic' | 'user-edit';
+}
+
 export interface PersonaSpec {
   specVersion: number;
   fingerprint?: StyleFingerprint;
   traits?: PersonaTraitsSpec;
+  /** 初始性格锚点，用于限制长期自进化漂移（±0.20） */
+  baselineTraits?: PersonaTraitsSpec;
+  /** 性格思考方式、防御机制、分歧表达与示范对话池 */
+  mind?: PersonaMindSpec;
+  /** 脾气原型、烈度档位、专属雷区与顺毛哄法 */
+  temperament?: PersonaTemperamentSpec;
   learned: LearnedItem[];
   /** 最近若干轮回复的质量分（风格分 × 用户反应），作为试用规则的对照基线 */
   recentQuality?: number[];
@@ -225,10 +289,15 @@ export function renderPersonaMarkdown(personaMd: string, learned: LearnedItem[])
 /** 规范化/迁移：没有 spec 时从 persona.md 推导；有 spec 时补齐缺失字段 */
 export function ensurePersonaSpec(personaMd: string, spec?: Partial<PersonaSpec> | null): PersonaSpec {
   if (spec && Array.isArray(spec.learned)) {
+    const baselineTraits =
+      spec.baselineTraits ?? (spec.traits ? { ...spec.traits } : undefined);
     return {
       specVersion: spec.specVersion || PERSONA_SPEC_VERSION,
       fingerprint: spec.fingerprint,
       traits: spec.traits,
+      ...(baselineTraits ? { baselineTraits } : {}),
+      ...(spec.mind ? { mind: spec.mind } : {}),
+      ...(spec.temperament ? { temperament: spec.temperament } : {}),
       learned: spec.learned.filter((it) => it && typeof it.text === 'string'),
       recentQuality: Array.isArray(spec.recentQuality) ? spec.recentQuality.slice(-12) : undefined,
       memoryStats: spec.memoryStats && typeof spec.memoryStats === 'object' ? spec.memoryStats : undefined,

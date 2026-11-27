@@ -70,17 +70,21 @@ export function buildLlmHeaders(apiKey: string): Record<string, string> {
 export async function chatCompletion(
   config: LlmConfig,
   messages: ChatMessage[],
-  options: { temperature?: number; timeoutMs?: number } = {}
+  options: { temperature?: number; timeoutMs?: number; maxTokens?: number } = {}
 ): Promise<string> {
+  const payload: Record<string, unknown> = {
+    model: config.model,
+    stream: false,
+    temperature: options.temperature ?? 0.7,
+    messages,
+  };
+  if (typeof options.maxTokens === 'number' && options.maxTokens > 0) {
+    payload.max_tokens = options.maxTokens;
+  }
   const res = await fetch(config.endpoint, {
     method: 'POST',
     headers: buildLlmHeaders(config.apiKey),
-    body: JSON.stringify({
-      model: config.model,
-      stream: false,
-      temperature: options.temperature ?? 0.7,
-      messages,
-    }),
+    body: JSON.stringify(payload),
     signal: AbortSignal.timeout(options.timeoutMs ?? 30000),
   });
   if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);

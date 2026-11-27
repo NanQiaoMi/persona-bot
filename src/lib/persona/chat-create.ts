@@ -3,6 +3,7 @@
  */
 import { distillPersona } from '@/lib/persona/distiller';
 import { CreateBotIntent, pickFallbackName, pickMascotFor } from '@/lib/persona/create-intent';
+import { inferDefaultModeFromPersonality } from '@/lib/persona/mind';
 import { storageRepo } from '@/lib/storage/repository';
 import type { BotCreatedCard, PersonaRecord } from '@/lib/storage/types';
 
@@ -16,9 +17,9 @@ export async function createBotFromIntent(
   const { persona } = await distillPersona({
     name,
     ensureUniqueSlug: true,
-    defaultMode: 'fun',
+    defaultMode: inferDefaultModeFromPersonality(personality),
     basicPersonality: personality,
-    personalityInfo: personality || '嘴硬心软、有鲜明脾气、说话像熟人一样的私人搭子',
+    personalityInfo: personality || '性格鲜活、有主见、说话自然的真实朋友',
     basicInfo: personality ? `${name} · ${personality}` : `${name} · 专属拟人 AI Bot`,
     appearanceAnchor: intent.appearance,
     avatarShape: intent.shape || look.shape,
