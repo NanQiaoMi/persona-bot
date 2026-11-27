@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ensurePersonaSpec, reconcileSpecWithMarkdown } from '@/lib/persona/spec';
+import { mergePersonaSpecPatch } from '@/lib/persona/spec';
 import { storageRepo } from '@/lib/storage/repository';
 
 export async function GET(
@@ -37,6 +37,13 @@ export async function PUT(
   try {
     const { slug } = await context.params;
     const body = await req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json(
+        { success: false, error: { code: '4001', message: '请求体格式不正确' } },
+        { status: 400 }
+      );
+    }
+
     const existing = await storageRepo.getPersona(slug);
 
     if (!existing) {
@@ -49,15 +56,14 @@ export async function PUT(
     const updated = await storageRepo.updatePersona(existing.slug, (current) => ({
       ...current,
       ...body,
-      // 直接编辑 persona.md 时，把 6/7/纠偏小节的改动同步回结构化 learned 条目
-      spec:
-        typeof body.personaMd === 'string' && !body.spec
-          ? reconcileSpecWithMarkdown(
-              ensurePersonaSpec(current.personaMd, current.spec),
-              body.personaMd
-            )
-          : body.spec || current.spec,
+      spec: mergePersonaSpecPatch(
+        current.personaMd,
+        current.spec,
+        body.spec,
+        typeof body.personaMd === 'string' ? body.personaMd : undefined
+      ),
       slug: current.slug,
+      createdAt: current.createdAt,
       profile: {
         ...current.profile,
         ...(body.profile || {}),

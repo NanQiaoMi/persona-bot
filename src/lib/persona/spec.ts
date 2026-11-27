@@ -394,3 +394,209 @@ export function reconcileSpecWithMarkdown(spec: PersonaSpec, editedMd: string): 
   }
   return { ...spec, learned: next };
 }
+
+const SPEC_COGNITIVE_STYLES = new Set<CognitiveStyle>([
+  'intuitive-feeling',
+  'analytical-logic',
+  'pragmatic-action',
+  'observant-guarded',
+]);
+
+const SPEC_DEFENSE_STYLES = new Set<DefenseStyle>([
+  'tsundere-mask',
+  'direct-pushback',
+  'withdraw-quiet',
+  'humor-deflect',
+  'overthink-spiral',
+]);
+
+const SPEC_DISAGREEMENT_STYLES = new Set<DisagreementStyle>([
+  'blunt',
+  'teasing-pushback',
+  'gentle-firm',
+  'sarcastic-side',
+]);
+
+const SPEC_ARCHETYPES = new Set<TemperamentArchetype>([
+  'snappy',
+  'tsundere',
+  'hurt',
+  'cold',
+  'avoidant',
+  'jealous',
+]);
+
+const SPEC_TIERS = new Set<TemperamentIntensityTier>(['gentle', 'realistic', 'spicy']);
+
+function clampSpecUnit(val: unknown, fallback: number): number {
+  if (typeof val !== 'number' || !Number.isFinite(val)) return fallback;
+  return Math.max(0, Math.min(1, Number(val.toFixed(2))));
+}
+
+function sanitizeStringList(raw: unknown, minLen: number, maxLen: number, limit: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const cleaned = item.replace(/[\r\n]+/g, ' ').trim().slice(0, maxLen);
+    if (cleaned.length >= minLen && !out.includes(cleaned)) {
+      out.push(cleaned);
+    }
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function mergeTraitsPatch(
+  base: PersonaTraitsSpec | undefined,
+  patch: Partial<PersonaTraitsSpec>
+): PersonaTraitsSpec {
+  const b: PersonaTraitsSpec = base || {
+    openness: 0.55,
+    conscientiousness: 0.55,
+    extraversion: 0.55,
+    agreeableness: 0.55,
+    neuroticism: 0.45,
+    emotionalStability: 0.55,
+    recoveryRate: 0.55,
+    source: 'heuristic',
+  };
+  return {
+    openness: clampSpecUnit(patch.openness, b.openness),
+    conscientiousness: clampSpecUnit(patch.conscientiousness, b.conscientiousness),
+    extraversion: clampSpecUnit(patch.extraversion, b.extraversion),
+    agreeableness: clampSpecUnit(patch.agreeableness, b.agreeableness),
+    neuroticism: clampSpecUnit(patch.neuroticism, b.neuroticism),
+    emotionalStability: clampSpecUnit(patch.emotionalStability, b.emotionalStability),
+    recoveryRate: clampSpecUnit(patch.recoveryRate, b.recoveryRate),
+    source: patch.source === 'llm' || patch.source === 'heuristic' ? patch.source : b.source,
+  };
+}
+
+/**
+ * 安全深合并 PUT /api/personas/[slug] 传入的局部 spec 更新：
+ * 未出现在 patch 中的 learned / fingerprint / memoryStats / recentQuality / baselineTraits 等字段完整保留，绝不被整体覆盖清空。
+ */
+export function mergePersonaSpecPatch(
+  currentMd: string,
+  currentSpec: Partial<PersonaSpec> | undefined,
+  patch: Partial<PersonaSpec> | null | undefined,
+  nextMd?: string
+): PersonaSpec {
+  let base = ensurePersonaSpec(currentMd, currentSpec);
+  if (typeof nextMd === 'string' && (!patch || patch.learned === undefined)) {
+    base = reconcileSpecWithMarkdown(base, nextMd);
+  }
+  if (!patch || typeof patch !== 'object') {
+    return base;
+  }
+
+  const next: PersonaSpec = { ...base };
+
+  if (patch.traits && typeof patch.traits === 'object') {
+    const mergedTraits = mergeTraitsPatch(base.traits, patch.traits);
+    next.traits = mergedTraits;
+    if (patch.baselineTraits === undefined) {
+      // 用户手动调音性格参数时同步重设初始基线，防止后续自进化将其拉回旧锚点
+      next.baselineTraits = { ...mergedTraits };
+    }
+  }
+
+  if (patch.baselineTraits && typeof patch.baselineTraits === 'object') {
+    next.baselineTraits = mergeTraitsPatch(base.baselineTraits || next.traits, patch.baselineTraits);
+  }
+
+  if (patch.mind && typeof patch.mind === 'object') {
+    const cur = base.mind || {
+      cognitiveStyle: 'intuitive-feeling' as CognitiveStyle,
+      defenseStyle: 'humor-deflect' as DefenseStyle,
+      disagreementStyle: 'gentle-firm' as DisagreementStyle,
+      subtextLevel: 0.45,
+      coreValues: [],
+      source: 'heuristic' as const,
+    };
+    const p = patch.mind;
+    next.mind = {
+      cognitiveStyle: SPEC_COGNITIVE_STYLES.has(p.cognitiveStyle as CognitiveStyle)
+        ? (p.cognitiveStyle as CognitiveStyle)
+        : cur.cognitiveStyle,
+      defenseStyle: SPEC_DEFENSE_STYLES.has(p.defenseStyle as DefenseStyle)
+        ? (p.defenseStyle as DefenseStyle)
+        : cur.defenseStyle,
+      disagreementStyle: SPEC_DISAGREEMENT_STYLES.has(p.disagreementStyle as DisagreementStyle)
+        ? (p.disagreementStyle as DisagreementStyle)
+        : cur.disagreementStyle,
+      subtextLevel: clampSpecUnit(p.subtextLevel, cur.subtextLevel),
+      coreValues: Array.isArray(p.coreValues)
+        ? sanitizeStringList(p.coreValues, 2, 48, 5)
+        : cur.coreValues,
+      fewShotExamples: Array.isArray(p.fewShotExamples)
+        ? p.fewShotExamples.slice(0, 6)
+        : cur.fewShotExamples,
+      source: p.source || 'user-edit',
+    };
+  }
+
+  if (patch.temperament && typeof patch.temperament === 'object') {
+    const cur = base.temperament || {
+      archetype: 'tsundere' as TemperamentArchetype,
+      intensityTier: 'realistic' as TemperamentIntensityTier,
+      triggers: [],
+      coaxMethods: [],
+      source: 'heuristic' as const,
+    };
+    const p = patch.temperament;
+    next.temperament = {
+      archetype: SPEC_ARCHETYPES.has(p.archetype as TemperamentArchetype)
+        ? (p.archetype as TemperamentArchetype)
+        : cur.archetype,
+      intensityTier: SPEC_TIERS.has(p.intensityTier as TemperamentIntensityTier)
+        ? (p.intensityTier as TemperamentIntensityTier)
+        : cur.intensityTier,
+      triggers: Array.isArray(p.triggers)
+        ? sanitizeStringList(p.triggers, 1, 32, 8)
+        : cur.triggers,
+      coaxMethods: Array.isArray(p.coaxMethods)
+        ? sanitizeStringList(p.coaxMethods, 1, 40, 6)
+        : cur.coaxMethods,
+      source: p.source || 'user-edit',
+    };
+  }
+
+  if ('userImpression' in patch) {
+    if (patch.userImpression === null) {
+      delete next.userImpression;
+    } else if (patch.userImpression && typeof patch.userImpression === 'object') {
+      const cur = base.userImpression || { observedHabits: [] };
+      const p = patch.userImpression as Partial<UserImpression>;
+      const resolveField = (
+        key: 'nickname' | 'summary' | 'recentVibe',
+        maxLen: number
+      ): string | undefined => {
+        if (!(key in p)) return cur[key];
+        const raw = p[key];
+        if (typeof raw !== 'string') return undefined;
+        const cleaned = raw.replace(/[\r\n]+/g, ' ').trim().slice(0, maxLen);
+        return cleaned || undefined;
+      };
+      next.userImpression = {
+        nickname: resolveField('nickname', 12),
+        summary: resolveField('summary', 100),
+        recentVibe: resolveField('recentVibe', 60),
+        observedHabits: Array.isArray(p.observedHabits)
+          ? sanitizeStringList(p.observedHabits, 2, 60, 6)
+          : cur.observedHabits,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  if (patch.fingerprint !== undefined) next.fingerprint = patch.fingerprint;
+  if (Array.isArray(patch.learned)) next.learned = patch.learned;
+  if (patch.dailyRhythmOverride !== undefined) next.dailyRhythmOverride = patch.dailyRhythmOverride;
+  if (Array.isArray(patch.peerRelations)) next.peerRelations = patch.peerRelations;
+  if (Array.isArray(patch.recentQuality)) next.recentQuality = patch.recentQuality;
+  if (patch.memoryStats && typeof patch.memoryStats === 'object') next.memoryStats = patch.memoryStats;
+
+  return ensurePersonaSpec(nextMd ?? currentMd, next);
+}

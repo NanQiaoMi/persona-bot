@@ -30,8 +30,12 @@
 1. **PR 1 (`feat/persona-mind-and-autonomy`) — 人格思考内核、混合自适应思考与建人收口**（已合入 `#70`）
 2. **PR 2 (`feat/temperament-and-emotion-loop`) — PAD 引擎修复、6 原型×3 档脾气与跨渠道情绪闭环**（已合入 `#71`）
 3. **PR 3 (`feat/unified-daily-life-state`) — 专属作息、统一「今日生活与心境板」与轻量群聊关系**（已合入 `#72`）
-4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**（进行中）
+4. **PR 4 (`feat/user-impression-and-relation-stage`) — 4 档关系阶段、隔离「TA 眼中的你」与记忆召回增强**（已合入 `#73`）
    - 新增 `relation-stage.ts`：将 0~100 亲密度映射为「初识边界 / 熟人互损 / 密友偏爱 / 挚交默契」4 档行为指令。
    - 新增 `user-impression.ts` 与 `PersonaSpec.userImpression`：按角色完全隔离沉淀「TA 眼中的你」（专属称呼、主观印象、观察到的习惯/软肋、近期相处感受），接入 `evolution.ts` 自进化与 `PromptAssembler`。
    - 增强 `memory-retrieval.ts`：引入 12 组中文日常同义词簇扩展查询，并融合 `spec.memoryStats`（重要度与召回次数）重排召回结果及预算裁剪优先级。
-5. **PR 5 (`feat/persona-tuning-ui-and-soul-eval`) — 蒸馏深化、性格脾气调音台 UI 与真模型对抗剧本评测**
+5. **PR 5 (`feat/persona-tuning-ui-and-soul-eval`) — 蒸馏深化、性格脾气调音台 UI 与真模型对抗剧本评测**（已完成）
+   - 升级 `prompts.ts` 与 `distiller.ts`：在创建蒸馏源头提取结构化 `traits` / `mind` / `temperament` 与 5 场景示范对话池。
+   - 在 `spec.ts` 实现 `mergePersonaSpecPatch` 修复 `PUT /api/personas/[slug]` 局部更新覆盖 `learned`/`fingerprint`/`memoryStats` 的风险，并新增 `GET/PUT /api/personas/[slug]/daily-life`。
+   - 升级 `RightInspector.tsx` + 新增 `PersonaTuningPanel.tsx`：提供 7 维性格滑块（含 `emotionalStability`）、6 原型与 3 档烈度开关、雷区与哄法标签编辑器、«今日心境»与«TA 眼中的你»查看编辑。
+   - 新增 `live-scenarios.ts`（15 个对抗剧本）与 `eval/persona-live-eval.ts`（`npm run eval:persona:live`）评测脚手架及单元测试。

@@ -4,8 +4,8 @@ import { thumbUrl } from "@/lib/media/thumb-url";
 import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import LineIcon, { type LineIconName } from "@/components/workspace/LineIcon";
+import { resolveRelationStage } from "@/lib/emotion/relation-stage";
 import { PERSONA_MODES } from "@/lib/grok/persona-modes";
-import { heuristicTraits } from "@/lib/persona/traits";
 import {
   PersonaMode,
   PersonaRecord,
@@ -16,6 +16,7 @@ import {
 import BlobMascot, { getMascotConfigForPersona } from "./BlobMascot";
 import GrowthLogPanel from "./GrowthLogPanel";
 import MomentsFeed from "./MomentsFeed";
+import PersonaTuningPanel from "./PersonaTuningPanel";
 import WorldAssetsPanel from "./WorldAssetsPanel";
 
 type LibraryTab = "emotion" | "persona" | "memories" | "growth" | "corrections";
@@ -341,9 +342,14 @@ function RightInspector({
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[var(--text-secondary)]">
-                        亲密度 / 好感度
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[var(--text-secondary)] truncate">
+                          亲密度 / 好感度
+                        </span>
+                        <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-500 text-[10px] font-medium">
+                          {resolveRelationStage(persona.intimacy).label}
+                        </span>
+                      </div>
                       <span className="text-rose-500 font-bold tabular-nums">
                         ♥ {persona.intimacy}%
                       </span>
@@ -481,56 +487,12 @@ function RightInspector({
                   </div>
                 </div>
 
-                {(() => {
-                  const t =
-                    persona.spec?.traits ||
-                    heuristicTraits(persona.personaMd, persona.profile);
-                  const dims = [
-                    { label: "脑洞好奇", value: t.openness },
-                    { label: "自律靠谱", value: t.conscientiousness },
-                    { label: "外向热场", value: t.extraversion },
-                    { label: "温和包容", value: t.agreeableness },
-                    { label: "情绪敏感", value: t.neuroticism },
-                    { label: "好哄程度", value: t.recoveryRate },
-                  ];
-                  return (
-                    <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-[var(--text-primary)]">
-                          性格驱动维度
-                        </span>
-                        <span className="text-[10px] text-[var(--text-muted)]">
-                          {t.source === "llm" ? "模型蒸馏" : "人设推断"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                        {dims.map((d) => {
-                          const pct = Math.round(
-                            Math.max(0, Math.min(1, d.value)) * 100
-                          );
-                          return (
-                            <div key={d.label} className="space-y-1">
-                              <div className="flex justify-between text-[10.5px]">
-                                <span className="text-[var(--text-secondary)]">
-                                  {d.label}
-                                </span>
-                                <span className="tabular-nums text-[var(--text-primary)] font-medium">
-                                  {pct}%
-                                </span>
-                              </div>
-                              <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-[#18a999]/80"
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+                <PersonaTuningPanel
+                  key={persona.slug}
+                  persona={persona}
+                  onRefreshPersona={onRefreshPersona}
+                  onReportGrowth={onReportGrowth}
+                />
 
                 {/* 基础性格：创建时写的一句话，之后可以在这里慢慢改，每次聊天都会带上 */}
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-composer)] border border-[var(--border-subtle)] space-y-2">

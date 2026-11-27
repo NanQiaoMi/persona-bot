@@ -7,15 +7,15 @@ PersonaBot v2.0 采用**纯 TypeScript 全栈内聚架构**，分为四层：
 1. **表现层（Grok 沉浸式三栏工作台）**：
    - 左栏：角色切换列表（内置 Grok 标杆角色 + 用户蒸馏专属角色）、主题切换、设置入口。
    - 中栏：SSE 多阶段流式对话舞台，消息上方展示可折叠的「🌐 联网冲浪轨迹 + 💭 内心潜台词」，底部提供 Grok 胶囊控制栏（Think / DeepSearch / 人格模式 / 传图 / 语音）。
-   - 右栏：角色状态舱（PAD 三维情绪雷达、好感度、五层性格 `persona.md`、共同记忆 `memories.md`、纠偏记录）。
+   - 右栏：角色状态舱（PAD 三维情绪雷达、4 档关系阶段、7 维性格与脾气调音台 `PersonaTuningPanel`、「今日心境」生活板与「TA 眼中的你」编辑、五层性格 `persona.md`、共同记忆 `memories.md`、纠偏记录）。
 2. **大脑编排层（Grok Brain & Emotion Engine）**：
    - `DeepSearch`：免 Key 实时网页/百科检索 + Tavily/Serper 双擎切换。
    - `Persona Modes`：支持 `authentic`（原味复刻）、`fun`（Grok 毒舌 Fun）、`companion`（高共情伴侣）、`analytical`（冷静智囊）4 档尺度。
    - `Emotion Engine`：PAD 三维情感状态机 + 时间差自然衰减 + 主动破冰生成。
    - `Stream Orchestrator`：通过 SSE (`text/event-stream`) 依次流式输出 `search` -> `thought` -> `emotion` -> `reply` -> `done`。
 3. **蒸馏与解析层（Pure-TS Distiller & Parsers）**：
-   - 彻底移除旧版脆弱的 Python 子进程调用，用纯 TS 实现微信/iMessage/通用聊天记录解析与 5 阶段五层人格蒸馏管线。
-   - `PersonaSpec` v2 在兼容 v1 Markdown 的基础上补充 `mind`（思维风格、防御机制、分歧态度、口是心非度、动态 Few-Shot 池）、`temperament`（脾气原型、烈度档位、雷区与哄法）、`baselineTraits` 初始锚点、`dailyRhythmOverride`（专属作息词表覆盖）、`peerRelations`（群聊熟人关系）与按角色隔离的 `userImpression`（「TA 眼中的你」）；对话编排采用「混合自适应思考（日常单次快路径 + 高张力 2.5s 超时轻量二段推演）」、四级 Prompt 优先级仲裁与 4 档关系阶段指令，并通过 `daily-life.json` 在单聊、朋友圈、群聊与主动破冰间共享「今日生活与心境板」，配合同义词簇与 `memoryStats` 重要度重排检索共同记忆。
+   - 彻底移除旧版脆弱的 Python 子进程调用，用纯 TS 实现微信/iMessage/通用聊天记录解析与 5 阶段五层人格蒸馏管线，在线 LLM 蒸馏直出结构化 `traits` / `mind` / `temperament`（带合法枚举与数值兜底）并自动从 5 场景语料抽取 Few-Shot。
+   - `PersonaSpec` v2 在兼容 v1 Markdown 的基础上补充 `mind`（思维风格、防御机制、分歧态度、口是心非度、动态 Few-Shot 池）、`temperament`（脾气原型、烈度档位、雷区与哄法）、`baselineTraits` 初始锚点、`dailyRhythmOverride`（专属作息词表覆盖）、`peerRelations`（群聊熟人关系）与按角色隔离的 `userImpression`（「TA 眼中的你」）；`PUT /api/personas/[slug]` 使用 `mergePersonaSpecPatch` 安全深合并避免覆盖已学习数据；对话编排采用「混合自适应思考（日常单次快路径 + 高张力 2.5s 超时轻量二段推演）」、四级 Prompt 优先级仲裁与 4 档关系阶段指令，并通过 `daily-life.json` 在单聊、朋友圈、群聊与主动破冰间共享「今日生活与心境板」，配合同义词簇与 `memoryStats` 重要度重排检索共同记忆；`eval/persona-live-eval.ts` 提供 15 个真模型/离线对抗剧本评测。
 4. **统一存储仓储层（Unified Storage Repository）**：
    - 以本地结构化文件库（`exes/{slug}/` + `.data/settings.json`）为默认零配置后端，自动初始化 4 款标杆角色并向下兼容已有 `exes/` 数据；当环境变量配置 `MONGODB_URI` 时自动无缝适配 MongoDB。
 
