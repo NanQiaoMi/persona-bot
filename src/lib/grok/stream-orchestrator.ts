@@ -905,13 +905,34 @@ export function filterUnsavedUserTurns<T extends { content: string; timestamp?: 
   );
 }
 
+/**
+ * 只保留属于这个会话自己的历史：页面发来的上下文里，凡是不在这个角色已存聊天记录中的旧消息一律丢掉，
+ * 末尾这轮你刚发的消息（连续的用户消息）总是保留。
+ * 用来兜住「刚切换角色、页面还拿着上一个角色的消息就发出去」这类串台：别的角色的对话进不了这个角色的上下文。
+ */
+export function scopeHistoryToChannel<T extends { role: string; content: string }>(
+  messages: T[],
+  stored: Pick<ConversationMessage, 'role' | 'content'>[]
+): T[] {
+  const norm = (text: string) => (text || '').replace(/\s+/g, ' ').trim();
+  const known = new Set(stored.map((m) => `${m.role}|${norm(m.content)}`));
+  let trailingStart = messages.length;
+  while (trailingStart > 0 && messages[trailingStart - 1].role === 'user') trailingStart -= 1;
+  return messages.filter((m, i) => i >= trailingStart || known.has(`${m.role}|${norm(m.content)}`));
+}
+
 export async function executeGrokChatTurn(
   req: ChatTurnRequest,
   onEvent?: (event: StreamEvent) => void
 ): Promise<ConversationMessage> {
-  const channelPersona =
-    (await storageRepo.getPersona(req.slug)) ||
-    (await storageRepo.getPersona('lu-xi'))!;
+  const channelPersona = await storageRepo.getPersona(req.slug);
+  // 找不到这个角色就直接报错，不再默认换成别的角色来回复（否则会以错误的身份说话）
+  if (!channelPersona) throw new Error(`角色不存在：${req.slug}`);
+  // 单聊：上下文只认这个角色自己存下的聊天记录（群聊传的是群聊记录且不落盘，不做过滤）
+  if (!req.skipPersistence) {
+    const storedForScope = await storageRepo.getConversation(channelPersona.slug, 200);
+    req = { ...req, messages: scopeHistoryToChannel(req.messages, storedForScope) };
+  }
   const mentionedResponder =
     req.mentionedSlug && req.mentionedSlug !== channelPersona.slug
       ? await storageRepo.getPersona(req.mentionedSlug)

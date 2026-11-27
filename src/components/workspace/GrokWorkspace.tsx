@@ -107,6 +107,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleNudgeCountRef = useRef<number>(0);
   const activeSlugRef = useRef(activeSlug);
+  // 已经加载好聊天记录的单聊角色：刚切换、新记录还没到之前不允许发送，防止把上一个角色的消息当上下文发出去
+  const loadedChannelSlugRef = useRef<string | null>(null);
   const streamingRef = useRef(false);
   // 连发合并：发出一条后先等一小会儿，期间再发的消息合并成同一轮让对方一起回
   const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -240,6 +242,12 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     // 切走时不 abort 底层 POST 请求，避免刚发出的消息在到达服务端前被掐断；流读取循环会自行 reader.cancel()
     streamAbortRef.current = null;
     queueMicrotask(() => setStreaming(null));
+    // 切到另一个单聊角色：立刻清空上一个角色的消息，等新角色的记录加载完再显示
+    if (!activeGroupIdRef.current && loadedChannelSlugRef.current !== activeSlug) {
+      queueMicrotask(() => {
+        if (!activeGroupIdRef.current && activeSlugRef.current === activeSlug) setMessages([]);
+      });
+    }
     if (followupTimerRef.current) {
       clearTimeout(followupTimerRef.current);
       followupTimerRef.current = null;
@@ -469,12 +477,19 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         // 群聊里只刷新主 bot 资料，消息列表由群聊自己管理
       } else if (cData.success && Array.isArray(cData.messages)) {
         applyServerMessages(channelKey({ slug }), cData.messages as ConversationMessage[], true);
+        loadedChannelSlugRef.current = slug;
       } else {
         applyServerMessages(channelKey({ slug }), [], true);
+        loadedChannelSlugRef.current = slug;
       }
       void checkMomentsUpdate(slug, { markUnreadIfChanged: false });
     } catch (err) {
       console.error("Failed to load active persona:", err);
+      // 拉取失败时列表是空的（不会带上别人的消息），允许继续发送，避免一直卡住
+      if (activeSlugRef.current === slug) {
+        setMessages([]);
+        loadedChannelSlugRef.current = slug;
+      }
     }
   }, [applyServerMessages, checkMomentsUpdate]);
 
@@ -1151,7 +1166,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
         const data = await res.json();
         if (cancelled || activeGroupIdRef.current !== activeGroupId) return;
         if (!data.success) {
+          // 群不存在了：退回主 bot，并重新加载主 bot 自己的聊天记录（否则会一直不让发送）
+          activeGroupIdRef.current = null;
           setActiveGroupId(null);
+          setMessages([]);
+          void loadActivePersonaDetail(activeSlugRef.current);
           return;
         }
         const groupMessages: ConversationMessage[] = Array.isArray(data.messages)
@@ -1200,6 +1219,11 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     streamSessionIdRef.current += 1;
     activeGroupIdRef.current = null;
     setActiveGroupId(null);
+    if (wasInGroup) {
+      // 从群聊出来：列表里还是群消息，先清空，等这个角色自己的记录加载完再允许发送
+      loadedChannelSlugRef.current = null;
+      setMessages([]);
+    }
     if (slug === activeSlug && wasInGroup) {
       // 从群聊回到同一个角色（群聊挂在主 bot 下，最常见的是回到主 bot）：
       // 角色没变，不会触发切换角色时的「还在生成就继续显示正在输入」，这里要自己接上，
@@ -1223,6 +1247,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
 
   const handleSelectGroup = (groupId: string) => {
     if (activeGroupIdRef.current === groupId) return;
+    loadedChannelSlugRef.current = null;
     flushPendingBurst({ background: true });
     streamSessionIdRef.current += 1;
     activeGroupIdRef.current = groupId;
@@ -1731,6 +1756,8 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
           : "");
     if (!text && !options?.imageUrl) return;
     if (streaming) return;
+    // 刚切换角色、新角色的聊天记录还没加载完：先不发（输入框内容保留），避免带上上一个角色的消息
+    if (!activeGroupIdRef.current && loadedChannelSlugRef.current !== activeSlugRef.current) return;
     // 你一开口：没播完的群友闲聊立刻显示，再发你的话
     flushAmbientPlayback();
     lastUserActivityRef.current = Date.now();
@@ -1792,6 +1819,7 @@ export default function GrokWorkspace({ initialSlug }: GrokWorkspaceProps) {
     options?: { deepSearch?: boolean }
   ) => {
     if (!text.trim() || streaming) return;
+    if (!activeGroupIdRef.current && loadedChannelSlugRef.current !== activeSlugRef.current) return;
     // 快捷入口要求联网时只对这一条生效，不再顺手把联网开关一直打开
     const userMsg: ConversationMessage = {
       id: `msg_${Date.now()}_u`,
