@@ -2,7 +2,7 @@ import { RuntimeSettings, SearchResultItem } from '@/lib/storage/types';
 
 export interface DeepSearchResponse {
   query: string;
-  provider: 'tavily' | 'serper' | 'builtin';
+  provider: 'gateway' | 'tavily' | 'serper' | 'builtin';
   results: SearchResultItem[];
   timestamp: string;
 }
@@ -12,7 +12,7 @@ export interface DeepSearchResponse {
  */
 export function extractSearchQuery(userMessage: string): string {
   const cleaned = userMessage
-    .replace(/^(请问|帮我查一下|搜一下|你知道|聊聊|怎么看|最近|今天)/g, '')
+    .replace(/^(请问|帮我查一下|帮我搜一下|搜一下|查一下|你知道|聊聊|怎么看)/g, '')
     .replace(/[？?！!。，,~～]+$/g, '')
     .trim();
   return cleaned.slice(0, 80) || userMessage.trim().slice(0, 80);
@@ -28,6 +28,122 @@ export function shouldAutoTriggerSearch(userMessage: string): boolean {
     /Grok|OpenAI|DeepSeek|AI|大模型|科技圈|数码|电影|新番/i,
   ];
   return patterns.some((p) => p.test(userMessage));
+}
+
+/** 模型网关联网搜索的超时：网关背后是真实网页搜索，实测 15–30 秒不等 */
+export const GATEWAY_SEARCH_TIMEOUT_MS = 40_000;
+const GATEWAY_CACHE_TTL_MS = 5 * 60_000;
+const GATEWAY_CACHE_MAX = 50;
+const gatewayCache = new Map<string, { at: number; results: SearchResultItem[] }>();
+
+/** 搜索接口地址：优先用设置里填的；没填就用模型网关地址 + /search（如 http://127.0.0.1:8000/v1/search） */
+export function resolveGatewaySearchUrl(settings?: Partial<RuntimeSettings>): string {
+  const explicit = (settings?.searchGatewayUrl || '').trim();
+  if (explicit) return explicit;
+  const base = (settings?.llmBaseUrl || '').trim().replace(/\/+$/, '');
+  return base ? `${base}/search` : '';
+}
+
+/** 去掉网关答案里夹带的界面标记（<box>、<AsyncImage …/> 等）、Markdown 标题 / 表格 / 加粗和多余空白 */
+export function cleanGatewayAnswer(answer: string): string {
+  return String(answer || '')
+    // <Entity value="电影名" …/> 这类标签里装着正文（片名、人名），先把 value 取出来
+    .replace(/<Entity\b[^>]*?\bvalue="([^"]*)"[^>]*>/gi, '$1')
+    .replace(/<[^>]*\/>/g, ' ')
+    .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/^\s*\|?\s*:?-{3,}.*$/gm, '')
+    .replace(/^\s*#{1,6}\s*/gm, '')
+    .replace(/\*\*/g, '')
+    .replace(/^\s*\|\s*|\s*\|\s*$/gm, '')
+    .replace(/\s*\|\s*/g, '：')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function stripTrackingParams(url: string): string {
+  try {
+    const u = new URL(url);
+    for (const key of [...u.searchParams.keys()]) {
+      if (key.startsWith('utm_')) u.searchParams.delete(key);
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+interface GatewaySearchPayload {
+  answer?: string;
+  sources?: Array<{ title?: string; url?: string; snippet?: string }>;
+}
+
+/** 把网关 /v1/search 的返回（answer + sources）整理成搜索结果卡片：第一张是摘要，后面是来源 */
+export function mapGatewaySearchResult(data: GatewaySearchPayload): SearchResultItem[] {
+  const results: SearchResultItem[] = [];
+  const answer = cleanGatewayAnswer(data.answer || '');
+  if (answer) {
+    results.push({ title: '联网搜索摘要', snippet: answer.slice(0, 600), source: '联网搜索' });
+  }
+  for (const src of data.sources || []) {
+    if (!src?.url) continue;
+    const url = stripTrackingParams(src.url);
+    const host = hostOf(url);
+    results.push({
+      title: (src.title || '').trim() || host || url,
+      snippet: (src.snippet || '').trim().slice(0, 220),
+      url,
+      source: host || '网页',
+    });
+    if (results.length >= 6) break;
+  }
+  return results;
+}
+
+async function searchWithGateway(
+  rawInput: string,
+  settings?: Partial<RuntimeSettings>
+): Promise<SearchResultItem[]> {
+  const url = resolveGatewaySearchUrl(settings);
+  if (!url) throw new Error('Gateway search URL not configured');
+  const prompt = rawInput.trim().slice(0, 200);
+  const cacheKey = `${url}|${prompt}`;
+  const cached = gatewayCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < GATEWAY_CACHE_TTL_MS) return cached.results;
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const apiKey = (settings?.llmApiKey || '').trim();
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ prompt }),
+    signal: AbortSignal.timeout(GATEWAY_SEARCH_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`Gateway search status ${res.status}`);
+  const results = mapGatewaySearchResult((await res.json()) as GatewaySearchPayload);
+  if (results.length > 0) {
+    if (gatewayCache.size >= GATEWAY_CACHE_MAX) {
+      const oldest = gatewayCache.keys().next().value;
+      if (oldest !== undefined) gatewayCache.delete(oldest);
+    }
+    gatewayCache.set(cacheKey, { at: Date.now(), results });
+  }
+  return results;
+}
+
+/** 仅供测试：清空网关搜索缓存 */
+export function clearGatewaySearchCache(): void {
+  gatewayCache.clear();
 }
 
 async function searchWithTavily(query: string, apiKey: string): Promise<SearchResultItem[]> {
@@ -131,36 +247,35 @@ async function searchBuiltinFree(query: string): Promise<SearchResultItem[]> {
     }
   }
 
-  // 3. Always ensure at least 2 high-value contextual cards so DeepSearch trace is rich even offline
-  if (results.length === 0) {
-    const nowStr = new Date().toLocaleDateString('zh-CN');
-    results.push(
-      {
-        title: `Grok 实时脉搏 · 「${query}」焦点动态 (${nowStr})`,
-        snippet: `全网针对「${query}」的讨论热度持续上升，核心观点集中在最新技术演进、用户体验反馈以及社交平台上的两极化辣评。`,
-        url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-        source: 'Grok DeepSearch Pulse',
-      },
-      {
-        title: `社交冲浪风向标 · 关于「${query}」的高赞热评`,
-        snippet: `不少网友与业内人士围绕「${query}」展开讨论，既有理性拆解底层逻辑的深度帖，也有大量玩梗吐槽与生活化共鸣。`,
-        url: `https://zh.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(query)}`,
-        source: 'Social Trend Radar',
-      }
-    );
-  }
-
+  // 都没结果就如实返回空：不再编造「热度上升」「网友热评」之类的假结果交给模型
   return results.slice(0, 4);
 }
 
 /**
- * 执行 DeepSearch 联网搜索（支持 Tavily / Serper / 内置免 Key 三级自适应兜底）
+ * 执行 DeepSearch 联网搜索：模型网关搜索 → Tavily → Serper → 维基百科 / DuckDuckGo，逐级兜底；全部失败时返回空结果
  */
 export async function performDeepSearch(
   rawInput: string,
   settings?: Partial<RuntimeSettings>
 ): Promise<DeepSearchResponse> {
   const query = extractSearchQuery(rawInput);
+
+  if (settings?.searchProvider === 'gateway') {
+    try {
+      const results = await searchWithGateway(rawInput, settings);
+      if (results.length > 0) {
+        return {
+          query: rawInput.trim().slice(0, 80),
+          provider: 'gateway',
+          results,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch {
+      // 网关没开、超时或报错：退回下面的方式
+    }
+  }
+
   const tavilyKey = settings?.tavilyApiKey || process.env.TAVILY_API_KEY || '';
   const serperKey = settings?.serperApiKey || process.env.SERPER_API_KEY || '';
 

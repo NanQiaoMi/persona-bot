@@ -67,7 +67,8 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     ? 'tavily'
     : process.env.SERPER_API_KEY
       ? 'serper'
-      : 'builtin',
+      : 'gateway',
+  searchGatewayUrl: process.env.SEARCH_GATEWAY_URL || '',
   tavilyApiKey: '',
   serperApiKey: '',
   defaultThinkMode: true,

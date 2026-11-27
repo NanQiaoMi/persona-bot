@@ -54,16 +54,33 @@ describe('Grok Brain, Modes, DeepSearch, Proactive Engine & Pure-TS Distiller', 
     expect(shouldAutoTriggerSearch('今天热搜有什么大新闻？')).toBe(true);
     expect(shouldAutoTriggerSearch('抱抱我')).toBe(false);
 
-    const searchResp = await performDeepSearch('人工智能最新趋势', {
-      searchProvider: 'builtin',
-    });
-    expect(searchResp.query).toContain('人工智能');
-    expect(searchResp.results.length).toBeGreaterThan(0);
+    // 不走真实网络：固定返回一条维基结果，避免网络快慢导致测试时好时坏
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).includes('zh.wikipedia.org')) {
+          return new Response(
+            JSON.stringify({ query: { search: [{ title: '人工智能', snippet: '<span>人工智能</span>的最新发展' }] } }),
+            { status: 200 }
+          );
+        }
+        throw new Error('offline');
+      })
+    );
+    try {
+      const searchResp = await performDeepSearch('人工智能最新趋势', {
+        searchProvider: 'builtin',
+      });
+      expect(searchResp.query).toContain('人工智能');
+      expect(searchResp.results.length).toBeGreaterThan(0);
+      expect(searchResp.results[0].snippet).toBe('人工智能的最新发展');
 
-    const formatted = formatSearchContextForPrompt(searchResp);
-    expect(formatted).toContain('DeepSearch 实时联网检索结果');
-    // 这条会真的联网检索（维基 / DuckDuckGo），网络慢时会超过默认 5 秒
-  }, 20_000);
+      const formatted = formatSearchContextForPrompt(searchResp);
+      expect(formatted).toContain('DeepSearch 实时联网检索结果');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it('generates time-aware proactive greetings based on hour and idle duration', () => {
     expect(getTimePeriodInfo(2).period).toBe('late_night');
