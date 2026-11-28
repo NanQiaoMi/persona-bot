@@ -26,14 +26,18 @@ interface PersonaTuningPanelProps {
   onReportGrowth?: (notice: string) => void;
 }
 
-const TRAIT_DIM_META: Array<{ key: keyof Omit<PersonaTraitsSpec, "source">; label: string }> = [
-  { key: "openness", label: "脑洞好奇" },
-  { key: "conscientiousness", label: "自律靠谱" },
-  { key: "extraversion", label: "外向热场" },
-  { key: "agreeableness", label: "温和包容" },
-  { key: "neuroticism", label: "情绪敏感" },
-  { key: "emotionalStability", label: "情绪稳度" },
-  { key: "recoveryRate", label: "好哄程度" },
+const TRAIT_DIM_META: Array<{
+  key: keyof Omit<PersonaTraitsSpec, "source">;
+  label: string;
+  short: string;
+}> = [
+  { key: "openness", label: "脑洞好奇", short: "脑洞" },
+  { key: "conscientiousness", label: "自律靠谱", short: "自律" },
+  { key: "extraversion", label: "外向热场", short: "外向" },
+  { key: "agreeableness", label: "温和包容", short: "包容" },
+  { key: "neuroticism", label: "情绪敏感", short: "敏感" },
+  { key: "emotionalStability", label: "情绪稳度", short: "稳度" },
+  { key: "recoveryRate", label: "好哄程度", short: "好哄" },
 ];
 
 const ARCHETYPE_OPTIONS: TemperamentArchetype[] = [
@@ -341,23 +345,34 @@ export default function PersonaTuningPanel({
     Boolean(currentImpression.recentVibe) ||
     currentImpression.observedHabits.length > 0;
 
+  const cognitiveLabel =
+    COGNITIVE_OPTIONS.find((opt) => opt.value === effectiveMind.cognitiveStyle)?.label ||
+    effectiveMind.cognitiveStyle;
+  const defenseLabel =
+    DEFENSE_OPTIONS.find((opt) => opt.value === effectiveMind.defenseStyle)?.label ||
+    effectiveMind.defenseStyle;
+  const disagreementLabel =
+    DISAGREEMENT_OPTIONS.find((opt) => opt.value === effectiveMind.disagreementStyle)?.label ||
+    effectiveMind.disagreementStyle;
+  const subtextPct = Math.round(Math.max(0, Math.min(1, effectiveMind.subtextLevel)) * 100);
+
   return (
     <div className="space-y-3 min-w-0">
-      {/* 卡片 1：性格与脾气调音台 */}
+      {/* 卡片 1：性格与脾气画像（先看整体，按需微调） */}
       <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-1.5">
             <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
-              性格与脾气调音台
+              性格与脾气画像
             </span>
           </div>
           {!editingTuning ? (
             <button
               type="button"
               onClick={openTuningEditor}
-              className="shrink-0 px-2 py-0.5 rounded-full bg-[#18a999]/10 hover:bg-[#18a999]/15 text-[#18a999] text-[10.5px] font-medium transition-interactive focus-ring cursor-pointer"
+              className="shrink-0 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer"
             >
-              调音编辑
+              微调
             </button>
           ) : (
             <button
@@ -368,7 +383,7 @@ export default function PersonaTuningPanel({
               }}
               className="shrink-0 text-[var(--text-muted)] text-[11px] hover:text-[var(--text-primary)] transition-colors duration-150 focus-ring rounded cursor-pointer"
             >
-              收起
+              返回总览
             </button>
           )}
         </div>
@@ -394,27 +409,37 @@ export default function PersonaTuningPanel({
 
         {!editingTuning ? (
           <>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 pt-0.5">
-              {TRAIT_DIM_META.map((d) => {
-                const rawVal = effectiveTraits[d.key] ?? 0.5;
-                const pct = Math.round(Math.max(0, Math.min(1, rawVal)) * 100);
-                return (
-                  <div key={d.key} className="space-y-1 min-w-0">
-                    <div className="flex items-baseline justify-between gap-1 text-[10.5px]">
-                      <span className="text-[var(--text-secondary)] truncate">{d.label}</span>
-                      <span className="tabular-nums text-[var(--text-primary)] font-medium shrink-0">
-                        {pct}%
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#18a999]/85 transition-all duration-300"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            {/* 七维性格雷达图 */}
+            <div className="pt-0.5">
+              <TraitRadarChart traits={effectiveTraits} />
+            </div>
+
+            {/* 思维与防御整体摘要条 */}
+            <div className="pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))] grid grid-cols-2 gap-1.5">
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">思考路径</div>
+                <div className="text-[10.5px] font-medium text-[var(--text-primary)] truncate mt-0.5" title={cognitiveLabel}>
+                  {cognitiveLabel}
+                </div>
+              </div>
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">防御机制</div>
+                <div className="text-[10.5px] font-medium text-[var(--text-primary)] truncate mt-0.5" title={defenseLabel}>
+                  {defenseLabel}
+                </div>
+              </div>
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">分歧态度</div>
+                <div className="text-[10.5px] font-medium text-[var(--text-primary)] truncate mt-0.5" title={disagreementLabel}>
+                  {disagreementLabel}
+                </div>
+              </div>
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">口是心非度</div>
+                <div className="text-[10.5px] font-semibold tabular-nums text-[var(--text-primary)] truncate mt-0.5">
+                  {subtextPct}%
+                </div>
+              </div>
             </div>
 
             {(effectiveTemperament.triggers.length > 0 ||
@@ -789,7 +814,7 @@ export default function PersonaTuningPanel({
                   onClick={handleSaveTuning}
                   className="px-3 py-1 rounded-full bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                 >
-                  {savingTuning ? "保存中..." : "保存调音"}
+                  {savingTuning ? "保存中..." : "保存微调"}
                 </button>
               </div>
             </div>
@@ -1151,6 +1176,141 @@ function TinyCloseIcon() {
       aria-hidden="true"
     >
       <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+function TraitRadarChart({ traits }: { traits: PersonaTraitsSpec }) {
+  const cx = 140;
+  const cy = 104;
+  const maxR = 60;
+  const labelR = 73;
+  const count = TRAIT_DIM_META.length;
+  const rings = [1 / 3, 2 / 3, 1];
+
+  const vertexPoint = (index: number, radius: number) => {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / count;
+    return {
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+      cos: Math.cos(angle),
+      sin: Math.sin(angle),
+    };
+  };
+
+  const ringPath = (scale: number) =>
+    TRAIT_DIM_META.map((_, idx) => {
+      const pt = vertexPoint(idx, maxR * scale);
+      return `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+    }).join(" ");
+
+  const dataCoords = TRAIT_DIM_META.map((dim, idx) => {
+    const raw = traits[dim.key] ?? 0.5;
+    const clamped = Math.max(0, Math.min(1, raw));
+    const pct = Math.round(clamped * 100);
+    const pt = vertexPoint(idx, maxR * clamped);
+    const labelPt = vertexPoint(idx, labelR);
+    let anchor: "start" | "middle" | "end" = "middle";
+    if (labelPt.cos > 0.25) anchor = "start";
+    else if (labelPt.cos < -0.25) anchor = "end";
+    const ly = idx === 0 ? labelPt.y - 4 : labelPt.sin > 0.65 ? labelPt.y + 4 : labelPt.y;
+    return {
+      key: dim.key,
+      short: dim.short,
+      label: dim.label,
+      pct,
+      x: pt.x,
+      y: pt.y,
+      lx: labelPt.x,
+      ly,
+      anchor,
+    };
+  });
+
+  const dataPolygon = dataCoords
+    .map((d) => `${d.x.toFixed(1)},${d.y.toFixed(1)}`)
+    .join(" ");
+
+  return (
+    <svg
+      viewBox="0 0 280 204"
+      role="img"
+      aria-label="七维性格雷达图"
+      className="w-full max-w-[268px] mx-auto block overflow-visible text-[var(--text-secondary)] select-none"
+    >
+      {/* 3 层同心正七边形网格 */}
+      {rings.map((scale, idx) => (
+        <polygon
+          key={scale}
+          points={ringPath(scale)}
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity={idx === rings.length - 1 ? 0.18 : 0.1}
+          strokeWidth={1}
+        />
+      ))}
+
+      {/* 7 条放射轴线 */}
+      {TRAIT_DIM_META.map((dim, idx) => {
+        const end = vertexPoint(idx, maxR);
+        return (
+          <line
+            key={dim.key}
+            x1={cx}
+            y1={cy}
+            x2={end.x.toFixed(1)}
+            y2={end.y.toFixed(1)}
+            stroke="currentColor"
+            strokeOpacity={0.11}
+            strokeWidth={1}
+          />
+        );
+      })}
+
+      {/* 人格轮廓多边形 */}
+      <polygon
+        points={dataPolygon}
+        fill="#18a999"
+        fillOpacity={0.16}
+        stroke="#18a999"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+
+      {/* 7 个顶点圆点与标签 */}
+      {dataCoords.map((d) => (
+        <g key={d.key}>
+          <circle
+            cx={d.x.toFixed(1)}
+            cy={d.y.toFixed(1)}
+            r={2.8}
+            fill="#18a999"
+            stroke="var(--surface-card, #ffffff)"
+            strokeWidth={1.25}
+          >
+            <title>{`${d.label}: ${d.pct}%`}</title>
+          </circle>
+          <text
+            x={d.lx.toFixed(1)}
+            y={d.ly.toFixed(1)}
+            textAnchor={d.anchor}
+            dominantBaseline="central"
+            fontSize="10"
+          >
+            <tspan fill="var(--text-secondary)" fontWeight="500">
+              {d.short}
+            </tspan>
+            <tspan
+              dx="3"
+              fill="var(--text-primary)"
+              fontWeight="600"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {d.pct}%
+            </tspan>
+          </text>
+        </g>
+      ))}
     </svg>
   );
 }
