@@ -36,7 +36,7 @@ function latestSnippet(entry: WorldEntry): string {
 function KindThumb({ entry }: { entry: WorldEntry }) {
   if (entry.imageUrl) {
     return (
-      <div className="w-10 h-10 rounded-lg overflow-hidden border border-[var(--border-strong)] shrink-0">
+      <div className="w-10 h-10 rounded-xl overflow-hidden border border-[var(--border-hairline,var(--border-subtle))] shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={thumbUrl(entry.imageUrl)}
@@ -49,7 +49,7 @@ function KindThumb({ entry }: { entry: WorldEntry }) {
     );
   }
   return (
-    <div className="w-10 h-10 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] flex items-center justify-center text-[18px] shrink-0">
+    <div className="w-10 h-10 rounded-xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-center text-[17px] shrink-0">
       {KIND_META[entry.kind]?.icon ?? "✨"}
     </div>
   );
@@ -174,22 +174,22 @@ export default function WorldAssetsPanel({
   })).filter((group) => group.items.length > 0);
 
   const pendingClass =
-    "py-1 px-2.5 rounded-lg bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[11px] font-medium transition-colors duration-150 cursor-pointer";
+    "py-1 px-2.5 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[10.5px] font-medium transition-interactive focus-ring cursor-pointer";
   const secondaryClass =
-    "py-1 px-2.5 rounded-lg bg-[var(--surface-card,var(--bg-composer))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] font-medium text-[var(--text-primary)] transition-colors duration-150 cursor-pointer disabled:opacity-50";
+    "py-1 px-2.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50";
   const linkClass =
-    "text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer disabled:opacity-50";
+    "text-[#18a999] text-[10.5px] font-medium hover:opacity-80 transition-opacity focus-ring rounded cursor-pointer disabled:opacity-50";
   const inputClass =
-    "w-full px-2.5 py-1.5 rounded-lg bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150";
+    "w-full px-2.5 py-1.5 rounded-xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)] focus-within-ring transition-surface";
 
   return (
-    <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
+    <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5 min-w-0">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+        <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
           🌍 世界设定
         </span>
         {isCurrent && (
-          <span className="text-[10.5px] tabular-nums text-[var(--text-muted)] shrink-0">
+          <span className="px-2 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10px] tabular-nums text-[var(--text-muted)] shrink-0">
             已收录 {confirmed.length} · 待确认 {candidates.length}
           </span>
         )}
@@ -200,28 +200,35 @@ export default function WorldAssetsPanel({
       </p>
 
       {actionError && (
-        <div className="text-[10.5px] text-rose-500 px-1">{actionError}</div>
+        <div className="px-2.5 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20 text-[10.5px] text-rose-500">
+          {actionError}
+        </div>
       )}
 
       {isLoading && (
-        <div className="text-[10.5px] text-[var(--text-muted)] px-1">
-          正在读取世界设定…
+        <div className="space-y-1.5 py-1" aria-label="正在读取世界设定">
+          <div className="h-3 w-3/4 rounded-full bg-black/[0.06] dark:bg-white/[0.08] animate-pulse" />
+          <div className="text-[10.5px] text-[var(--text-muted)]">
+            正在读取世界设定…
+          </div>
         </div>
       )}
 
       {loadError && (
-        <div className="text-[10.5px] text-rose-500 px-1">{loadError}</div>
+        <div className="px-2.5 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20 text-[10.5px] text-rose-500">
+          {loadError}
+        </div>
       )}
 
       {isCurrent && entries.length === 0 && (
-        <div className="p-3 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[10.5px] text-[var(--text-muted)] leading-relaxed">
+        <div className="p-3.5 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[10.5px] text-[var(--text-muted)] leading-relaxed">
           还没有归纳出世界设定；多聊几轮、发几条朋友圈后会自动出现在这里
         </div>
       )}
 
       {candidates.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="text-[11px] font-semibold tracking-[0.02em] text-[var(--text-secondary)]">
+        <div className="space-y-1.5 pt-0.5">
+          <div className="text-[11px] font-semibold tracking-[0.01em] text-[var(--text-secondary)]">
             待确认
           </div>
           {candidates.map((entry) => {
@@ -229,28 +236,28 @@ export default function WorldAssetsPanel({
             return (
               <div
                 key={entry.id}
-                className="p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] space-y-1.5"
+                className="p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2"
               >
                 <div className="flex items-start gap-2 min-w-0">
                   <span className="text-[14px] leading-none mt-0.5 shrink-0">
                     {KIND_META[entry.kind]?.icon ?? "✨"}
                   </span>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-bold text-[11px] text-[var(--text-primary)] truncate">
+                      <span className="font-semibold text-[11.5px] text-[var(--text-primary)] truncate">
                         {entry.name}
                       </span>
-                      <span className="text-[9.5px] text-[var(--text-muted)] shrink-0">
+                      <span className="px-1.5 py-0.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] text-[9.5px] tabular-nums text-[var(--text-muted)] shrink-0">
                         提到 {entry.mentionCount} 次
                       </span>
                     </div>
                     {entry.description && (
-                      <div className="text-[10.5px] text-[var(--text-muted)] truncate">
+                      <div className="text-[10.5px] text-[var(--text-secondary)] truncate">
                         {entry.description}
                       </div>
                     )}
                     {snippet && (
-                      <div className="text-[11px] text-[var(--text-muted)] truncate">
+                      <div className="text-[10.5px] text-[var(--text-muted)] truncate">
                         “{snippet}”
                       </div>
                     )}
@@ -281,20 +288,20 @@ export default function WorldAssetsPanel({
       )}
 
       {confirmedByKind.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-[11px] font-semibold text-[var(--text-primary)]">
+        <div className="space-y-2 pt-0.5">
+          <div className="text-[11px] font-semibold tracking-[0.01em] text-[var(--text-primary)]">
             已收录
           </div>
           {confirmedByKind.map(({ kind, items }) => (
             <div key={kind} className="space-y-1.5">
-              <div className="text-[10px] text-[var(--text-muted)] px-0.5">
+              <div className="text-[10px] font-medium text-[var(--text-muted)] px-0.5">
                 {KIND_META[kind].icon} {KIND_META[kind].label}
               </div>
               {items.map((entry) =>
                 editingId === entry.id ? (
                   <div
                     key={entry.id}
-                    className="p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-1.5"
+                    className="p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] space-y-1.5"
                   >
                     <input
                       type="text"
@@ -310,7 +317,7 @@ export default function WorldAssetsPanel({
                       placeholder="描述（可选）"
                       className={inputClass}
                     />
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                       <button
                         type="button"
                         disabled={busy}
@@ -332,23 +339,23 @@ export default function WorldAssetsPanel({
                 ) : (
                   <div
                     key={entry.id}
-                    className="group flex items-center gap-2.5 p-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] transition-colors duration-150"
+                    className="group flex items-center gap-2.5 p-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] transition-surface"
                   >
                     <KindThumb entry={entry} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-semibold text-[var(--text-primary)] truncate">
+                      <div className="text-[11.5px] font-semibold text-[var(--text-primary)] truncate">
                         {entry.name}
                       </div>
                       {entry.description && (
-                        <div className="text-[10px] text-[var(--text-muted)] line-clamp-2 leading-relaxed">
+                        <div className="text-[10.5px] text-[var(--text-muted)] line-clamp-2 leading-relaxed">
                           {entry.description}
                         </div>
                       )}
-                      <div className="text-[9.5px] text-[var(--text-muted)]">
+                      <div className="text-[9.5px] tabular-nums text-[var(--text-muted)] mt-0.5">
                         提到 {entry.mentionCount} 次
                       </div>
                     </div>
-                    <div className="flex flex-col gap-1 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <div className="flex flex-col gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
                       <button
                         type="button"
                         disabled={busy}
@@ -361,7 +368,7 @@ export default function WorldAssetsPanel({
                         type="button"
                         disabled={busy}
                         onClick={() => remove(entry)}
-                        className="text-rose-500 text-[11px] font-medium hover:underline cursor-pointer disabled:opacity-50"
+                        className="text-rose-500 text-[10.5px] font-medium hover:opacity-80 transition-opacity focus-ring rounded cursor-pointer disabled:opacity-50"
                       >
                         移除
                       </button>
@@ -375,20 +382,36 @@ export default function WorldAssetsPanel({
       )}
 
       {dismissed.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 pt-1 border-t border-[var(--border-hairline,var(--border-subtle))]">
           <button
             type="button"
             onClick={() => setShowIgnored((v) => !v)}
-            className="w-full flex items-center justify-between text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            className="w-full flex items-center justify-between text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors focus-ring rounded cursor-pointer"
           >
-            <span>已忽略 ({dismissed.length})</span>
-            <span>{showIgnored ? "收起" : "展开"}</span>
+            <span className="tabular-nums">已忽略 ({dismissed.length})</span>
+            <span className="inline-flex items-center gap-1 text-[10.5px]">
+              <span>{showIgnored ? "收起" : "展开"}</span>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className={`transition-transform duration-150 ${showIgnored ? "rotate-180" : ""}`}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
           </button>
           {showIgnored &&
             dismissed.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))]"
               >
                 <span className="text-[11px] text-[var(--text-muted)] truncate">
                   {KIND_META[entry.kind]?.icon ?? "✨"} {entry.name}
