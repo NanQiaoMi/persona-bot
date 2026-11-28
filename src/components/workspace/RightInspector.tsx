@@ -191,7 +191,7 @@ function RightInspector({
 
   if (!persona) {
     return (
-      <aside className="w-full sm:w-[312px] shrink-0 border-l border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
+      <aside className="w-full sm:w-[312px] min-w-0 overflow-hidden shrink-0 border-l border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] p-4 flex items-center justify-center text-xs text-[var(--text-muted)]">
         正在加载角色状态舱...
       </aside>
     );
@@ -205,47 +205,61 @@ function RightInspector({
   const mascotCfg = getMascotConfigForPersona(persona.slug, persona.profile);
 
   return (
-    <aside className="w-full sm:w-[312px] shrink-0 border-l border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] flex flex-col h-dvh animate-fade-in">
-      {/* Top Close & Centered Hero Avatar (Screenshot 3 Layout) */}
-      <div className="relative px-4 pt-4 pb-3 flex flex-col items-center">
+    <aside className="w-full sm:w-[312px] min-w-0 overflow-hidden shrink-0 border-l border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-panel,var(--bg-secondary))] flex flex-col h-dvh animate-fade-in">
+      {/* Top Close & Centered Hero Avatar */}
+      <div className="relative px-4 pt-4 pb-3.5 border-b border-[var(--border-hairline,var(--border-subtle))] flex flex-col items-center shrink-0">
         <button
           type="button"
           onClick={onClose}
           aria-label="收起右侧面板"
-          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all duration-150 cursor-pointer"
+          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
           title="收起右侧面板"
         >
-          ✕
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
         </button>
 
         <button
           type="button"
           onClick={onOpenAvatarPicker}
-          className="group flex flex-col items-center cursor-pointer focus:outline-none"
+          className="group flex flex-col items-center cursor-pointer focus-ring rounded-2xl px-2 py-0.5"
           title="点击更换角色形状与颜色"
         >
-          <BlobMascot
-            shape={mascotCfg.shape}
-            color={mascotCfg.color}
-            image={mascotCfg.image}
-            size={56}
-            trackPointer
-            state={isStreaming ? "working" : "idle"}
-          />
-          <h3 className="mt-2.5 text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)] group-hover:opacity-75 transition-opacity">
+          <div className="relative rounded-full p-0.5 transition-transform duration-200 group-hover:scale-[1.03]">
+            <BlobMascot
+              shape={mascotCfg.shape}
+              color={mascotCfg.color}
+              image={mascotCfg.image}
+              size={56}
+              trackPointer
+              state={isStreaming ? "working" : "idle"}
+            />
+          </div>
+          <h3 className="mt-2 text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)] group-hover:opacity-75 transition-opacity max-w-[220px] truncate">
             {persona.name}
           </h3>
         </button>
 
         {/* Segmented Control: 动态 | 资料库 */}
-        <div className="mt-3 inline-flex items-center p-0.5 rounded-full bg-black/[0.045] dark:bg-white/[0.06] border border-[var(--border-hairline,var(--border-subtle))]">
+        <div className="mt-3 inline-flex items-center p-[3px] rounded-full bg-black/[0.045] dark:bg-white/[0.055] border border-[var(--border-hairline,var(--border-subtle))]">
           <button
             type="button"
             onClick={() => {
               setSection("activity");
               onClearUnreadMoments?.();
             }}
-            className={`relative px-3.5 py-1 rounded-full text-[12px] font-medium transition-all duration-150 cursor-pointer ${
+            className={`relative px-4 py-1 rounded-full text-[12px] font-medium transition-interactive focus-ring cursor-pointer ${
               section === "activity"
                 ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -255,14 +269,14 @@ function RightInspector({
             {hasUnreadMoments && section !== "activity" && (
               <span
                 aria-label="有新朋友圈动态"
-                className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[var(--surface-panel,var(--bg-secondary))]"
+                className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--accent-rose,#f43f5e)] ring-2 ring-[var(--surface-panel,var(--bg-secondary))]"
               />
             )}
           </button>
           <button
             type="button"
             onClick={() => setSection("library")}
-            className={`px-3.5 py-1 rounded-full text-[12px] font-medium transition-all duration-150 cursor-pointer ${
+            className={`px-4 py-1 rounded-full text-[12px] font-medium transition-interactive focus-ring cursor-pointer ${
               section === "library"
                 ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -274,7 +288,7 @@ function RightInspector({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-4 pb-5 space-y-4 text-xs">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-3.5 pb-6 space-y-3.5 text-xs">
         {section === "activity" ? (
           <MomentsFeed
             key={persona.slug}
@@ -283,13 +297,13 @@ function RightInspector({
             onFeedLoaded={onMomentsFeedLoaded}
           />
         ) : (
-          <div className="space-y-3.5 animate-fade-in">
+          <div className="space-y-3.5 animate-fade-in min-w-0">
             {/* Sub-tabs inside 资料库 */}
             {/* 窄栏里 5 个四字标签挤在一行：改成「图标 + 两字短名」，完整名字放在悬停提示里 */}
             <div
               role="tablist"
               aria-label="资料库分类"
-              className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))]"
+              className="grid grid-cols-5 gap-1 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.05] border border-[var(--border-hairline,var(--border-subtle))]"
             >
               {LIBRARY_TABS.map((tab) => {
                 const active = libraryTab === tab.id;
@@ -301,61 +315,76 @@ function RightInspector({
                     aria-selected={active}
                     title={tab.label}
                     onClick={() => setLibraryTab(tab.id)}
-                    className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[11px] leading-none font-medium transition-all duration-150 cursor-pointer ${
+                    className={`flex flex-col items-center justify-center gap-1 py-1.5 rounded-[12px] text-[10.5px] leading-none font-medium tracking-[-0.01em] transition-interactive focus-ring cursor-pointer min-w-0 ${
                       active
-                        ? "bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-primary)] grok-active-row"
+                        ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                         : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                     }`}
                   >
-                    <LineIcon name={tab.icon} size={15} />
-                    <span>{tab.short}</span>
+                    <LineIcon name={tab.icon} size={14} />
+                    <span className="truncate">{tab.short}</span>
                   </button>
                 );
               })}
             </div>
 
             {latestGrowthNotice && (
-              <div className="flex items-start justify-between gap-2 p-2.5 rounded-2xl bg-[#18a999]/10 border border-[#18a999]/30 text-[11px] text-[#18a999]">
-                <span className="leading-relaxed">
+              <div className="flex items-start justify-between gap-2 px-3 py-2.5 rounded-2xl bg-[#18a999]/[0.09] border border-[#18a999]/25 text-[11px] text-[#18a999]">
+                <span className="leading-relaxed min-w-0 break-words">
                   ✨ 刚刚成长：{latestGrowthNotice}
                 </span>
                 {onDismissGrowthNotice && (
                   <button
                     type="button"
                     onClick={onDismissGrowthNotice}
-                    className="shrink-0 text-[10px] opacity-75 hover:opacity-100 cursor-pointer"
+                    aria-label="关闭成长提示"
+                    className="shrink-0 w-5 h-5 rounded-full inline-flex items-center justify-center opacity-75 hover:opacity-100 hover:bg-[#18a999]/15 transition-all cursor-pointer"
                   >
-                    ✕
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
                   </button>
                 )}
               </div>
             )}
 
             {libraryTab === "emotion" && (
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-secondary)]">当前心情</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] font-semibold">
+              <div className="space-y-3 min-w-0">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">
+                      当前心情
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] text-[11px] font-semibold truncate max-w-[160px]">
                       {persona.emotionState.moodLabel ||
                         persona.emotionState.primary}
                     </span>
                   </div>
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-[var(--text-secondary)] truncate">
+                        <span className="text-[11.5px] text-[var(--text-secondary)] truncate">
                           亲密度 / 好感度
                         </span>
-                        <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-500 text-[10px] font-medium">
+                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/15 text-rose-500 text-[10px] font-medium">
                           {resolveRelationStage(persona.intimacy).label}
                         </span>
                       </div>
-                      <span className="text-rose-500 font-semibold tabular-nums">
+                      <span className="text-rose-500 text-[11.5px] font-semibold tabular-nums shrink-0">
                         ♥ {persona.intimacy}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-[#18a999] transition-all duration-500"
                         style={{ width: `${persona.intimacy}%` }}
@@ -363,9 +392,9 @@ function RightInspector({
                     </div>
                   </div>
                   {persona.emotionState.sulking && (
-                    <div className="mt-1 p-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20 flex items-center justify-between gap-2">
+                    <div className="mt-1 p-2.5 rounded-xl bg-rose-500/[0.07] border border-rose-500/20 flex items-center justify-between gap-2">
                       <div className="min-w-0 space-y-0.5">
-                        <div className="text-[11px] font-semibold text-rose-500 flex items-center gap-1.5">
+                        <div className="text-[11px] font-semibold text-rose-500 flex items-center gap-1.5 flex-wrap">
                           <span>
                             {persona.emotionState.sulking.level >= 3
                               ? "冷处理中"
@@ -373,7 +402,7 @@ function RightInspector({
                                 ? "有点闹别扭"
                                 : "微微介意"}
                           </span>
-                          <span className="text-[10px] font-normal text-[var(--text-muted)]">
+                          <span className="text-[10px] font-normal tabular-nums text-[var(--text-muted)]">
                             · 约 {persona.emotionState.sulking.remainingTurns} 轮缓和
                           </span>
                         </div>
@@ -400,7 +429,7 @@ function RightInspector({
                             setSaving(false);
                           }
                         }}
-                        className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-primary)] hover:border-rose-400 cursor-pointer disabled:opacity-50"
+                        className="shrink-0 px-2.5 py-1 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-rose-400/60 text-[10.5px] font-medium text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                       >
                         直接翻篇
                       </button>
@@ -408,20 +437,25 @@ function RightInspector({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
-                  <div className="font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-                    PAD 三维情绪状态机
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                      PAD 三维情绪状态机
+                    </span>
+                    <span className="text-[9.5px] font-mono uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                      PAD
+                    </span>
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] mb-1">
                       <span className="text-[var(--text-secondary)]">
                         愉悦度 (Pleasure)
                       </span>
-                      <span className="tabular-nums font-medium">
+                      <span className="tabular-nums font-medium text-[var(--text-primary)]">
                         {pleasurePct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-[var(--accent-teal,#18a999)] transition-all duration-300"
                         style={{ width: `${pleasurePct}%` }}
@@ -433,11 +467,11 @@ function RightInspector({
                       <span className="text-[var(--text-secondary)]">
                         激活度 (Arousal)
                       </span>
-                      <span className="tabular-nums font-medium">
+                      <span className="tabular-nums font-medium text-[var(--text-primary)]">
                         {arousalPct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-sky-500/85 transition-all duration-300"
                         style={{ width: `${arousalPct}%` }}
@@ -449,11 +483,11 @@ function RightInspector({
                       <span className="text-[var(--text-secondary)]">
                         掌控感 (Dominance)
                       </span>
-                      <span className="tabular-nums font-medium">
+                      <span className="tabular-nums font-medium text-[var(--text-primary)]">
                         {dominancePct}%
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-violet-500/85 transition-all duration-300"
                         style={{ width: `${dominancePct}%` }}
@@ -462,25 +496,25 @@ function RightInspector({
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
-                  <div className="font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2">
+                  <div className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
                     人格指纹
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {persona.profile.mbti && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-medium">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] text-[11px] font-medium">
                         {persona.profile.mbti}
                       </span>
                     )}
                     {persona.profile.zodiac && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-purple-500/12 text-purple-600 dark:text-purple-300 font-medium">
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-300 text-[11px] font-medium">
                         {persona.profile.zodiac}
                       </span>
                     )}
                     {persona.profile.personalityTags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-secondary)] border border-[var(--border-hairline,var(--border-subtle))]"
+                        className="px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] text-[var(--text-secondary)] border border-[var(--border-hairline,var(--border-subtle))] text-[11px]"
                       >
                         {tag}
                       </span>
@@ -496,16 +530,16 @@ function RightInspector({
                 />
 
                 {/* 基础性格：创建时写的一句话，之后可以在这里慢慢改，每次聊天都会带上 */}
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-[var(--text-primary)] truncate">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
                       基础性格
                     </span>
                     {editingBasic === null ? (
                       <button
                         type="button"
                         onClick={() => setEditingBasic(persona.profile.basicPersonality || "")}
-                        className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium hover:underline cursor-pointer"
+                        className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium transition-colors focus-ring rounded cursor-pointer"
                       >
                         {persona.profile.basicPersonality ? "修改" : "设定"}
                       </button>
@@ -514,7 +548,7 @@ function RightInspector({
                         <button
                           type="button"
                           onClick={() => setEditingBasic(null)}
-                          className="text-[var(--text-muted)] cursor-pointer"
+                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                         >
                           取消
                         </button>
@@ -533,7 +567,7 @@ function RightInspector({
                             setEditingBasic(null);
                             setSaving(false);
                           }}
-                          className="text-[#18a999] font-semibold cursor-pointer"
+                          className="text-[#18a999] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
                         >
                           保存
                         </button>
@@ -547,10 +581,10 @@ function RightInspector({
                       rows={2}
                       maxLength={120}
                       placeholder="一句话说清 TA 是什么样的人，例如：嘴硬爱撒娇的深夜搭子，吵架从不先低头"
-                      className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] focus:outline-none"
+                      className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
                     />
                   ) : (
-                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed break-words">
                       {persona.profile.basicPersonality ||
                         "还没写基础性格；写一句话，TA 每次聊天都会按这个性格来，更细的可以在「编辑设定」里慢慢补。"}
                     </p>
@@ -558,18 +592,18 @@ function RightInspector({
                 </div>
 
                 {/* Consistent Photo Appearance Anchor Editor */}
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-[var(--text-primary)] truncate">
+                      <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
                         固定外貌与画风锚点
                       </span>
                       {persona.profile.appearanceAnchor && (
                         <span
-                          className={`shrink-0 px-1.5 py-0.5 rounded-md text-[9.5px] font-medium ${
+                          className={`shrink-0 px-2 py-0.5 rounded-full text-[9.5px] font-medium border ${
                             persona.profile.appearanceAnchorLocked
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-300"
-                              : "bg-[#18a999]/12 text-[#18a999]"
+                              ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-300"
+                              : "bg-[#18a999]/10 border-[#18a999]/20 text-[#18a999]"
                           }`}
                         >
                           {persona.profile.appearanceAnchorLocked
@@ -610,7 +644,7 @@ function RightInspector({
                               setAutoGeneratingAnchor(false);
                             }
                           }}
-                          className="text-[#18a999] text-[10.5px] font-medium hover:underline cursor-pointer disabled:opacity-50"
+                          className="text-[#18a999] text-[10.5px] font-medium hover:opacity-80 transition-opacity focus-ring rounded cursor-pointer disabled:opacity-50"
                         >
                           {autoGeneratingAnchor ? "生成中..." : "✨ 自动生成"}
                         </button>
@@ -621,7 +655,7 @@ function RightInspector({
                               persona.profile.appearanceAnchor || ""
                             )
                           }
-                          className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium hover:underline cursor-pointer"
+                          className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium transition-colors focus-ring rounded cursor-pointer"
                         >
                           {persona.profile.appearanceAnchor ? "修改" : "设定"}
                         </button>
@@ -631,7 +665,7 @@ function RightInspector({
                         <button
                           type="button"
                           onClick={() => setEditingAppearance(null)}
-                          className="text-[var(--text-muted)] cursor-pointer"
+                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                         >
                           取消
                         </button>
@@ -651,7 +685,7 @@ function RightInspector({
                             setEditingAppearance(null);
                             setSaving(false);
                           }}
-                          className="text-[#18a999] font-semibold cursor-pointer"
+                          className="text-[#18a999] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
                         >
                           保存
                         </button>
@@ -665,17 +699,17 @@ function RightInspector({
                       onChange={(e) => setEditingAppearance(e.target.value)}
                       rows={3}
                       placeholder="例如：20出头黑长直甜酷少女，常穿卫衣或短裙配长靴，拍照时保持一致外貌特征..."
-                      className="w-full p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11.5px] focus:outline-none"
+                      className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
                     />
                   ) : (
-                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed break-words">
                       {persona.profile.appearanceAnchor ||
                         "未设定固定外貌特征；设定后每次自拍/生图都会自动保持同一人物外貌与画风。"}
                     </p>
                   )}
 
                   {/* Reference Image Identity Lock */}
-                  <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
+                  <div className="pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))] space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-medium text-[var(--text-secondary)]">
                         人物一致性参考图
@@ -691,7 +725,7 @@ function RightInspector({
                               },
                             });
                           }}
-                          className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
+                          className="text-[var(--text-muted)] hover:text-rose-500 transition-colors cursor-pointer"
                         >
                           清除
                         </button>
@@ -699,19 +733,19 @@ function RightInspector({
                     </div>
 
                     {isRefiningReference && (
-                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-[#18a999]/10 border border-[#18a999]/30 text-[11px] text-[#18a999]">
+                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-[#18a999]/[0.09] border border-[#18a999]/25 text-[11px] text-[#18a999]">
                         <span className="inline-block w-2 h-2 rounded-full bg-[#18a999] animate-pulse shrink-0" />
                         <span>✨ 正在提炼标准棚拍参考图…</span>
                       </div>
                     )}
 
                     {persona.profile.referenceImageUrl ? (
-                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))]">
                         <button
                           type="button"
                           onClick={() => setPreviewRefOpen(true)}
                           title="点击放大查看参考图"
-                          className="relative group shrink-0 rounded-lg overflow-hidden border border-[var(--border-strong)] cursor-zoom-in"
+                          className="relative group shrink-0 rounded-xl overflow-hidden border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] transition-surface cursor-zoom-in"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -732,7 +766,7 @@ function RightInspector({
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[10.5px] text-[var(--text-muted)]">
+                      <div className="text-[10.5px] text-[var(--text-muted)] leading-relaxed">
                         尚未锁定参考图；发送首张自拍后会自动提炼标准定妆照，也可手动上传或直接生成：
                       </div>
                     )}
@@ -746,7 +780,7 @@ function RightInspector({
                             persona.profile.referenceImageUrl
                           )
                         }
-                        className="w-full py-1.5 px-2.5 rounded-xl bg-[#18a999]/12 hover:bg-[#18a999]/20 border border-[#18a999]/30 text-[11px] font-medium text-[#18a999] transition-colors cursor-pointer disabled:opacity-50"
+                        className="w-full py-1.5 px-2.5 rounded-xl bg-[#18a999]/10 hover:bg-[#18a999]/16 border border-[#18a999]/25 text-[11px] font-medium text-[#18a999] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                       >
                         {isRefiningReference
                           ? "✨ 正在提炼标准参考图..."
@@ -760,7 +794,7 @@ function RightInspector({
                       type="button"
                       disabled={uploadingRef || isRefiningReference}
                       onClick={() => refImageInputRef.current?.click()}
-                      className="w-full py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                      className="w-full py-1.5 px-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] font-medium text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                     >
                       {uploadingRef
                         ? "正在保存参考图..."
@@ -824,9 +858,9 @@ function RightInspector({
                 <WorldAssetsPanel slug={persona.slug} personaName={persona.name} />
 
                 {/* Scene / Environment Fixed Asset Library */}
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-[var(--text-primary)]">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
                       🏠 固定场景资产库
                     </span>
                     <button
@@ -835,7 +869,7 @@ function RightInspector({
                         setAddAssetOpen((v) => !v);
                         setAssetNotice(null);
                       }}
-                      className="text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer shrink-0"
+                      className="text-[#18a999] text-[11px] font-medium hover:opacity-80 transition-opacity focus-ring rounded cursor-pointer shrink-0"
                     >
                       {addAssetOpen ? "收起" : "+ 新增场景"}
                     </button>
@@ -846,35 +880,51 @@ function RightInspector({
                   </p>
 
                   {addAssetOpen && (
-                    <div className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-2 animate-fade-in">
+                    <div className="p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2 animate-fade-in">
                       <div className="flex gap-1.5">
                         <input
                           type="text"
                           value={newAssetName}
                           onChange={(e) => setNewAssetName(e.target.value)}
                           placeholder="名称（如：我的卧室）"
-                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
                         />
-                        <select
-                          value={newAssetCategory}
-                          onChange={(e) =>
-                            setNewAssetCategory(
-                              e.target.value as SceneAssetCategory
-                            )
-                          }
-                          className="px-2 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none cursor-pointer"
-                        >
-                          <option value="room">房间</option>
-                          <option value="location">地点</option>
-                          <option value="environment">环境</option>
-                        </select>
+                        <div className="relative shrink-0">
+                          <select
+                            value={newAssetCategory}
+                            onChange={(e) =>
+                              setNewAssetCategory(
+                                e.target.value as SceneAssetCategory
+                              )
+                            }
+                            className="appearance-none pl-2.5 pr-6 py-1.5 rounded-xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] text-[11px] text-[var(--text-primary)] transition-surface focus:outline-none cursor-pointer"
+                          >
+                            <option value="room">房间</option>
+                            <option value="location">地点</option>
+                            <option value="environment">环境</option>
+                          </select>
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </div>
                       </div>
                       <input
                         type="text"
                         value={newAssetDesc}
                         onChange={(e) => setNewAssetDesc(e.target.value)}
                         placeholder="补充描述（可选，如：暖黄台灯、原木书桌和落地窗）"
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
                       />
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
@@ -916,7 +966,7 @@ function RightInspector({
                               setCreatingAsset(false);
                             }
                           }}
-                          className="py-1.5 px-2 rounded-lg bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[11px] font-medium cursor-pointer"
+                          className="py-1.5 px-2 rounded-xl bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white text-[11px] font-medium transition-interactive focus-ring cursor-pointer"
                         >
                           {creatingAsset ? "生成中..." : "✨ AI 生成场景图"}
                         </button>
@@ -924,7 +974,7 @@ function RightInspector({
                           type="button"
                           disabled={creatingAsset}
                           onClick={() => assetFileInputRef.current?.click()}
-                          className="py-1.5 px-2 rounded-lg bg-[var(--bg-composer)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] cursor-pointer disabled:opacity-50"
+                          className="py-1.5 px-2 rounded-xl bg-[var(--surface-card,var(--bg-composer))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] font-medium text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                         >
                           📷 上传场景图
                         </button>
@@ -988,13 +1038,13 @@ function RightInspector({
                   )}
 
                   {assetNotice && (
-                    <div className="text-[10.5px] text-rose-500 px-1">
+                    <div className="px-2.5 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20 text-[10.5px] text-rose-500">
                       {assetNotice}
                     </div>
                   )}
 
                   {sceneAssets.length === 0 ? (
-                    <div className="p-3 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[10.5px] text-[var(--text-muted)]">
+                    <div className="p-3.5 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[10.5px] text-[var(--text-muted)] leading-relaxed">
                       暂无固定场景；点上方「+ 新增场景」或点开聊天/朋友圈照片选「🏠 存为场景资产」
                     </div>
                   ) : (
@@ -1002,12 +1052,12 @@ function RightInspector({
                       {sceneAssets.map((asset) => (
                         <div
                           key={asset.id}
-                          className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                          className="flex items-center gap-2.5 p-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] transition-surface"
                         >
                           <button
                             type="button"
                             onClick={() => setPreviewAsset(asset)}
-                            className="w-11 h-11 rounded-lg overflow-hidden border border-[var(--border-strong)] shrink-0 cursor-zoom-in"
+                            className="w-11 h-11 rounded-xl overflow-hidden border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] shrink-0 cursor-zoom-in transition-surface"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -1023,7 +1073,7 @@ function RightInspector({
                               <span className="text-[11px] font-semibold text-[var(--text-primary)] truncate">
                                 {asset.name}
                               </span>
-                              <span className="px-1.5 py-0.2 rounded bg-[var(--bg-composer)] text-[9.5px] text-[var(--text-muted)] shrink-0">
+                              <span className="px-1.5 py-0.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] text-[9.5px] text-[var(--text-muted)] shrink-0">
                                 {asset.category === "room"
                                   ? "房间"
                                   : asset.category === "location"
@@ -1031,7 +1081,7 @@ function RightInspector({
                                     : "环境"}
                               </span>
                             </div>
-                            <div className="text-[10px] text-[var(--text-muted)] truncate">
+                            <div className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">
                               {asset.description}
                             </div>
                           </div>
@@ -1052,9 +1102,22 @@ function RightInspector({
                               }
                             }}
                             title="删除场景资产"
-                            className="text-[var(--text-muted)] hover:text-rose-500 text-[11px] px-1 cursor-pointer shrink-0"
+                            aria-label={`删除场景资产 ${asset.name}`}
+                            className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
                           >
-                            ✕
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
                           </button>
                         </div>
                       ))}
@@ -1065,23 +1128,25 @@ function RightInspector({
             )}
 
             {libraryTab === "persona" && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">五层性格结构 (persona.md)</span>
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-2 px-0.5">
+                  <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
+                    五层性格结构 (persona.md)
+                  </span>
                   {editingPersonaMd === null ? (
                     <button
                       type="button"
                       onClick={() => setEditingPersonaMd(persona.personaMd)}
-                      className="text-[#18a999] font-medium hover:underline cursor-pointer"
+                      className="shrink-0 text-[#18a999] text-[11px] font-medium hover:opacity-80 transition-opacity focus-ring rounded cursor-pointer"
                     >
                       编辑设定
                     </button>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 text-[11px] shrink-0">
                       <button
                         type="button"
                         onClick={() => setEditingPersonaMd(null)}
-                        className="text-[var(--text-muted)] cursor-pointer"
+                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         取消
                       </button>
@@ -1096,7 +1161,7 @@ function RightInspector({
                           setEditingPersonaMd(null);
                           setSaving(false);
                         }}
-                        className="text-[#18a999] font-semibold cursor-pointer"
+                        className="text-[#18a999] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
                       >
                         保存
                       </button>
@@ -1109,10 +1174,10 @@ function RightInspector({
                     value={editingPersonaMd}
                     onChange={(e) => setEditingPersonaMd(e.target.value)}
                     rows={18}
-                    className="w-full p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
+                    className="w-full p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-strong)] text-xs font-mono leading-relaxed text-[var(--text-primary)] focus:outline-none focus-within-ring transition-surface"
                   />
                 ) : (
-                  <pre className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                  <pre className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
                     {persona.personaMd}
                   </pre>
                 )}
@@ -1120,23 +1185,25 @@ function RightInspector({
             )}
 
             {libraryTab === "memories" && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">共同记忆库 (memories.md)</span>
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-2 px-0.5">
+                  <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
+                    共同记忆库 (memories.md)
+                  </span>
                   {editingMemoriesMd === null ? (
                     <button
                       type="button"
                       onClick={() => setEditingMemoriesMd(persona.memoriesMd)}
-                      className="text-[#18a999] font-medium hover:underline cursor-pointer"
+                      className="shrink-0 text-[#18a999] text-[11px] font-medium hover:opacity-80 transition-opacity focus-ring rounded cursor-pointer"
                     >
                       编辑记忆
                     </button>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 text-[11px] shrink-0">
                       <button
                         type="button"
                         onClick={() => setEditingMemoriesMd(null)}
-                        className="text-[var(--text-muted)] cursor-pointer"
+                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         取消
                       </button>
@@ -1151,7 +1218,7 @@ function RightInspector({
                           setEditingMemoriesMd(null);
                           setSaving(false);
                         }}
-                        className="text-[#18a999] font-semibold cursor-pointer"
+                        className="text-[#18a999] font-semibold hover:opacity-80 transition-opacity cursor-pointer"
                       >
                         保存
                       </button>
@@ -1164,21 +1231,21 @@ function RightInspector({
                     value={editingMemoriesMd}
                     onChange={(e) => setEditingMemoriesMd(e.target.value)}
                     rows={16}
-                    className="w-full p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-strong)] text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring-color,rgba(24,169,153,0.22))] transition-all duration-150"
+                    className="w-full p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-strong)] text-xs font-mono leading-relaxed text-[var(--text-primary)] focus:outline-none focus-within-ring transition-surface"
                   />
                 ) : (
-                  <pre className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
+                  <pre className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] whitespace-pre-wrap break-words text-[11.5px] text-[var(--text-secondary)] leading-relaxed font-sans">
                     {persona.memoriesMd}
                   </pre>
                 )}
 
                 {/* Evolution, Snapshots & Soul Bundle Card */}
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[var(--text-primary)]">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
                       ✨ 记忆自进化与灵魂备份
                     </span>
-                    <span className="text-[10.5px] text-[var(--text-muted)]">
+                    <span className="shrink-0 text-[10px] text-[var(--text-muted)]">
                       每 4 轮自省学习
                     </span>
                   </div>
@@ -1217,7 +1284,7 @@ function RightInspector({
                         setEvolving(false);
                       }
                     }}
-                    className="w-full py-2 px-3 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white font-semibold text-xs transition-all cursor-pointer"
+                    className="w-full py-2 px-3 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-50 text-white font-semibold text-xs transition-interactive focus-ring cursor-pointer"
                   >
                     {evolving
                       ? "正在归纳记忆与习惯..."
@@ -1228,7 +1295,7 @@ function RightInspector({
                     <a
                       href={`/api/personas/${encodeURIComponent(persona.slug)}/bundle`}
                       download={`persona-soul-${persona.slug}.json`}
-                      className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-center text-[11px] font-medium text-[var(--text-primary)] transition-colors"
+                      className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-center text-[11px] font-medium text-[var(--text-primary)] transition-interactive focus-ring"
                     >
                       📦 导出灵魂包
                     </a>
@@ -1236,7 +1303,7 @@ function RightInspector({
                       type="button"
                       disabled={importingBundle}
                       onClick={() => bundleFileInputRef.current?.click()}
-                      className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+                      className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] font-medium text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                     >
                       {importingBundle ? "导入中..." : "📥 导入灵魂包"}
                     </button>
@@ -1286,33 +1353,46 @@ function RightInspector({
                   </div>
 
                   {evolutionNotice && (
-                    <div className="px-2.5 py-1.5 rounded-xl bg-[#18a999]/10 border border-[#18a999]/25 text-[11px] text-[#18a999] leading-relaxed">
+                    <div className="px-2.5 py-1.5 rounded-xl bg-[#18a999]/[0.09] border border-[#18a999]/25 text-[11px] text-[#18a999] leading-relaxed">
                       {evolutionNotice}
                     </div>
                   )}
 
                   {/* Snapshot History Rollback */}
-                  <div className="pt-1 border-t border-[var(--border-subtle)]">
+                  <div className="pt-1.5 border-t border-[var(--border-hairline,var(--border-subtle))]">
                     <button
                       type="button"
                       onClick={() => setSnapshotsExpanded((v) => !v)}
-                      className="w-full flex items-center justify-between py-1 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                      className="w-full flex items-center justify-between py-1 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors focus-ring rounded cursor-pointer"
                     >
-                      <span>历史版本快照 ({snapshots.length})</span>
-                      <span>{snapshotsExpanded ? "▲" : "▼"}</span>
+                      <span className="tabular-nums">历史版本快照 ({snapshots.length})</span>
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                        className={`transition-transform duration-150 ${snapshotsExpanded ? "rotate-180" : ""}`}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
                     </button>
 
                     {snapshotsExpanded && (
                       <div className="mt-1.5 space-y-1.5 max-h-52 overflow-y-auto">
                         {snapshots.length === 0 ? (
-                          <div className="p-2.5 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-[11px] text-[var(--text-muted)]">
+                          <div className="p-3 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[11px] text-[var(--text-muted)]">
                             暂无历史快照，整理记忆或导入备份后会自动存档
                           </div>
                         ) : (
                           snapshots.map((snap) => (
                             <div
                               key={snap.id}
-                              className="p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-start justify-between gap-2"
+                              className="p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] flex items-start justify-between gap-2"
                             >
                               <div className="min-w-0 flex-1">
                                 <div className="text-[11px] font-medium text-[var(--text-primary)] truncate">
@@ -1323,7 +1403,7 @@ function RightInspector({
                                     {snap.summary}
                                   </div>
                                 )}
-                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                <div className="text-[10px] text-[var(--text-muted)] tabular-nums mt-0.5">
                                   {new Date(snap.createdAt).toLocaleString(
                                     "zh-CN",
                                     {
@@ -1376,7 +1456,7 @@ function RightInspector({
                                     setRollingBackId(null);
                                   }
                                 }}
-                                className="px-2 py-1 rounded-lg bg-[var(--bg-composer)] border border-[var(--border-subtle)] hover:border-[#18a999] text-[10.5px] font-medium text-[var(--text-primary)] shrink-0 cursor-pointer disabled:opacity-50"
+                                className="px-2.5 py-1 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[#18a999] text-[10.5px] font-medium text-[var(--text-primary)] shrink-0 transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                               >
                                 {rollingBackId === snap.id
                                   ? "回退中..."
@@ -1401,15 +1481,17 @@ function RightInspector({
             )}
 
             {libraryTab === "corrections" && (
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
-                  <div className="font-semibold tracking-[-0.01em]">新增行为纠偏 (OOC Guard)</div>
+              <div className="space-y-3 min-w-0">
+                <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
+                  <div className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+                    新增行为纠偏 (OOC Guard)
+                  </div>
                   <textarea
                     value={newCorrection}
                     onChange={(e) => setNewCorrection(e.target.value)}
                     rows={3}
                     placeholder="例如：她生气时绝不会主动讲道理，只会发个冷笑话或说“随便你”..."
-                    className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-xs focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150"
+                    className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
                   />
                   <button
                     type="button"
@@ -1420,27 +1502,27 @@ function RightInspector({
                       setNewCorrection("");
                       setSaving(false);
                     }}
-                    className="w-full py-2 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-semibold text-xs transition-all duration-150 cursor-pointer"
+                    className="w-full py-2 rounded-full bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white font-semibold text-xs transition-interactive focus-ring cursor-pointer"
                   >
                     写入永久纠偏层
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-[11px] text-[var(--text-muted)] tabular-nums">
+                  <div className="text-[11px] text-[var(--text-muted)] tabular-nums px-0.5">
                     已生效纠偏记录 ({persona.corrections?.length || 0})
                   </div>
                   {!persona.corrections || persona.corrections.length === 0 ? (
-                    <div className="p-4 rounded-2xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[var(--text-muted)]">
+                    <div className="p-4 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[11px] text-[var(--text-muted)] leading-relaxed">
                       暂无纠偏记录，也可以在聊天气泡上右键选「不像 TA」
                     </div>
                   ) : (
                     persona.corrections.map((item) => (
                       <div
                         key={item.id}
-                        className="p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-1"
+                        className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-1"
                       >
-                        <div className="text-[#18a999] font-medium">
+                        <div className="text-[#18a999] text-[12px] font-medium leading-relaxed break-words">
                           ✓ {item.correction}
                         </div>
                         {item.botResponse && (
@@ -1460,25 +1542,39 @@ function RightInspector({
               <button
                 type="button"
                 onClick={() => setAdvancedExpanded((v) => !v)}
-                className="w-full px-3 py-2.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] flex items-center justify-between text-[11.5px] font-medium text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] hover:border-[var(--border-strong)] flex items-center justify-between text-[11.5px] font-medium text-[var(--text-primary)] transition-surface focus-ring cursor-pointer"
               >
                 <span>⚙️ 对话偏好与高级设定</span>
-                <span className="text-[10.5px] text-[var(--text-muted)]">
-                  {advancedExpanded ? "收起 ▲" : "展开 ▼"}
+                <span className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-muted)]">
+                  <span>{advancedExpanded ? "收起" : "展开"}</span>
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    className={`transition-transform duration-150 ${advancedExpanded ? "rotate-180" : ""}`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
                 </span>
               </button>
 
               {advancedExpanded && (
-                <div className="mt-2 p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-3 animate-fade-in">
+                <div className="mt-2 p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-3 animate-fade-in">
                   <div className="grid grid-cols-2 gap-2">
                     {onToggleThink && (
                       <button
                         type="button"
                         onClick={onToggleThink}
-                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-interactive focus-ring cursor-pointer ${
                           thinkMode
-                            ? "border-[#18a999] bg-[#18a999]/10 text-[#18a999]"
-                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                            ? "border-[#18a999]/55 bg-[#18a999]/10 text-[#18a999]"
+                            : "border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                         }`}
                       >
                         <span>✦</span>
@@ -1489,10 +1585,10 @@ function RightInspector({
                       <button
                         type="button"
                         onClick={onToggleDeepSearch}
-                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        className={`px-2.5 py-2 rounded-xl border text-[11px] font-medium flex items-center justify-center gap-1.5 transition-interactive focus-ring cursor-pointer ${
                           deepSearch
-                            ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-300"
-                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                            ? "border-sky-500/55 bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                            : "border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                         }`}
                       >
                         <span>🌐</span>
@@ -1515,14 +1611,14 @@ function RightInspector({
                               key={mKey}
                               type="button"
                               onClick={() => onChangeMode(mKey)}
-                              className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium text-left flex items-center gap-1.5 transition-all cursor-pointer ${
+                              className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium text-left flex items-center gap-1.5 transition-interactive focus-ring cursor-pointer ${
                                 active
-                                  ? "bg-[var(--bg-secondary)] border-[#18a999] text-[var(--text-primary)]"
-                                  : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                  ? "bg-[var(--surface-active,var(--bg-composer))] border-[#18a999]/55 text-[var(--text-primary)] grok-active-row"
+                                  : "border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
                               }`}
                             >
                               <LineIcon name={spec.icon} size={13} />
-                              <span>{spec.shortLabel}</span>
+                              <span className="truncate">{spec.shortLabel}</span>
                             </button>
                           );
                         })}
@@ -1532,7 +1628,7 @@ function RightInspector({
 
                   {/* 这个角色会不会像真人一样主动来找你（有频率上限、避开睡觉时间） */}
                   {!persona.isMaster && persona.slug !== "master-bot" && (
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-[var(--border-hairline,var(--border-subtle))]">
                       <div className="min-w-0">
                         <div className="text-[11.5px] font-medium text-[var(--text-primary)]">
                           允许 TA 主动找我
@@ -1553,7 +1649,7 @@ function RightInspector({
                             },
                           })
                         }
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 focus-ring cursor-pointer ${
                           persona.profile.allowProactive !== false
                             ? "bg-[#18a999]"
                             : "bg-black/15 dark:bg-white/20"
@@ -1569,7 +1665,7 @@ function RightInspector({
                   )}
 
                   {onToggleAutoNudge && (
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-[var(--border-hairline,var(--border-subtle))]">
                       <div className="min-w-0">
                         <div className="text-[11.5px] font-medium text-[var(--text-primary)]">
                           未回复主动追问
@@ -1583,7 +1679,7 @@ function RightInspector({
                         role="switch"
                         aria-checked={autoNudgeEnabled}
                         onClick={onToggleAutoNudge}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 focus-ring cursor-pointer ${
                           autoNudgeEnabled
                             ? "bg-[#18a999]"
                             : "bg-black/15 dark:bg-white/20"
@@ -1598,7 +1694,7 @@ function RightInspector({
                     </div>
                   )}
 
-                  <div className="space-y-1.5 pt-1 border-t border-[var(--border-subtle)]">
+                  <div className="space-y-1.5 pt-2 border-t border-[var(--border-hairline,var(--border-subtle))]">
                     <div className="text-[11px] text-[var(--text-muted)]">
                       主动破冰模拟
                     </div>
@@ -1606,14 +1702,14 @@ function RightInspector({
                       <button
                         type="button"
                         onClick={() => void onTriggerProactive(1)}
-                        className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[11px] text-[var(--text-primary)] transition-all cursor-pointer"
+                        className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-left text-[11px] text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer"
                       >
                         ⚡ 结合当前时段主动找你开口
                       </button>
                       <button
                         type="button"
                         onClick={() => void onTriggerProactive(12)}
-                        className="py-1.5 px-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] text-left text-[11px] text-[var(--text-primary)] transition-all cursor-pointer"
+                        className="py-1.5 px-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] hover:bg-[var(--bg-hover)] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-left text-[11px] text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer"
                       >
                         🌙 模拟冷落 TA 12 小时后的吐槽
                       </button>

@@ -1,7 +1,7 @@
 "use client";
 import { thumbUrl } from "@/lib/media/thumb-url";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import MediaPendingCard from "./MediaPendingCard";
 import type { ConversationMessage, MediaCard } from "@/lib/storage/types";
 import BotCreatedCardView from "./BotCreatedCardView";
@@ -76,7 +76,7 @@ interface GroupMessageRowProps {
 }
 
 const BUBBLE_CLASS =
-  "max-w-[78%] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 break-words";
+  "max-w-[82%] sm:max-w-[78%] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_2px_8px_rgba(0,0,0,0.2)] px-4 py-2.5 break-words";
 
 export function GroupMessageRow({
   msg,
@@ -88,19 +88,32 @@ export function GroupMessageRow({
   onRetryMedia,
   botCreatedExists,
 }: GroupMessageRowProps) {
+  const [copied, setCopied] = useState(false);
   const bot = msg.fromBot;
   const text = msg.content || "";
+
+  const handleCopy = async () => {
+    const clean = text.trim();
+    if (!clean || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(clean);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Ignore clipboard permission errors
+    }
+  };
 
   let body: ReactNode;
   const segments = text.includes("@") ? splitMentions(text, memberNames) : [];
   if (segments.some((seg) => seg.mention)) {
     body = (
-      <div className="whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text-primary)]">
+      <div className="whitespace-pre-wrap text-[14px] leading-[1.6] tracking-[-0.006em] text-[var(--text-primary)]">
         {segments.map((seg, idx) =>
           seg.mention ? (
             <span
               key={idx}
-              className="text-[var(--accent,#1683FF)] font-medium"
+              className="text-[var(--accent-cyan)] font-medium"
             >
               {seg.text}
             </span>
@@ -114,14 +127,14 @@ export function GroupMessageRow({
     body = renderBody(text);
   } else {
     body = (
-      <div className="whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text-primary)]">
+      <div className="whitespace-pre-wrap text-[14px] leading-[1.6] tracking-[-0.006em] text-[var(--text-primary)]">
         {text}
       </div>
     );
   }
 
   return (
-    <div className="flex items-start gap-2 w-full">
+    <div className="group/row flex items-start gap-2.5 w-full">
       <div className="w-9 shrink-0">
         {showHeader && bot && (
           <BlobMascot
@@ -140,7 +153,7 @@ export function GroupMessageRow({
           <button
             type="button"
             onClick={() => onSelectPersona?.(bot.slug)}
-            className="mb-0.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            className="mb-1 text-[11.5px] font-medium tracking-[-0.005em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
             title={`和 ${bot.name} 单聊`}
           >
             {bot.name}
@@ -149,16 +162,42 @@ export function GroupMessageRow({
 
         {/* 只发了表情包时没有文字，不画空气泡 */}
         {(text.trim() || msg.quote) && (
-        <div className={BUBBLE_CLASS}>
-          {msg.quote && (
-            <div
-              className="mb-1.5 max-w-full truncate border-l-2 border-[var(--border-subtle)] pl-2 text-[12px] text-[var(--text-muted)]"
-              title={`「${msg.quote.name}：${msg.quote.text}」`}
-            >
-              {`「${msg.quote.name}：${msg.quote.text}」`}
+        <div className="flex items-end gap-1.5 w-full">
+          <div className={BUBBLE_CLASS}>
+            {msg.quote && (
+              <div
+                className="mb-1.5 max-w-full truncate border-l-2 border-[var(--border-strong)] pl-2.5 text-[12px] text-[var(--text-muted)]"
+                title={`「${msg.quote.name}：${msg.quote.text}」`}
+              >
+                {`「${msg.quote.name}：${msg.quote.text}」`}
+              </div>
+            )}
+            {body}
+          </div>
+          {text.trim() && (
+            <div className="hidden sm:inline-flex items-center p-0.5 rounded-full bg-[var(--surface-card)]/90 backdrop-blur-md border border-[var(--border-hairline)] shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.28)] opacity-0 translate-y-0.5 pointer-events-none group-hover/row:opacity-100 group-hover/row:translate-y-0 group-hover/row:pointer-events-auto focus-within:opacity-100 focus-within:translate-y-0 focus-within:pointer-events-auto transition-all duration-150 shrink-0 mb-0.5">
+              <button
+                type="button"
+                onClick={() => void handleCopy()}
+                title={copied ? "已复制" : "复制消息"}
+                aria-label={copied ? "已复制" : "复制消息"}
+                className={`w-6 h-6 rounded-full flex items-center justify-center hover:bg-[var(--bg-hover)] active:scale-[0.94] transition-interactive cursor-pointer ${
+                  copied ? "text-[var(--accent-teal)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {copied ? (
+                  <svg width="11.5" height="11.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg width="11.5" height="11.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                )}
+              </button>
             </div>
           )}
-          {body}
         </div>
         )}
 
@@ -221,8 +260,8 @@ function GroupMediaCard({
 /** 群聊中的居中灰色系统提示（如「A 拍了拍 B」） */
 export function GroupSystemTip({ text }: { text: string }) {
   return (
-    <div className="flex justify-center my-2">
-      <span className="rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] px-3 py-0.5 text-[11.5px] text-[var(--text-muted)]">
+    <div className="flex justify-center my-2.5">
+      <span className="rounded-full bg-[var(--surface-panel)]/85 border border-[var(--border-hairline)] px-3 py-0.5 text-[11px] tracking-[0.005em] text-[var(--text-muted)]">
         {text}
       </span>
     </div>
@@ -242,7 +281,7 @@ export function GroupTypingRow({
   image?: string;
 }) {
   return (
-    <div className="flex items-start gap-2 w-full">
+    <div className="flex items-start gap-2.5 w-full">
       <div className="w-9 shrink-0">
         <BlobMascot
           shape={(shape as MascotShapeId) || "circle"}
@@ -255,14 +294,14 @@ export function GroupTypingRow({
         />
       </div>
       <div className="flex-1 min-w-0 flex flex-col items-start">
-        <div className="max-w-[78%] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-3">
+        <div className="max-w-[82%] sm:max-w-[78%] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_2px_8px_rgba(0,0,0,0.2)] px-4 py-3">
           <div className="flex items-center gap-1" aria-hidden="true">
             <span className="typing-dot" />
             <span className="typing-dot typing-dot-2" />
             <span className="typing-dot typing-dot-3" />
           </div>
         </div>
-        <span className="mt-1 text-[11px] text-[var(--text-muted)]">
+        <span className="mt-1 text-[11px] tracking-[-0.004em] text-[var(--text-muted)]">
           {`${name} 正在输入…`}
         </span>
       </div>
@@ -273,10 +312,10 @@ export function GroupTypingRow({
 /** 「以下为新消息」分割线 */
 export function NewMessagesDivider() {
   return (
-    <div className="flex items-center gap-3 my-3 w-full">
-      <div className="h-px flex-1 bg-[var(--border-hairline,var(--border-subtle))]" />
-      <span className="text-[11px] text-[var(--accent,#1683FF)]">以下为新消息</span>
-      <div className="h-px flex-1 bg-[var(--border-hairline,var(--border-subtle))]" />
+    <div className="flex items-center gap-3 my-3.5 w-full">
+      <div className="h-px flex-1 bg-[var(--border-hairline)]" />
+      <span className="text-[10.5px] font-medium tracking-[0.02em] text-[var(--accent-cyan)]">以下为新消息</span>
+      <div className="h-px flex-1 bg-[var(--border-hairline)]" />
     </div>
   );
 }

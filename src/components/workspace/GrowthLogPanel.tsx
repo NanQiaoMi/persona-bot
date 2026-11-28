@@ -104,8 +104,18 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
 
   if (loading) {
     return (
-      <div className="p-4 rounded-2xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[11px] text-[var(--text-muted)]">
-        正在翻成长日志...
+      <div className="space-y-3 animate-fade-in">
+        <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] grid grid-cols-3 divide-x divide-[var(--border-hairline,var(--border-subtle))]">
+          {[0, 1, 2].map((idx) => (
+            <div key={idx} className="px-2 flex flex-col items-center gap-1.5">
+              <div className="h-4 w-8 rounded-full bg-black/[0.06] dark:bg-white/[0.08] animate-pulse" />
+              <div className="h-2.5 w-12 rounded-full bg-black/[0.04] dark:bg-white/[0.05] animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="p-4 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] text-center text-[11px] text-[var(--text-muted)]">
+          正在翻成长日志…
+        </div>
       </div>
     );
   }
@@ -117,38 +127,48 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
   }, {});
 
   return (
-    <div className="space-y-3">
-      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grid grid-cols-3 divide-x divide-[var(--border-hairline,var(--border-subtle))] text-center">
-        <div className="px-1">
-          <div className="text-[15px] font-semibold tabular-nums text-[var(--text-primary)]">
+    <div className="space-y-3 min-w-0">
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] grid grid-cols-3 divide-x divide-[var(--border-hairline,var(--border-subtle))] text-center">
+        <div className="px-1 min-w-0">
+          <div className="text-[15px] font-semibold tracking-[-0.02em] tabular-nums text-[var(--text-primary)]">
             {data?.averageQuality ?? "—"}
           </div>
-          <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">最近回复质量</div>
+          <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5 truncate">
+            最近回复质量
+          </div>
         </div>
-        <div className="px-1">
-          <div className="text-[15px] font-semibold tabular-nums text-[var(--text-primary)]">
+        <div className="px-1 min-w-0">
+          <div className="text-[15px] font-semibold tracking-[-0.02em] tabular-nums text-[var(--text-primary)]">
             {counts.active + counts.locked}
           </div>
-          <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">在用的规则</div>
+          <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5 truncate">
+            在用的规则
+          </div>
         </div>
-        <div className="px-1">
-          <div className="text-[15px] font-semibold tabular-nums text-[var(--text-primary)]">{counts.trial}</div>
-          <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">试用中</div>
+        <div className="px-1 min-w-0">
+          <div className="text-[15px] font-semibold tracking-[-0.02em] tabular-nums text-[var(--text-primary)]">
+            {counts.trial}
+          </div>
+          <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5 truncate">
+            试用中
+          </div>
         </div>
       </div>
 
       {data && data.pendingSignals > 0 && (
-        <div className="px-3 py-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] text-[var(--text-secondary)] leading-relaxed">
-          最近收到 {data.pendingSignals} 次不满意的反馈，再聊几句 TA 会复盘一下自己的说话方式
+        <div className="px-3.5 py-2.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] text-[11px] text-[var(--text-secondary)] leading-relaxed">
+          最近收到 <span className="tabular-nums font-medium text-[var(--text-primary)]">{data.pendingSignals}</span> 次不满意的反馈，再聊几句 TA 会复盘一下自己的说话方式
         </div>
       )}
 
       {error && (
-        <div className="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-600 dark:text-rose-400">{error}</div>
+        <div className="px-3 py-2 rounded-xl bg-rose-500/[0.08] border border-rose-500/20 text-[11px] text-rose-600 dark:text-rose-400">
+          {error}
+        </div>
       )}
 
       {learned.length === 0 && (
-        <div className="p-4 rounded-2xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[11px] text-[var(--text-muted)]">
+        <div className="p-4 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-center text-[11px] text-[var(--text-muted)] leading-relaxed">
           还没有学到新东西，多聊几轮或在聊天气泡上右键「不像 TA」
         </div>
       )}
@@ -160,18 +180,40 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
         if (items.length === 0) return null;
         const collapsed = group.status === "retired" && !showRetired;
         return (
-          <div key={group.status} className="space-y-2">
+          <div key={group.status} className="space-y-2 min-w-0">
             <button
               type="button"
               onClick={() => group.status === "retired" && setShowRetired((v) => !v)}
-              className={`w-full flex items-baseline justify-between text-[11px] font-medium tracking-[0.02em] text-[var(--text-muted)] ${
-                group.status === "retired" ? "cursor-pointer hover:text-[var(--text-primary)] transition-colors duration-150" : "cursor-default"
+              className={`w-full flex items-center justify-between gap-2 px-0.5 text-[11px] font-medium tracking-[0.01em] text-[var(--text-muted)] ${
+                group.status === "retired"
+                  ? "cursor-pointer hover:text-[var(--text-primary)] transition-colors duration-150 focus-ring rounded-md"
+                  : "cursor-default"
               }`}
             >
-              <span>
-                {group.title} ({items.length}) · {group.hint}
+              <span className="truncate">
+                <span className="text-[var(--text-secondary)]">{group.title}</span>{" "}
+                <span className="tabular-nums">({items.length})</span>
+                <span className="opacity-75"> · {group.hint}</span>
               </span>
-              {group.status === "retired" && <span>{showRetired ? "收起" : "展开"}</span>}
+              {group.status === "retired" && (
+                <span className="shrink-0 inline-flex items-center gap-1 text-[10.5px]">
+                  <span>{showRetired ? "收起" : "展开"}</span>
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    className={`transition-transform duration-150 ${showRetired ? "rotate-180" : ""}`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </span>
+              )}
             </button>
 
             {!collapsed &&
@@ -181,37 +223,39 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
                 return (
                   <div
                     key={item.id}
-                    className={`p-3 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] transition-colors duration-150 space-y-1.5 ${
-                      item.status === "retired" ? "opacity-60" : ""
+                    className={`p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] hover:border-[var(--border-strong)] transition-surface space-y-2 ${
+                      item.status === "retired" ? "opacity-65" : ""
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--text-muted)]">
-                      <span className="px-1.5 py-0.5 rounded-md bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)]">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-[var(--text-muted)]">
+                      <span className="px-2 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] font-medium">
                         {KIND_LABEL[item.kind]}
                       </span>
                       <span>{SOURCE_LABEL[item.source]}</span>
-                      {item.hitCount > 1 && <span>· 印证 {item.hitCount} 次</span>}
+                      {item.hitCount > 1 && (
+                        <span className="tabular-nums">· 印证 {item.hitCount} 次</span>
+                      )}
                       {item.status === "trial" && (
-                        <span className="ml-auto tabular-nums">
+                        <span className="ml-auto px-2 py-0.5 rounded-full bg-[#18a999]/10 text-[#18a999] font-medium tabular-nums">
                           试用 {item.trialTurns || 0}/{TRIAL_TURNS}
                         </span>
                       )}
                     </div>
 
                     {editing ? (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <textarea
                           value={editText}
                           onChange={(e) => setEditText(e.target.value)}
                           rows={2}
                           autoFocus
-                          className="w-full p-2 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-xs focus:outline-none focus:border-[var(--border-strong)] transition-colors duration-150"
+                          className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-strong)] focus-within-ring transition-surface"
                         />
                         <div className="flex gap-1.5 justify-end">
                           <button
                             type="button"
                             onClick={() => setEditingId(null)}
-                            className="px-2.5 py-1 rounded-full text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-hover)] transition-colors duration-150 cursor-pointer"
+                            className="px-2.5 py-1 rounded-full text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-interactive focus-ring cursor-pointer"
                           >
                             取消
                           </button>
@@ -219,20 +263,22 @@ export default function GrowthLogPanel({ slug, refreshKey, onChanged }: GrowthLo
                             type="button"
                             disabled={busy || editText.trim().length < 2}
                             onClick={() => void act(item.id, "edit", editText)}
-                            className="px-2.5 py-1 rounded-full text-[11px] bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white transition-colors duration-150 cursor-pointer"
+                            className="px-3 py-1 rounded-full text-[11px] font-medium bg-[#18a999] hover:bg-[#149688] disabled:opacity-40 text-white transition-interactive focus-ring cursor-pointer"
                           >
                             保存并锁定
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[12.5px] leading-relaxed text-[var(--text-primary)]">
+                      <div className="text-[12px] leading-[1.6] text-[var(--text-primary)] break-words">
                         {item.text}
                       </div>
                     )}
 
                     {item.status === "retired" && item.retiredReason && (
-                      <div className="text-[10.5px] text-[var(--text-muted)]">撤下原因：{item.retiredReason}</div>
+                      <div className="text-[10.5px] text-[var(--text-muted)] leading-relaxed">
+                        撤下原因：{item.retiredReason}
+                      </div>
                     )}
 
                     {!editing && (
@@ -292,7 +338,7 @@ function ActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="px-2.5 py-1 rounded-full text-[11px] bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors duration-150 cursor-pointer"
+      className="px-2.5 py-1 rounded-full text-[10.5px] font-medium bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:bg-[var(--bg-hover)] hover:border-[var(--border-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-interactive focus-ring cursor-pointer"
     >
       {children}
     </button>

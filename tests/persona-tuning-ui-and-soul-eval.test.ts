@@ -20,6 +20,7 @@ import {
   LIVE_ADVERSARIAL_SCENARIOS,
 } from '@/lib/persona/eval/live-scenarios';
 import { BUILTIN_PRESETS } from '@/lib/persona/presets';
+import { localDayKey } from '@/lib/persona/daily-life';
 import { mergePersonaSpecPatch } from '@/lib/persona/spec';
 import { storageRepo } from '@/lib/storage/repository';
 import type { DailyLifeState, PersonaRecord } from '@/lib/storage/types';
@@ -238,11 +239,11 @@ describe('PR 5 spec 安全深合并与 API 路由验证', () => {
     };
     let storedPersona = fixture;
     let storedDailyLife: DailyLifeState = {
-      dateKey: '2026-11-27',
+      dateKey: localDayKey(),
       mainEvent: '去咖啡店剪片子',
       moodTone: '微风挺舒服',
       recentMoments: [],
-      updatedAt: '2026-11-27T10:00:00.000Z',
+      updatedAt: new Date().toISOString(),
     };
 
     vi.spyOn(storageRepo, 'getPersona').mockImplementation(async (slug) =>

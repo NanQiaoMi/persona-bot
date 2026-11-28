@@ -26,14 +26,18 @@ interface PersonaTuningPanelProps {
   onReportGrowth?: (notice: string) => void;
 }
 
-const TRAIT_DIM_META: Array<{ key: keyof Omit<PersonaTraitsSpec, "source">; label: string }> = [
-  { key: "openness", label: "脑洞好奇" },
-  { key: "conscientiousness", label: "自律靠谱" },
-  { key: "extraversion", label: "外向热场" },
-  { key: "agreeableness", label: "温和包容" },
-  { key: "neuroticism", label: "情绪敏感" },
-  { key: "emotionalStability", label: "情绪稳度" },
-  { key: "recoveryRate", label: "好哄程度" },
+const TRAIT_DIM_META: Array<{
+  key: keyof Omit<PersonaTraitsSpec, "source">;
+  label: string;
+  short: string;
+}> = [
+  { key: "openness", label: "脑洞好奇", short: "脑洞" },
+  { key: "conscientiousness", label: "自律靠谱", short: "自律" },
+  { key: "extraversion", label: "外向热场", short: "外向" },
+  { key: "agreeableness", label: "温和包容", short: "包容" },
+  { key: "neuroticism", label: "情绪敏感", short: "敏感" },
+  { key: "emotionalStability", label: "情绪稳度", short: "稳度" },
+  { key: "recoveryRate", label: "好哄程度", short: "好哄" },
 ];
 
 const ARCHETYPE_OPTIONS: TemperamentArchetype[] = [
@@ -341,23 +345,34 @@ export default function PersonaTuningPanel({
     Boolean(currentImpression.recentVibe) ||
     currentImpression.observedHabits.length > 0;
 
+  const cognitiveLabel =
+    COGNITIVE_OPTIONS.find((opt) => opt.value === effectiveMind.cognitiveStyle)?.label ||
+    effectiveMind.cognitiveStyle;
+  const defenseLabel =
+    DEFENSE_OPTIONS.find((opt) => opt.value === effectiveMind.defenseStyle)?.label ||
+    effectiveMind.defenseStyle;
+  const disagreementLabel =
+    DISAGREEMENT_OPTIONS.find((opt) => opt.value === effectiveMind.disagreementStyle)?.label ||
+    effectiveMind.disagreementStyle;
+  const subtextPct = Math.round(Math.max(0, Math.min(1, effectiveMind.subtextLevel)) * 100);
+
   return (
-    <div className="space-y-3">
-      {/* 卡片 1：性格与脾气调音台 */}
-      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2.5">
+    <div className="space-y-3 min-w-0">
+      {/* 卡片 1：性格与脾气画像（先看整体，按需微调） */}
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-1.5">
-            <span className="font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
-              性格与脾气调音台
+            <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
+              性格与脾气画像
             </span>
           </div>
           {!editingTuning ? (
             <button
               type="button"
               onClick={openTuningEditor}
-              className="shrink-0 text-[#18a999] text-[11px] font-medium hover:underline cursor-pointer"
+              className="shrink-0 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer"
             >
-              调音编辑
+              微调
             </button>
           ) : (
             <button
@@ -366,19 +381,19 @@ export default function PersonaTuningPanel({
                 setEditingTuning(false);
                 setTuningError(null);
               }}
-              className="shrink-0 text-[var(--text-muted)] text-[11px] hover:text-[var(--text-primary)] transition-colors duration-150 cursor-pointer"
+              className="shrink-0 text-[var(--text-muted)] text-[11px] hover:text-[var(--text-primary)] transition-colors duration-150 focus-ring rounded cursor-pointer"
             >
-              收起
+              返回总览
             </button>
           )}
         </div>
 
         {/* 脾气原型 + 烈度档位徽章 */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="px-2 py-0.5 rounded-full bg-amber-500/12 text-amber-600 dark:text-amber-300 text-[10.5px] font-medium">
+          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-300 text-[10.5px] font-medium">
             {archetypeMeta.label}
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] text-[10.5px]">
+          <span className="px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] text-[10.5px]">
             {tierMeta.label}
           </span>
           <span className="ml-auto text-[10px] text-[var(--text-muted)]">
@@ -394,39 +409,49 @@ export default function PersonaTuningPanel({
 
         {!editingTuning ? (
           <>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              {TRAIT_DIM_META.map((d) => {
-                const rawVal = effectiveTraits[d.key] ?? 0.5;
-                const pct = Math.round(Math.max(0, Math.min(1, rawVal)) * 100);
-                return (
-                  <div key={d.key} className="space-y-1 min-w-0">
-                    <div className="flex justify-between text-[10.5px]">
-                      <span className="text-[var(--text-secondary)] truncate">{d.label}</span>
-                      <span className="tabular-nums text-[var(--text-primary)] font-medium">
-                        {pct}%
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[var(--accent-teal,#18a999)]/85 transition-all duration-300"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            {/* 七维性格雷达图 */}
+            <div className="pt-0.5">
+              <TraitRadarChart traits={effectiveTraits} />
+            </div>
+
+            {/* 思维与防御整体摘要条 */}
+            <div className="pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))] grid grid-cols-2 gap-1.5">
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">思考路径</div>
+                <div className="text-[10.5px] font-medium text-[var(--text-primary)] truncate mt-0.5" title={cognitiveLabel}>
+                  {cognitiveLabel}
+                </div>
+              </div>
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">防御机制</div>
+                <div className="text-[10.5px] font-medium text-[var(--text-primary)] truncate mt-0.5" title={defenseLabel}>
+                  {defenseLabel}
+                </div>
+              </div>
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">分歧态度</div>
+                <div className="text-[10.5px] font-medium text-[var(--text-primary)] truncate mt-0.5" title={disagreementLabel}>
+                  {disagreementLabel}
+                </div>
+              </div>
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] min-w-0">
+                <div className="text-[9.5px] text-[var(--text-muted)]">口是心非度</div>
+                <div className="text-[10.5px] font-semibold tabular-nums text-[var(--text-primary)] truncate mt-0.5">
+                  {subtextPct}%
+                </div>
+              </div>
             </div>
 
             {(effectiveTemperament.triggers.length > 0 ||
               effectiveTemperament.coaxMethods.length > 0) && (
-              <div className="pt-2 border-t border-[var(--border-hairline,var(--border-subtle))] space-y-1.5 text-[10.5px]">
+              <div className="pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))] space-y-1.5 text-[10.5px]">
                 {effectiveTemperament.triggers.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[var(--text-muted)] shrink-0">雷区：</span>
+                    <span className="text-[var(--text-muted)] shrink-0">雷区</span>
                     {effectiveTemperament.triggers.slice(0, 4).map((t) => (
                       <span
                         key={t}
-                        className="px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-500 break-all"
+                        className="px-2 py-0.5 rounded-full bg-rose-500/[0.08] border border-rose-500/15 text-rose-600 dark:text-rose-400 break-all"
                       >
                         {t}
                       </span>
@@ -435,11 +460,11 @@ export default function PersonaTuningPanel({
                 )}
                 {effectiveTemperament.coaxMethods.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[var(--text-muted)] shrink-0">哄法：</span>
+                    <span className="text-[var(--text-muted)] shrink-0">哄法</span>
                     {effectiveTemperament.coaxMethods.slice(0, 3).map((c) => (
                       <span
                         key={c}
-                        className="px-1.5 py-0.5 rounded-md bg-[#18a999]/10 text-[#18a999] break-all"
+                        className="px-2 py-0.5 rounded-full bg-[#18a999]/[0.08] border border-[#18a999]/20 text-[#18a999] break-all"
                       >
                         {c}
                       </span>
@@ -450,40 +475,28 @@ export default function PersonaTuningPanel({
             )}
           </>
         ) : (
-          <div className="space-y-3 pt-1 animate-fade-in">
+          <div className="space-y-3.5 pt-1 animate-fade-in">
             {/* 7 维性格滑块 */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {TRAIT_DIM_META.map((d) => {
                 const rawVal = draftTraits[d.key] ?? 0.5;
                 const pct = Math.round(Math.max(0, Math.min(1, rawVal)) * 100);
                 return (
-                  <label key={d.key} className="block space-y-1">
-                    <div className="flex justify-between text-[10.5px]">
-                      <span className="text-[var(--text-secondary)]">{d.label}</span>
-                      <span className="tabular-nums text-[var(--text-primary)] font-medium">
-                        {pct}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={pct}
-                      aria-label={d.label}
-                      onChange={(e) => {
-                        const val = Number((Number(e.target.value) / 100).toFixed(2));
-                        setDraftTraits((prev) => ({ ...prev, [d.key]: val }));
-                      }}
-                      className="w-full h-1.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] accent-[var(--accent-teal,#18a999)] cursor-pointer"
-                    />
-                  </label>
+                  <TuningRangeSlider
+                    key={d.key}
+                    label={d.label}
+                    valuePct={pct}
+                    onChangePct={(nextPct) => {
+                      const val = Number((nextPct / 100).toFixed(2));
+                      setDraftTraits((prev) => ({ ...prev, [d.key]: val }));
+                    }}
+                  />
                 );
               })}
             </div>
 
             {/* 脾气原型选择 */}
-            <div className="space-y-1.5 pt-2 border-t border-[var(--border-hairline,var(--border-subtle))]">
+            <div className="space-y-2 pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))]">
               <div className="text-[11px] font-medium text-[var(--text-secondary)]">
                 脾气原型
               </div>
@@ -497,13 +510,19 @@ export default function PersonaTuningPanel({
                       onClick={() =>
                         setDraftTemperament((prev) => ({ ...prev, archetype: arch }))
                       }
-                      className={`px-2 py-1.5 rounded-xl text-[10.5px] font-medium border transition-colors duration-150 cursor-pointer ${
+                      className={`px-2.5 py-1.5 rounded-xl text-[10.5px] font-medium border flex items-center gap-1.5 text-left transition-interactive focus-ring cursor-pointer min-w-0 ${
                         active
-                          ? "bg-[#18a999]/12 border-[#18a999]/60 text-[#18a999]"
+                          ? "bg-[var(--surface-active,var(--bg-composer))] border-[#18a999]/55 text-[#18a999] grok-active-row"
                           : "bg-[var(--surface-panel,var(--bg-secondary))] border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
                       }`}
                     >
-                      {TEMPERAMENT_ARCHETYPE_META[arch].label}
+                      <span
+                        aria-hidden="true"
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
+                          active ? "bg-[#18a999]" : "bg-[var(--border-strong)]"
+                        }`}
+                      />
+                      <span className="truncate">{TEMPERAMENT_ARCHETYPE_META[arch].label}</span>
                     </button>
                   );
                 })}
@@ -515,7 +534,7 @@ export default function PersonaTuningPanel({
               <div className="text-[11px] font-medium text-[var(--text-secondary)]">
                 脾气烈度档位
               </div>
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))]">
+              <div className="grid grid-cols-3 gap-1 p-[3px] rounded-xl bg-black/[0.04] dark:bg-white/[0.05] border border-[var(--border-hairline,var(--border-subtle))]">
                 {TIER_OPTIONS.map((tier) => {
                   const active = draftTemperament.intensityTier === tier;
                   return (
@@ -525,7 +544,7 @@ export default function PersonaTuningPanel({
                       onClick={() =>
                         setDraftTemperament((prev) => ({ ...prev, intensityTier: tier }))
                       }
-                      className={`py-1 px-1 rounded-lg text-[10.5px] font-medium transition-all duration-150 cursor-pointer truncate ${
+                      className={`py-1.5 px-1 rounded-[9px] text-[10.5px] font-medium transition-interactive focus-ring cursor-pointer truncate ${
                         active
                           ? "bg-[var(--surface-active,var(--bg-composer))] text-[var(--text-primary)] grok-active-row"
                           : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -539,10 +558,10 @@ export default function PersonaTuningPanel({
             </div>
 
             {/* 专属雷区标签编辑器 */}
-            <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle)]">
+            <div className="space-y-2 pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))]">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-medium text-[var(--text-secondary)]">专属雷区</span>
-                <span className="text-[10px] text-[var(--text-muted)]">
+                <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
                   {draftTemperament.triggers.length}/8
                 </span>
               </div>
@@ -551,11 +570,11 @@ export default function PersonaTuningPanel({
                   暂无自定义雷区（例如：敷衍嗯哦、已读不回）
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {draftTemperament.triggers.map((t) => (
                     <span
                       key={t}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/12 text-rose-500 text-[10.5px]"
+                      className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-rose-500/[0.08] border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[10.5px] font-medium"
                     >
                       <span className="break-all">{t}</span>
                       <button
@@ -567,15 +586,15 @@ export default function PersonaTuningPanel({
                             triggers: prev.triggers.filter((item) => item !== t),
                           }))
                         }
-                        className="hover:text-rose-700 cursor-pointer"
+                        className="w-4 h-4 rounded-full inline-flex items-center justify-center hover:bg-rose-500/15 transition-colors cursor-pointer shrink-0"
                       >
-                        ×
+                        <TinyCloseIcon />
                       </button>
                     </span>
                   ))}
                 </div>
               )}
-              <div className="flex gap-1.5">
+              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus-within:border-[var(--border-strong)] focus-within-ring transition-surface">
                 <input
                   type="text"
                   value={newTriggerInput}
@@ -587,12 +606,12 @@ export default function PersonaTuningPanel({
                     }
                   }}
                   placeholder="添加踩雷词（如：随便你）"
-                  className="flex-1 min-w-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                  className="flex-1 min-w-0 bg-transparent px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={addTriggerTag}
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] hover:border-[#18a999] cursor-pointer"
+                  className="shrink-0 px-2.5 py-1 rounded-[9px] bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-primary)] transition-interactive cursor-pointer"
                 >
                   添加
                 </button>
@@ -600,10 +619,10 @@ export default function PersonaTuningPanel({
             </div>
 
             {/* 顺毛哄法标签编辑器 */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-medium text-[var(--text-secondary)]">顺毛哄法</span>
-                <span className="text-[10px] text-[var(--text-muted)]">
+                <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
                   {draftTemperament.coaxMethods.length}/6
                 </span>
               </div>
@@ -612,11 +631,11 @@ export default function PersonaTuningPanel({
                   暂无专属哄法（例如：买杯热美式、认真服软）
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {draftTemperament.coaxMethods.map((c) => (
                     <span
                       key={c}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] text-[10.5px]"
+                      className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[#18a999]/[0.08] border border-[#18a999]/20 text-[#18a999] text-[10.5px] font-medium"
                     >
                       <span className="break-all">{c}</span>
                       <button
@@ -628,15 +647,15 @@ export default function PersonaTuningPanel({
                             coaxMethods: prev.coaxMethods.filter((item) => item !== c),
                           }))
                         }
-                        className="hover:opacity-75 cursor-pointer"
+                        className="w-4 h-4 rounded-full inline-flex items-center justify-center hover:bg-[#18a999]/15 transition-colors cursor-pointer shrink-0"
                       >
-                        ×
+                        <TinyCloseIcon />
                       </button>
                     </span>
                   ))}
                 </div>
               )}
-              <div className="flex gap-1.5">
+              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus-within:border-[var(--border-strong)] focus-within-ring transition-surface">
                 <input
                   type="text"
                   value={newCoaxInput}
@@ -648,12 +667,12 @@ export default function PersonaTuningPanel({
                     }
                   }}
                   placeholder="添加哄法（如：明确偏爱）"
-                  className="flex-1 min-w-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                  className="flex-1 min-w-0 bg-transparent px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={addCoaxTag}
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] hover:border-[#18a999] cursor-pointer"
+                  className="shrink-0 px-2.5 py-1 rounded-[9px] bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-primary)] transition-interactive cursor-pointer"
                 >
                   添加
                 </button>
@@ -661,112 +680,119 @@ export default function PersonaTuningPanel({
             </div>
 
             {/* 可折叠：思维与防御习惯 */}
-            <div className="pt-2 border-t border-[var(--border-subtle)]">
+            <div className="pt-2.5 border-t border-[var(--border-hairline,var(--border-subtle))]">
               <button
                 type="button"
                 onClick={() => setShowMindConfig((v) => !v)}
-                className="w-full flex items-center justify-between text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="w-full flex items-center justify-between text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors focus-ring rounded cursor-pointer"
               >
                 <span>思维方式与口是心非度</span>
-                <span>{showMindConfig ? "收起 ▲" : "展开 ▼"}</span>
+                <span className="inline-flex items-center gap-1 text-[10.5px] text-[var(--text-muted)]">
+                  <span>{showMindConfig ? "收起" : "展开"}</span>
+                  <TinyChevronIcon rotated={showMindConfig} />
+                </span>
               </button>
               {showMindConfig && (
-                <div className="mt-2 space-y-2">
+                <div className="mt-2.5 space-y-2.5 animate-fade-in">
                   <label className="block space-y-1">
                     <span className="text-[10.5px] text-[var(--text-muted)]">思考路径</span>
-                    <select
-                      value={draftMind.cognitiveStyle}
-                      onChange={(e) =>
-                        setDraftMind((prev) => ({
-                          ...prev,
-                          cognitiveStyle: e.target.value as CognitiveStyle,
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none cursor-pointer"
-                    >
-                      {COGNITIVE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={draftMind.cognitiveStyle}
+                        onChange={(e) =>
+                          setDraftMind((prev) => ({
+                            ...prev,
+                            cognitiveStyle: e.target.value as CognitiveStyle,
+                          }))
+                        }
+                        className="w-full appearance-none pl-2.5 pr-7 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] text-[11px] text-[var(--text-primary)] transition-surface focus:outline-none cursor-pointer"
+                      >
+                        {COGNITIVE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                        <TinyChevronIcon />
+                      </span>
+                    </div>
                   </label>
                   <label className="block space-y-1">
                     <span className="text-[10.5px] text-[var(--text-muted)]">防御机制</span>
-                    <select
-                      value={draftMind.defenseStyle}
-                      onChange={(e) =>
-                        setDraftMind((prev) => ({
-                          ...prev,
-                          defenseStyle: e.target.value as DefenseStyle,
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none cursor-pointer"
-                    >
-                      {DEFENSE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={draftMind.defenseStyle}
+                        onChange={(e) =>
+                          setDraftMind((prev) => ({
+                            ...prev,
+                            defenseStyle: e.target.value as DefenseStyle,
+                          }))
+                        }
+                        className="w-full appearance-none pl-2.5 pr-7 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] text-[11px] text-[var(--text-primary)] transition-surface focus:outline-none cursor-pointer"
+                      >
+                        {DEFENSE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                        <TinyChevronIcon />
+                      </span>
+                    </div>
                   </label>
                   <label className="block space-y-1">
                     <span className="text-[10.5px] text-[var(--text-muted)]">意见分歧时</span>
-                    <select
-                      value={draftMind.disagreementStyle}
-                      onChange={(e) =>
-                        setDraftMind((prev) => ({
-                          ...prev,
-                          disagreementStyle: e.target.value as DisagreementStyle,
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none cursor-pointer"
-                    >
-                      {DISAGREEMENT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block space-y-1">
-                    <div className="flex justify-between text-[10.5px]">
-                      <span className="text-[var(--text-muted)]">口是心非 / 保留度</span>
-                      <span className="tabular-nums text-[var(--text-primary)] font-medium">
-                        {Math.round(draftMind.subtextLevel * 100)}%
+                    <div className="relative">
+                      <select
+                        value={draftMind.disagreementStyle}
+                        onChange={(e) =>
+                          setDraftMind((prev) => ({
+                            ...prev,
+                            disagreementStyle: e.target.value as DisagreementStyle,
+                          }))
+                        }
+                        className="w-full appearance-none pl-2.5 pr-7 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] text-[11px] text-[var(--text-primary)] transition-surface focus:outline-none cursor-pointer"
+                      >
+                        {DISAGREEMENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                        <TinyChevronIcon />
                       </span>
                     </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={Math.round(draftMind.subtextLevel * 100)}
-                      onChange={(e) =>
-                        setDraftMind((prev) => ({
-                          ...prev,
-                          subtextLevel: Number((Number(e.target.value) / 100).toFixed(2)),
-                        }))
-                      }
-                      className="w-full h-1.5 accent-[#18a999] cursor-pointer"
-                    />
                   </label>
+                  <TuningRangeSlider
+                    label="口是心非 / 保留度"
+                    mutedLabel
+                    valuePct={Math.round(draftMind.subtextLevel * 100)}
+                    onChangePct={(nextPct) =>
+                      setDraftMind((prev) => ({
+                        ...prev,
+                        subtextLevel: Number((nextPct / 100).toFixed(2)),
+                      }))
+                    }
+                  />
                 </div>
               )}
             </div>
 
             {tuningError && (
-              <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10.5px]">
+              <div className="p-2.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20 text-rose-500 text-[10.5px]">
                 {tuningError}
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border-hairline,var(--border-subtle))]">
               <button
                 type="button"
                 disabled={savingTuning}
                 onClick={resetTuningDefaults}
-                className="text-[10.5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer disabled:opacity-50"
+                className="text-[10.5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors focus-ring rounded cursor-pointer disabled:opacity-50"
               >
                 恢复默认
               </button>
@@ -778,7 +804,7 @@ export default function PersonaTuningPanel({
                     setEditingTuning(false);
                     setTuningError(null);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                 >
                   取消
                 </button>
@@ -786,9 +812,9 @@ export default function PersonaTuningPanel({
                   type="button"
                   disabled={savingTuning}
                   onClick={handleSaveTuning}
-                  className="px-3 py-1 rounded-lg bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium cursor-pointer disabled:opacity-50"
+                  className="px-3 py-1 rounded-full bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium transition-interactive focus-ring cursor-pointer disabled:opacity-50"
                 >
-                  {savingTuning ? "保存中..." : "保存调音"}
+                  {savingTuning ? "保存中..." : "保存微调"}
                 </button>
               </div>
             </div>
@@ -797,14 +823,14 @@ export default function PersonaTuningPanel({
       </div>
 
       {/* 卡片 2：今日心境（跨场景生活板） */}
-      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold text-[var(--text-primary)] truncate">
+            <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
               今日心境
             </span>
             {dailyLife?.dateKey && (
-              <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">
+              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[9.5px] text-[var(--text-muted)] tabular-nums">
                 {dailyLife.dateKey}
               </span>
             )}
@@ -818,7 +844,7 @@ export default function PersonaTuningPanel({
                 setDailySaveError(null);
                 setEditingDaily(true);
               }}
-              className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium hover:underline cursor-pointer"
+              className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium transition-colors focus-ring rounded cursor-pointer"
             >
               修改
             </button>
@@ -826,12 +852,16 @@ export default function PersonaTuningPanel({
         </div>
 
         {dailyLoading ? (
-          <div className="py-2 text-[11px] text-[var(--text-muted)]">
-            正在读取今日生活与心境…
+          <div className="space-y-2 py-1" aria-label="正在读取今日生活与心境">
+            <div className="h-3 w-4/5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] animate-pulse" />
+            <div className="h-3 w-3/5 rounded-full bg-black/[0.04] dark:bg-white/[0.05] animate-pulse" />
+            <div className="text-[10.5px] text-[var(--text-muted)] pt-0.5">
+              正在读取今日生活与心境…
+            </div>
           </div>
         ) : dailyError ? (
-          <div className="p-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20 flex items-center justify-between gap-2">
-            <span className="text-[10.5px] text-rose-500">{dailyError}</span>
+          <div className="p-2.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20 flex items-center justify-between gap-2">
+            <span className="text-[10.5px] text-rose-500 leading-relaxed">{dailyError}</span>
             <button
               type="button"
               onClick={() => {
@@ -839,13 +869,13 @@ export default function PersonaTuningPanel({
                 setDailyError(null);
                 setDailyReloadTick((t) => t + 1);
               }}
-              className="shrink-0 px-2 py-0.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-primary)] cursor-pointer"
+              className="shrink-0 px-2.5 py-1 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-primary)] transition-interactive focus-ring cursor-pointer"
             >
               重试
             </button>
           </div>
         ) : editingDaily ? (
-          <div className="space-y-2 animate-fade-in">
+          <div className="space-y-2.5 animate-fade-in">
             <label className="block space-y-1">
               <span className="text-[10.5px] text-[var(--text-muted)]">今日生活主线</span>
               <textarea
@@ -853,7 +883,7 @@ export default function PersonaTuningPanel({
                 onChange={(e) => setDraftMainEvent(e.target.value)}
                 rows={2}
                 maxLength={160}
-                className="w-full p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] transition-surface focus:outline-none"
               />
             </label>
             <label className="block space-y-1">
@@ -863,7 +893,7 @@ export default function PersonaTuningPanel({
                 value={draftMoodTone}
                 onChange={(e) => setDraftMoodTone(e.target.value)}
                 maxLength={80}
-                className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] transition-surface focus:outline-none"
               />
             </label>
             {dailySaveError && (
@@ -877,7 +907,7 @@ export default function PersonaTuningPanel({
                   setEditingDaily(false);
                   setDailySaveError(null);
                 }}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] cursor-pointer disabled:opacity-50"
+                className="px-2.5 py-1 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
               >
                 取消
               </button>
@@ -885,46 +915,46 @@ export default function PersonaTuningPanel({
                 type="button"
                 disabled={savingDaily}
                 onClick={handleSaveDailyLife}
-                className="px-3 py-1 rounded-lg bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium cursor-pointer disabled:opacity-50"
+                className="px-3 py-1 rounded-full bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium transition-interactive focus-ring cursor-pointer disabled:opacity-50"
               >
                 {savingDaily ? "保存中..." : "保存"}
               </button>
             </div>
           </div>
         ) : dailyLife ? (
-          <div className="space-y-1.5 text-[11px]">
-            <div className="text-[var(--text-primary)] leading-relaxed break-words">
+          <div className="space-y-2 text-[11px]">
+            <div className="text-[12px] text-[var(--text-primary)] leading-[1.6] break-words">
               {dailyLife.mainEvent}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-full bg-[#18a999]/10 text-[#18a999] font-medium">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] text-[10.5px] font-medium">
                 {dailyLife.moodTone}
               </span>
               {dailyLife.recentMoments.length > 0 && (
-                <span className="text-[10px] text-[var(--text-muted)]">
+                <span className="text-[10px] text-[var(--text-muted)] tabular-nums">
                   · 已联动 {dailyLife.recentMoments.length} 条近期动态
                 </span>
               )}
             </div>
           </div>
         ) : (
-          <div className="text-[11px] text-[var(--text-muted)]">
+          <div className="p-3 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-[11px] text-[var(--text-muted)] leading-relaxed">
             今日生活板尚未生成，发起一条对话或刷新即可自动创建。
           </div>
         )}
       </div>
 
       {/* 卡片 3：TA 眼中的你（分角色隔离印象） */}
-      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] space-y-2">
+      <div className="p-3.5 rounded-2xl bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] shadow-[var(--active-row-shadow)] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-semibold text-[var(--text-primary)] truncate">
+          <span className="text-[12px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] truncate">
             TA 眼中的你
           </span>
           {!editingImpression && (
             <button
               type="button"
               onClick={openImpressionEditor}
-              className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium hover:underline cursor-pointer"
+              className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-medium transition-colors focus-ring rounded cursor-pointer"
             >
               {hasImpressionContent ? "修改" : "设定"}
             </button>
@@ -932,7 +962,7 @@ export default function PersonaTuningPanel({
         </div>
 
         {editingImpression ? (
-          <div className="space-y-2 animate-fade-in">
+          <div className="space-y-2.5 animate-fade-in">
             <label className="block space-y-1">
               <span className="text-[10.5px] text-[var(--text-muted)]">对你的专属称呼</span>
               <input
@@ -941,7 +971,7 @@ export default function PersonaTuningPanel({
                 onChange={(e) => setDraftNickname(e.target.value)}
                 maxLength={12}
                 placeholder="例如：小橘、搭档"
-                className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
               />
             </label>
             <label className="block space-y-1">
@@ -952,7 +982,7 @@ export default function PersonaTuningPanel({
                 rows={2}
                 maxLength={100}
                 placeholder="TA 眼里你是什么样的人"
-                className="w-full p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                className="w-full p-2.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
               />
             </label>
             <label className="block space-y-1">
@@ -963,20 +993,20 @@ export default function PersonaTuningPanel({
                 onChange={(e) => setDraftRecentVibe(e.target.value)}
                 maxLength={60}
                 placeholder="例如：最近总互相吐槽但其实很信任"
-                className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus:border-[var(--border-strong)] focus-within-ring text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-surface focus:outline-none"
               />
             </label>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between text-[10.5px] text-[var(--text-muted)]">
                 <span>观察到的习惯/偏好</span>
-                <span>{draftHabits.length}/6</span>
+                <span className="tabular-nums">{draftHabits.length}/6</span>
               </div>
               {draftHabits.length > 0 && (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {draftHabits.map((h) => (
                     <span
                       key={h}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-primary)]"
+                      className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-primary)]"
                     >
                       <span className="break-all">{h}</span>
                       <button
@@ -985,15 +1015,15 @@ export default function PersonaTuningPanel({
                         onClick={() =>
                           setDraftHabits((prev) => prev.filter((item) => item !== h))
                         }
-                        className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
+                        className="w-4 h-4 rounded-full inline-flex items-center justify-center text-[var(--text-muted)] hover:text-rose-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
                       >
-                        ×
+                        <TinyCloseIcon />
                       </button>
                     </span>
                   ))}
                 </div>
               )}
-              <div className="flex gap-1.5">
+              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] focus-within:border-[var(--border-strong)] focus-within-ring transition-surface">
                 <input
                   type="text"
                   value={newHabitInput}
@@ -1005,12 +1035,12 @@ export default function PersonaTuningPanel({
                     }
                   }}
                   placeholder="新增习惯（如：爱喝冰美式）"
-                  className="flex-1 min-w-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] focus:outline-none"
+                  className="flex-1 min-w-0 bg-transparent px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={addHabitTag}
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] cursor-pointer"
+                  className="shrink-0 px-2.5 py-1 rounded-[9px] bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[10.5px] font-medium text-[var(--text-primary)] transition-interactive cursor-pointer"
                 >
                   添加
                 </button>
@@ -1027,7 +1057,7 @@ export default function PersonaTuningPanel({
                   setEditingImpression(false);
                   setImpressionError(null);
                 }}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-secondary)] cursor-pointer disabled:opacity-50"
+                className="px-2.5 py-1 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] hover:border-[var(--border-strong)] text-[11px] text-[var(--text-secondary)] transition-interactive focus-ring cursor-pointer disabled:opacity-50"
               >
                 取消
               </button>
@@ -1035,38 +1065,38 @@ export default function PersonaTuningPanel({
                 type="button"
                 disabled={savingImpression}
                 onClick={handleSaveImpression}
-                className="px-3 py-1 rounded-lg bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium cursor-pointer disabled:opacity-50"
+                className="px-3 py-1 rounded-full bg-[#18a999] hover:bg-[#149688] text-white text-[11px] font-medium transition-interactive focus-ring cursor-pointer disabled:opacity-50"
               >
                 {savingImpression ? "保存中..." : "保存"}
               </button>
             </div>
           </div>
         ) : hasImpressionContent ? (
-          <div className="space-y-1.5 text-[11px]">
+          <div className="space-y-2 text-[11px]">
             {currentImpression.nickname && (
               <div className="flex items-center gap-1.5">
-                <span className="text-[var(--text-muted)]">称呼：</span>
-                <span className="px-2 py-0.5 rounded-full bg-[#18a999]/12 text-[#18a999] font-medium">
+                <span className="text-[var(--text-muted)]">称呼</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#18a999]/10 border border-[#18a999]/20 text-[#18a999] text-[10.5px] font-medium">
                   {currentImpression.nickname}
                 </span>
               </div>
             )}
             {currentImpression.summary && (
-              <p className="text-[var(--text-primary)] leading-relaxed break-words">
+              <p className="text-[12px] text-[var(--text-primary)] leading-[1.6] break-words">
                 {currentImpression.summary}
               </p>
             )}
             {currentImpression.recentVibe && (
-              <p className="text-[10.5px] text-[var(--text-secondary)]">
+              <div className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-secondary)] leading-relaxed break-words">
                 最近感觉：{currentImpression.recentVibe}
-              </p>
+              </div>
             )}
             {currentImpression.observedHabits.length > 0 && (
-              <div className="flex flex-wrap gap-1 pt-0.5">
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
                 {currentImpression.observedHabits.map((h) => (
                   <span
                     key={h}
-                    className="px-2 py-0.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-secondary)] break-all"
+                    className="px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-secondary)] break-all"
                   >
                     {h}
                   </span>
@@ -1075,11 +1105,231 @@ export default function PersonaTuningPanel({
             )}
           </div>
         ) : (
-          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+          <div className="p-3 rounded-xl border border-dashed border-[var(--border-hairline,var(--border-subtle))] text-[11px] text-[var(--text-muted)] leading-relaxed">
             多聊几轮后，{persona.name} 会只在这边悄悄记下对你的专属称呼和习惯；也可以点「设定」先写几条。
-          </p>
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+function TuningRangeSlider({
+  label,
+  valuePct,
+  onChangePct,
+  mutedLabel = false,
+}: {
+  label: string;
+  valuePct: number;
+  onChangePct: (pct: number) => void;
+  mutedLabel?: boolean;
+}) {
+  return (
+    <label className="block space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-[10.5px]">
+        <span className={mutedLabel ? "text-[var(--text-muted)]" : "text-[var(--text-secondary)]"}>
+          {label}
+        </span>
+        <span className="tabular-nums text-[var(--text-primary)] font-medium">
+          {valuePct}%
+        </span>
+      </div>
+      <div className="relative h-5 flex items-center select-none group">
+        <div className="w-full h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#18a999] transition-[width] duration-75"
+            style={{ width: `${valuePct}%` }}
+          />
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white dark:bg-[#f4f4f6] shadow-[0_1px_3px_rgba(0,0,0,0.28),0_0_0_1px_rgba(0,0,0,0.08)] transition-transform duration-150 group-hover:scale-110 group-focus-within:scale-110 group-focus-within:ring-2 group-focus-within:ring-[var(--focus-ring-color)]"
+          style={{ left: `calc(${valuePct}% - ${(valuePct / 100) * 14}px)` }}
+        />
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={valuePct}
+          aria-label={label}
+          onChange={(e) => onChangePct(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0"
+        />
+      </div>
+    </label>
+  );
+}
+
+function TinyCloseIcon() {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+function TraitRadarChart({ traits }: { traits: PersonaTraitsSpec }) {
+  const cx = 140;
+  const cy = 104;
+  const maxR = 60;
+  const labelR = 73;
+  const count = TRAIT_DIM_META.length;
+  const rings = [1 / 3, 2 / 3, 1];
+
+  const vertexPoint = (index: number, radius: number) => {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / count;
+    return {
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+      cos: Math.cos(angle),
+      sin: Math.sin(angle),
+    };
+  };
+
+  const ringPath = (scale: number) =>
+    TRAIT_DIM_META.map((_, idx) => {
+      const pt = vertexPoint(idx, maxR * scale);
+      return `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+    }).join(" ");
+
+  const dataCoords = TRAIT_DIM_META.map((dim, idx) => {
+    const raw = traits[dim.key] ?? 0.5;
+    const clamped = Math.max(0, Math.min(1, raw));
+    const pct = Math.round(clamped * 100);
+    const pt = vertexPoint(idx, maxR * clamped);
+    const labelPt = vertexPoint(idx, labelR);
+    let anchor: "start" | "middle" | "end" = "middle";
+    if (labelPt.cos > 0.25) anchor = "start";
+    else if (labelPt.cos < -0.25) anchor = "end";
+    const ly = idx === 0 ? labelPt.y - 4 : labelPt.sin > 0.65 ? labelPt.y + 4 : labelPt.y;
+    return {
+      key: dim.key,
+      short: dim.short,
+      label: dim.label,
+      pct,
+      x: pt.x,
+      y: pt.y,
+      lx: labelPt.x,
+      ly,
+      anchor,
+    };
+  });
+
+  const dataPolygon = dataCoords
+    .map((d) => `${d.x.toFixed(1)},${d.y.toFixed(1)}`)
+    .join(" ");
+
+  return (
+    <svg
+      viewBox="0 0 280 204"
+      role="img"
+      aria-label="七维性格雷达图"
+      className="w-full max-w-[268px] mx-auto block overflow-visible text-[var(--text-secondary)] select-none"
+    >
+      {/* 3 层同心正七边形网格 */}
+      {rings.map((scale, idx) => (
+        <polygon
+          key={scale}
+          points={ringPath(scale)}
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity={idx === rings.length - 1 ? 0.18 : 0.1}
+          strokeWidth={1}
+        />
+      ))}
+
+      {/* 7 条放射轴线 */}
+      {TRAIT_DIM_META.map((dim, idx) => {
+        const end = vertexPoint(idx, maxR);
+        return (
+          <line
+            key={dim.key}
+            x1={cx}
+            y1={cy}
+            x2={end.x.toFixed(1)}
+            y2={end.y.toFixed(1)}
+            stroke="currentColor"
+            strokeOpacity={0.11}
+            strokeWidth={1}
+          />
+        );
+      })}
+
+      {/* 人格轮廓多边形 */}
+      <polygon
+        points={dataPolygon}
+        fill="#18a999"
+        fillOpacity={0.16}
+        stroke="#18a999"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+
+      {/* 7 个顶点圆点与标签 */}
+      {dataCoords.map((d) => (
+        <g key={d.key}>
+          <circle
+            cx={d.x.toFixed(1)}
+            cy={d.y.toFixed(1)}
+            r={2.8}
+            fill="#18a999"
+            stroke="var(--surface-card, #ffffff)"
+            strokeWidth={1.25}
+          >
+            <title>{`${d.label}: ${d.pct}%`}</title>
+          </circle>
+          <text
+            x={d.lx.toFixed(1)}
+            y={d.ly.toFixed(1)}
+            textAnchor={d.anchor}
+            dominantBaseline="central"
+            fontSize="10"
+          >
+            <tspan fill="var(--text-secondary)" fontWeight="500">
+              {d.short}
+            </tspan>
+            <tspan
+              dx="3"
+              fill="var(--text-primary)"
+              fontWeight="600"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {d.pct}%
+            </tspan>
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function TinyChevronIcon({ rotated = false }: { rotated?: boolean }) {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`transition-transform duration-150 ${rotated ? "rotate-180" : ""}`}
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
   );
 }

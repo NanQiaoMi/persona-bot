@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { PERSONA_MODES } from "@/lib/grok/persona-modes";
-import { stripEmoji } from "@/lib/text/emoji";
+import { Fragment, useEffect, useRef, useState } from "react";
 import LineIcon from "./LineIcon";
 import {
   ConversationMessage,
@@ -288,7 +286,6 @@ export default function ChatStage({
     const name = streaming?.statusText?.match(/^(.+?)\s*正在输入/)?.[1]?.trim();
     return name ? groupMembers.find((p) => p.name === name) || null : null;
   })();
-  const modeSpec = PERSONA_MODES[activeMode] || PERSONA_MODES.authentic;
 
   return (
     <div
@@ -316,16 +313,30 @@ export default function ChatStage({
         }}
       />
       {/* Frosted Floating Header */}
-      <header className="relative z-20 px-4 md:px-6 pt-3 pb-2.5 flex items-center justify-between grok-glass-header pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2 min-w-[84px]">
+      <header className="relative z-20 px-4 md:px-6 h-[54px] flex items-center justify-between gap-2 bg-[var(--bg-primary)]/78 backdrop-blur-xl backdrop-saturate-150 hairline-b transition-surface pointer-events-none">
+        <div className="pointer-events-auto flex-1 min-w-0 flex items-center gap-1.5">
           {!sidebarOpen && (
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="w-8 h-8 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill flex items-center justify-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer"
+              className="w-8 h-8 rounded-full bg-[var(--surface-card)]/90 border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_8px_rgba(0,0,0,0.28)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-card-hover)] hover:border-[var(--border-strong)] active:scale-[0.96] transition-interactive focus-ring cursor-pointer shrink-0"
               title="展开侧边栏"
+              aria-label="展开侧边栏"
             >
-              ◧
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                <path d="M9.5 4.5v15" />
+              </svg>
             </button>
           )}
           {messages.length > 0 && (
@@ -348,10 +359,10 @@ export default function ChatStage({
                 setConfirmClear(false);
                 onClearHistory();
               }}
-              className={`h-8 px-3.5 rounded-full border grok-floating-pill text-[11.5px] font-medium transition-surface focus-ring cursor-pointer ${
+              className={`h-8 px-3 rounded-full border shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_2px_8px_rgba(0,0,0,0.24)] text-[11.5px] font-medium tracking-[-0.008em] active:scale-[0.97] transition-interactive focus-ring cursor-pointer whitespace-nowrap shrink-0 ${
                 confirmClear
-                  ? "bg-rose-500/12 border-rose-500/40 text-rose-500"
-                  : "bg-[var(--surface-card,var(--bg-composer))] border-[var(--border-hairline,var(--border-subtle))] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
+                  ? "bg-rose-500/10 border-rose-500/35 text-rose-500 dark:text-rose-400"
+                  : "bg-[var(--surface-card)]/90 border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-card-hover)] hover:border-[var(--border-strong)]"
               }`}
               title={confirmClear ? "再次点击确认清空当前对话" : "清空当前对话"}
             >
@@ -362,22 +373,35 @@ export default function ChatStage({
 
         {/* Center Floating Pill with Living BlobMascot（群聊时显示群名与成员） */}
         {activeGroup ? (
-          <div className="pointer-events-auto inline-flex items-center gap-2 h-9 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill">
+          <div className="pointer-events-auto shrink-0 max-w-[54vw] sm:max-w-[320px] inline-flex items-center gap-2 h-9 px-3 rounded-full bg-[var(--surface-card)]/92 border border-[var(--border-hairline)] shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_10px_rgba(0,0,0,0.3)] transition-surface">
             <button
               type="button"
               onClick={onExitGroup}
-              className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] px-1 transition-surface focus-ring rounded-full cursor-pointer"
+              className="w-5 h-5 -ml-1 inline-flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-interactive focus-ring rounded-full cursor-pointer shrink-0"
               title="返回主 bot"
               aria-label="返回主 bot"
             >
-              ‹
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
             </button>
-            <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text-primary)] max-w-[180px] truncate">
+            <span className="text-[13px] font-semibold tracking-[-0.015em] text-[var(--text-primary)] truncate">
               {activeGroup.name}
             </span>
-            <span className="type-mono-num text-[11px] text-[var(--text-muted)]">
+            <span aria-hidden="true" className="w-px h-3 bg-[var(--border-hairline)] shrink-0" />
+            <span className="type-mono-num text-[11px] font-medium tracking-[-0.005em] text-[var(--text-muted)] shrink-0">
               {streaming ? (
-                <span className="animate-text-shimmer font-medium">
+                <span className="animate-text-shimmer">
                   {streaming.statusText || "群里有人在输入..."}
                 </span>
               ) : (
@@ -389,40 +413,59 @@ export default function ChatStage({
         <button
           type="button"
           onClick={onToggleInspector}
-          className="pointer-events-auto inline-flex items-center gap-2.5 h-9 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill hover:border-[var(--border-strong)] active:scale-[0.985] transition-interactive focus-ring cursor-pointer"
+          className="pointer-events-auto shrink-0 max-w-[54vw] sm:max-w-[320px] inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-full bg-[var(--surface-card)]/92 border border-[var(--border-hairline)] shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_10px_rgba(0,0,0,0.3)] hover:bg-[var(--surface-card-hover)] hover:border-[var(--border-strong)] active:scale-[0.985] transition-interactive focus-ring cursor-pointer"
           title="点击滑出/收起角色灵魂状态舱"
         >
           <BlobMascot
             shape={mascotCfg.shape}
             color={mascotCfg.color}
             image={mascotCfg.image}
-            size={22}
+            size={21}
             trackPointer
             state={streaming ? "working" : "idle"}
           />
-          <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
+          <span className="text-[13px] font-semibold tracking-[-0.015em] text-[var(--text-primary)] truncate">
             {persona.name}
           </span>
-          <span className="type-mono-num text-[11px] text-[var(--text-muted)]">
+          <span aria-hidden="true" className="w-px h-3 bg-[var(--border-hairline)] shrink-0" />
+          <span className="type-mono-num text-[11px] font-medium tracking-[-0.005em] text-[var(--text-muted)] shrink-0">
             {showInspector ? (
-              "✕"
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
             ) : streaming ? (
-              <span className="animate-text-shimmer font-medium">
+              <span className="animate-text-shimmer">
                 对方正在输入...
               </span>
             ) : (
-              `♥ ${persona.intimacy}%`
+              <span className="inline-flex items-center gap-1 text-[var(--text-secondary)]">
+                <span className="text-[10px] text-[var(--accent-rose)]/85" aria-hidden="true">♥</span>
+                <span>{persona.intimacy}%</span>
+              </span>
             )}
           </span>
         </button>
         )}
 
         {/* Right Floating Share Pill */}
-        <div className="pointer-events-auto flex items-center justify-end gap-2 min-w-[84px]">
+        <div className="pointer-events-auto flex-1 min-w-0 flex items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={handleShare}
-            className="h-8 px-3.5 rounded-full bg-[var(--surface-card,var(--bg-composer))] border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill text-[11.5px] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.97] transition-interactive focus-ring cursor-pointer"
+            className={`h-8 px-3 rounded-full border shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_2px_8px_rgba(0,0,0,0.24)] text-[11.5px] font-medium tracking-[-0.008em] active:scale-[0.97] transition-interactive focus-ring cursor-pointer whitespace-nowrap shrink-0 ${
+              sharedToast
+                ? "bg-[var(--accent-teal)]/10 border-[var(--accent-teal)]/35 text-[var(--accent-teal)]"
+                : "bg-[var(--surface-card)]/90 border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-card-hover)] hover:border-[var(--border-strong)]"
+            }`}
           >
             {sharedToast ? "已复制 ✓" : "分享"}
           </button>
@@ -438,60 +481,36 @@ export default function ChatStage({
         <div className="max-w-[740px] mx-auto">
           {messages.length === 0 && !streaming ? (
             /* Pure Flat Apple-Grade Empty State with Click-to-Customize Living Mascot */
-            <div className="pt-12 pb-10 flex flex-col items-center text-center space-y-7 animate-fade-in">
-              <button
-                type="button"
-                onClick={onOpenAvatarPicker}
-                className="group/hero relative flex flex-col items-center justify-center focus-ring rounded-2xl p-1 cursor-pointer"
-                title="点击更换角色形状与颜色"
-              >
-                <div className="animate-float-gentle">
-                  <BlobMascot
-                    shape={mascotCfg.shape}
-                    color={mascotCfg.color}
-                    image={mascotCfg.image}
-                    size={84}
-                    trackPointer
-                  />
-                </div>
-                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[10.5px] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity">
-                  点击定制形状与颜色
-                </span>
-              </button>
+            <div className="pt-16 sm:pt-20 pb-10 flex flex-col items-center text-center gap-8 animate-fade-in">
+              <div className="flex flex-col items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={onOpenAvatarPicker}
+                  className="group/hero relative flex flex-col items-center justify-center focus-ring rounded-2xl p-1 cursor-pointer"
+                  title="点击更换角色形状与颜色"
+                >
+                  <div className="animate-float-gentle">
+                    <BlobMascot
+                      shape={mascotCfg.shape}
+                      color={mascotCfg.color}
+                      image={mascotCfg.image}
+                      size={84}
+                      trackPointer
+                    />
+                  </div>
+                  <span className="mt-2 px-2.5 py-0.5 rounded-full bg-[var(--surface-panel)]/90 backdrop-blur-md border border-[var(--border-hairline)] text-[10.5px] tracking-[-0.004em] text-[var(--text-muted)] opacity-0 group-hover/hero:opacity-100 transition-opacity duration-150">
+                    点击定制形状与颜色
+                  </span>
+                </button>
 
-              <div className="flex flex-col items-center gap-3 max-w-lg">
-                <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+                <h2 className="text-[22px] font-semibold tracking-[-0.025em] leading-tight text-[var(--text-primary)]">
                   {persona.name}
                 </h2>
-                <p className="max-w-md text-[13.5px] leading-[1.65] text-[var(--text-secondary)]">
-                  {persona.profile.bio ||
-                    "支持 DeepSearch 实时联网生成结构化页面、Think 内心潜台词与多档人格模式。"}
-                </p>
-                {/* 模式 / 亲密度 / 此刻心情：三个独立的小标签 */}
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
-                  {[
-                    { icon: modeSpec.icon, label: modeSpec.shortLabel },
-                    { icon: "heart" as const, label: `亲密度 ${persona.intimacy}%` },
-                    {
-                      icon: "pulse" as const,
-                      label:
-                        stripEmoji(persona.emotionState.moodLabel || "") || "在线",
-                    },
-                  ].map((stat) => (
-                    <span
-                      key={stat.label}
-                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[var(--surface-panel,var(--bg-secondary))] border border-[var(--border-hairline,var(--border-subtle))] text-[11.5px] text-[var(--text-secondary)] type-mono-num"
-                    >
-                      <LineIcon name={stat.icon} size={13} className="text-[var(--text-muted)]" />
-                      <span className="max-w-[12em] truncate">{stat.label}</span>
-                    </span>
-                  ))}
-                </div>
               </div>
 
-              {/* 一键开聊：Linear / Raycast 极简细线列表 */}
+              {/* 一键开聊：无卡片浮动细线列表 */}
               <div
-                className="w-full max-w-[540px] rounded-2xl border border-[var(--border-hairline,var(--border-subtle))] bg-[var(--surface-card,var(--bg-composer))] grok-floating-card overflow-hidden divide-y divide-[var(--border-hairline,var(--border-subtle))]"
+                className="w-full max-w-[440px] pt-1"
                 style={{ ["--row-accent" as string]: rowAccentColor }}
               >
                 {(persona.isMaster || persona.slug === "master-bot"
@@ -555,48 +574,55 @@ export default function ChatStage({
                         enableSearch: false,
                       },
                     ] as const)
-                ).map((chip) => (
-                  <button
-                    key={chip.title}
-                    type="button"
-                    onClick={() =>
-                      onQuickSend(chip.text, { deepSearch: chip.enableSearch })
-                    }
-                    className="w-full px-4 py-3 flex items-center gap-3.5 text-left transition-surface hover:bg-[var(--surface-panel,var(--bg-secondary))] focus-ring group/chip cursor-pointer"
-                  >
-                    <LineIcon
-                      name={chip.icon}
-                      size={16}
-                      className="shrink-0 text-[var(--text-muted)] group-hover/chip:text-[var(--row-accent)] transition-colors"
-                    />
-                    <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2.5">
-                      <span className="text-[13px] font-medium text-[var(--text-primary)] shrink-0">
-                        {chip.title}
-                      </span>
-                      <span className="text-[12px] text-[var(--text-muted)] truncate">
-                        {chip.sub}
-                      </span>
-                    </span>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      className="shrink-0 text-[var(--text-muted)] opacity-0 -translate-x-1 group-hover/chip:opacity-100 group-hover/chip:translate-x-0 transition-all"
+                ).map((chip, idx) => (
+                  <Fragment key={chip.title}>
+                    {idx > 0 && (
+                      <div
+                        aria-hidden="true"
+                        className="mx-3.5 h-px bg-[var(--border-hairline)] opacity-70"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onQuickSend(chip.text, { deepSearch: chip.enableSearch })
+                      }
+                      className="group/chip w-full px-3.5 py-2.5 rounded-xl flex items-center gap-3 text-left transition-interactive hover:bg-[var(--bg-hover)] active:scale-[0.995] focus-ring cursor-pointer"
                     >
-                      <path d="M5 12h14M13 6l6 6-6 6" />
-                    </svg>
-                  </button>
+                      <LineIcon
+                        name={chip.icon}
+                        size={15}
+                        className="shrink-0 text-[var(--text-muted)] opacity-75 group-hover/chip:opacity-100 group-hover/chip:text-[var(--row-accent)] transition-colors duration-150"
+                      />
+                      <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                        <span className="text-[13px] font-medium tracking-[-0.012em] text-[var(--text-primary)] shrink-0">
+                          {chip.title}
+                        </span>
+                        <span className="text-[12px] tracking-[-0.004em] text-[var(--text-muted)] truncate opacity-85 group-hover/chip:opacity-100 group-hover/chip:text-[var(--text-secondary)] transition-all duration-150">
+                          {chip.sub}
+                        </span>
+                      </span>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                        className="shrink-0 text-[var(--text-muted)] opacity-25 group-hover/chip:opacity-80 group-hover/chip:translate-x-0.5 transition-all duration-150"
+                      >
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </button>
+                  </Fragment>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4 pt-3">
               <ChatMessageList
                 messages={messages}
                 persona={persona}
@@ -625,7 +651,7 @@ export default function ChatStage({
               {/* 切走期间还在生成的回复：切回来后继续显示正在输入 */}
               {!streaming && !(activeGroup && groupTypingMember) && backgroundTypingName && (
                 <div className="flex items-start animate-msg-ai">
-                  <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline,var(--border-subtle))] animate-fade-in">
+                  <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_2px_8px_rgba(0,0,0,0.2)] animate-fade-in">
                     <div className="flex items-center gap-1" aria-hidden="true">
                       <span className="typing-dot" />
                       <span className="typing-dot typing-dot-2" />
@@ -669,7 +695,9 @@ export default function ChatStage({
                       ).map((bText, bIdx, arr) => (
                         <div
                           key={bIdx}
-                          className="max-w-[85%] sm:max-w-[580px] rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] px-4 py-2.5 animate-msg-ai"
+                          className={`max-w-[85%] sm:max-w-[580px] rounded-[20px] ${
+                            bIdx === 0 ? "rounded-tl-[6px]" : "rounded-tl-[10px]"
+                          } bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_2px_8px_rgba(0,0,0,0.2)] px-4 py-2.5 animate-msg-ai`}
                         >
                           <GrokMessageBody
                             content={bText}
@@ -678,7 +706,7 @@ export default function ChatStage({
                         </div>
                       ))}
                       {streaming.statusText && (
-                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline,var(--border-subtle))] animate-fade-in">
+                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] animate-fade-in">
                           <BlobMascot
                             shape={mascotCfg.shape}
                             color={mascotCfg.color}
@@ -699,7 +727,7 @@ export default function ChatStage({
                       )}
                     </div>
                   ) : (
-                    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline,var(--border-subtle))] animate-fade-in">
+                    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[20px] rounded-tl-[6px] bg-[var(--bg-bubble-ai)] border border-[var(--border-hairline)] shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_2px_8px_rgba(0,0,0,0.2)] animate-fade-in">
                       <BlobMascot
                         shape={mascotCfg.shape}
                         color={mascotCfg.color}
@@ -807,9 +835,22 @@ export default function ChatStage({
           <button
             type="button"
             onClick={scrollToBottom}
-            className="pointer-events-auto h-8 px-3.5 rounded-full surface-popover bg-[var(--surface-popover,var(--bg-elevated))] backdrop-blur-xl border border-[var(--border-hairline,var(--border-subtle))] grok-floating-pill text-[11.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.97] transition-interactive focus-ring cursor-pointer"
+            className="pointer-events-auto inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full surface-popover border border-[var(--border-hairline)] text-[11.5px] font-medium tracking-[-0.008em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-[0.97] transition-interactive focus-ring cursor-pointer"
           >
-            ↓ 回到最新消息
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14M6 13l6 6 6-6" />
+            </svg>
+            <span>回到最新消息</span>
           </button>
         </div>
       )}
